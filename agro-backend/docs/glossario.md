@@ -19,18 +19,26 @@ Vocabulário da gestão de frota agrícola. Entender o negócio vem **antes** de
 
 | Termo | Significado | No sistema |
 |---|---|---|
+| **Almoxarifado** | Depósito onde ficam guardadas as peças e os materiais de manutenção | Módulo de Estoque (`/pecas`) |
 | **Avaria** | Dano ou defeito observado na máquina (vazamento, pneu furado, peça quebrada) | Campo opcional `avarias`, informado no retorno |
 | **Check-in / Check-out** | Registro de devolução e de retirada de um equipamento | Rotas de retorno e de saída |
+| **Custo da última compra** | Regra em que o custo da peça passa a ser o valor pago na compra mais recente | Regra adotada na entrada de estoque |
+| **Custo médio ponderado** | Custo que mistura o estoque atual com a compra nova, proporcional às quantidades: `(saldo × custo atual + qtd × custo novo) / (saldo + qtd)`. O mais usado no Brasil | Alternativa discutida na Parte E4 |
+| **Entrada de estoque** | Registro de peças que chegaram ao almoxarifado (compra) | `POST /pecas/:id/entradas` |
+| **Estoque mínimo** | Quantidade abaixo da qual a peça deve ser comprada novamente (também chamado de *ponto de pedido*) | Campo `estoqueMinimo` e filtro `?abaixoDoMinimo=true` |
 | **Frente de trabalho** | Local ou área onde a máquina vai operar (talhão, lavoura, obra) | Campo `frenteTrabalho`, obrigatório na saída |
 | **Frota** | Conjunto de máquinas e veículos da fazenda | Lista `maquinas` |
 | **Horímetro** | "Relógio" da máquina que acumula as horas de funcionamento, como o odômetro de um carro acumula quilômetros. Nunca volta para trás | Campo `horimetro` |
 | **Horas trabalhadas** | Diferença entre o horímetro no retorno e na saída | Campo calculado `horasTrabalhadas` |
+| **Kardex** | Ficha com todos os movimentos de um item do estoque (entradas e saídas), como um extrato bancário. O saldo é o resultado desses movimentos | `GET /pecas/:id/movimentos` |
 | **Manutenção corretiva** | Conserto feito **depois** que o problema aparece | Futuro módulo de O.S. |
 | **Manutenção preventiva** | Revisão programada para **evitar** problemas (ex.: troca de óleo a cada 250 h) | Futuro módulo de O.S. |
 | **Movimentação** | Uma ida ao campo e o retorno da máquina | Tipo `Movimentacao` |
 | **MVP** | *Minimum Viable Product* (Produto Mínimo Viável): a menor versão do sistema que já resolve o problema principal | Este projeto |
 | **O.S. (Ordem de Serviço)** | Documento que registra uma manutenção: máquina, problema, peças usadas e custo | Próximo módulo |
 | **Operador** | Pessoa que conduz a máquina no campo | Campo `operador`, obrigatório na saída |
+| **PEPS / FIFO** | "Primeiro que Entra, Primeiro que Sai": cada lote comprado mantém o seu custo, e o mais antigo é consumido primeiro | Alternativa discutida na Parte E4 |
+| **Saldo de implantação** | Quantidade que já existia no estoque quando o sistema começou a ser usado | Movimento do tipo `implantacao` |
 | **Tag** | Código de identificação da máquina no pátio (ex.: `TR-01`) | Campo `tag` |
 | **Talhão** | Divisão de uma área de plantio | Exemplo de frente de trabalho |
 
@@ -103,6 +111,16 @@ A combinação de **método HTTP + caminho** que o servidor sabe atender, por ex
 ### Express
 Framework para Node.js que facilita criar servidores HTTP: define rotas, lê requisições e monta respostas.
 📘 [Ponto de partida](../README.md#ponto-de-partida)
+
+### Função auxiliar
+Função pequena, com um nome que explica a intenção, criada para não repetir a mesma lógica em vários lugares.
+```ts
+function arredondar(valor: number, casas: number): number {
+  const fator = 10 ** casas;
+  return Math.round(valor * fator) / fator;
+}
+```
+📘 [Parte E4](../README.md#parte-e4--entrada-de-estoque-compra)
 
 ### Guard clause (retorno antecipado)
 Técnica de verificar cada problema no início da função e **sair logo** com `return`, deixando o "caminho feliz" no final, sem `if/else` aninhados.
@@ -194,6 +212,13 @@ Atalho definido em `"scripts"` no `package.json` e executado com `npm run <nome>
 "Exclusão lógica": em vez de apagar o registro, ele é marcado como inativo. Preserva o histórico para auditoria.
 🏋️ [Exercício 8](exercicios.md#exercício-8--excluir-máquina)
 
+### Spread (`...`)
+Copia todos os campos de um objeto para um objeto **novo**, permitindo acrescentar ou sobrescrever campos sem alterar o original.
+```ts
+const comAlerta = { ...peca, faltaParaMinimo: 1 };   // 'peca' continua igual
+```
+📘 [Parte E6](../README.md#parte-e6--estoque-mínimo-e-alerta-de-reposição)
+
 ### Stack trace
 Lista das funções que estavam sendo executadas quando um erro aconteceu. Útil para quem desenvolve, **perigosa** se exposta ao cliente, porque revela a estrutura interna do servidor.
 📘 [Parte 3.1](../README.md#parte-31--tratador-de-erros-segurança)
@@ -253,7 +278,7 @@ Cabeçalho que o Express envia por padrão e que revela a tecnologia do servidor
 | Código | Nome | Significado | Neste projeto |
 |---|---|---|---|
 | **200** | OK | Deu certo | Saída, retorno, listagens |
-| **201** | Created | Um recurso foi **criado** | Cadastro de máquina (🏋️ ex. 4) |
+| **201** | Created | Um recurso foi **criado** | Cadastro de peça; cadastro de máquina (🏋️ ex. 4) |
 | **204** | No Content | Deu certo, **sem corpo** na resposta | Exclusão de máquina (🏋️ ex. 8) |
 | **400** | Bad Request | O **pedido** está errado (campo faltando, tipo errado, JSON quebrado) | Validações de formato e de regra |
 | **404** | Not Found | O recurso ou a rota **não existe** | Máquina 99, `GET /xyz` |

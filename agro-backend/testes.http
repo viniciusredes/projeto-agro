@@ -221,3 +221,215 @@ DELETE {{baseUrl}}/maquinas
 ### G3 — Cabeçalhos da resposta
 # Esperado: 200, e nos cabeçalhos NÃO deve aparecer "X-Powered-By"
 GET {{baseUrl}}/maquinas
+
+
+# #####################################################################
+#  MÓDULO DE ESTOQUE
+# #####################################################################
+
+# =====================================================================
+#  GET /pecas e GET /pecas/:id
+# =====================================================================
+
+### P1 — Listar peças
+# Esperado: 200, as 3 peças iniciais (FLT-001, OLE-001, COR-001)
+GET {{baseUrl}}/pecas
+
+### P2 — Buscar peça existente
+# Esperado: 200, Óleo hidráulico (OLE-001)
+GET {{baseUrl}}/pecas/2
+
+### P3 — Peça inexistente
+# Esperado: 404, "Peça não encontrada"
+GET {{baseUrl}}/pecas/99
+
+### P4 — Id inválido
+# Esperado: 400, "O id deve ser um número inteiro"
+GET {{baseUrl}}/pecas/abc
+
+
+# =====================================================================
+#  POST /pecas (cadastro)
+# =====================================================================
+
+### C1 — Cadastro válido
+# Esperado: 201, código gravado como "FLT-002", saldo 0 e custo 0
+POST {{baseUrl}}/pecas
+Content-Type: application/json
+
+{
+  "codigo": " flt-002 ",
+  "descricao": "Filtro de ar",
+  "unidade": "un",
+  "estoqueMinimo": 3
+}
+
+### C2 — Código repetido
+# Esperado: 409, "Já existe uma peça com o código FLT-002"
+POST {{baseUrl}}/pecas
+Content-Type: application/json
+
+{
+  "codigo": "FLT-002",
+  "descricao": "Outro",
+  "unidade": "un"
+}
+
+### C3 — Unidade inválida
+# Esperado: 400, "Campo 'unidade' deve ser um destes: un, L"
+POST {{baseUrl}}/pecas
+Content-Type: application/json
+
+{
+  "codigo": "GRX-001",
+  "descricao": "Graxa",
+  "unidade": "kg"
+}
+
+### C4 — Saldo informado no cadastro
+# Esperado: 400, "... Use a entrada de estoque (compra) para abastecer a peça"
+POST {{baseUrl}}/pecas
+Content-Type: application/json
+
+{
+  "codigo": "GRX-001",
+  "descricao": "Graxa",
+  "unidade": "un",
+  "saldo": 50
+}
+
+### C5 — Estoque mínimo fracionado em peça contada por unidade
+# Esperado: 400, "... 'estoqueMinimo' deve ser um número inteiro"
+POST {{baseUrl}}/pecas
+Content-Type: application/json
+
+{
+  "codigo": "GRX-001",
+  "descricao": "Graxa",
+  "unidade": "un",
+  "estoqueMinimo": 2.5
+}
+
+### C6 — Sem código
+# Esperado: 400, "Campo 'codigo' é obrigatório"
+POST {{baseUrl}}/pecas
+Content-Type: application/json
+
+{
+  "descricao": "Graxa",
+  "unidade": "un"
+}
+
+
+# =====================================================================
+#  POST /pecas/:id/entradas (compra)
+# =====================================================================
+
+### E1 — Compra de filtros
+# Esperado: 200, saldo 10 -> 15, custo 85.9 -> 92.46 (arredondado), custoAnterior 85.9
+POST {{baseUrl}}/pecas/1/entradas
+Content-Type: application/json
+
+{
+  "quantidade": 5,
+  "custoUnitario": 92.456
+}
+
+### E2 — Conferir a peça após a compra
+# Esperado: 200, saldo 15 e custoUnitario 92.46 (custo da última compra)
+GET {{baseUrl}}/pecas/1
+
+### E3 — Compra fracionada em litros
+# Esperado: 200, saldo 200 -> 220.5
+POST {{baseUrl}}/pecas/2/entradas
+Content-Type: application/json
+
+{
+  "quantidade": 20.5,
+  "custoUnitario": 19.9
+}
+
+### E4 — Quantidade fracionada em peça contada por unidade
+# Esperado: 400, "A peça FLT-001 é contada em unidades: a quantidade deve ser um número inteiro"
+POST {{baseUrl}}/pecas/1/entradas
+Content-Type: application/json
+
+{
+  "quantidade": 1.5,
+  "custoUnitario": 90
+}
+
+### E5 — Quantidade zero
+# Esperado: 400, "Campo 'quantidade' deve ser um número maior que zero"
+POST {{baseUrl}}/pecas/1/entradas
+Content-Type: application/json
+
+{
+  "quantidade": 0,
+  "custoUnitario": 90
+}
+
+### E6 — Custo negativo
+# Esperado: 400, "Campo 'custoUnitario' deve ser um número maior que zero"
+POST {{baseUrl}}/pecas/1/entradas
+Content-Type: application/json
+
+{
+  "quantidade": 5,
+  "custoUnitario": -1
+}
+
+### E7 — Peça inexistente
+# Esperado: 404, "Peça não encontrada"
+POST {{baseUrl}}/pecas/99/entradas
+Content-Type: application/json
+
+{
+  "quantidade": 5,
+  "custoUnitario": 90
+}
+
+
+# =====================================================================
+#  GET /pecas/:id/movimentos (kardex)
+# =====================================================================
+
+### K1/K2 — Kardex do filtro
+# Esperado: 200, 2 movimentos: implantação (10, saldo após 10) e entrada (5, saldo após 15)
+GET {{baseUrl}}/pecas/1/movimentos
+
+### K3 — Kardex de peça nova, sem compras
+# Esperado: 200, []
+GET {{baseUrl}}/pecas/4/movimentos
+
+### K4 — Kardex de peça inexistente
+# Esperado: 404, "Peça não encontrada"
+GET {{baseUrl}}/pecas/99/movimentos
+
+
+# =====================================================================
+#  GET /pecas?abaixoDoMinimo=true (reposição)
+# =====================================================================
+
+### A1 — Peças abaixo do mínimo
+# Esperado: 200, correia COR-001 (saldo 4 < mínimo 5, faltaParaMinimo 1)
+#           e o filtro de ar FLT-002 (saldo 0 < mínimo 3)
+GET {{baseUrl}}/pecas?abaixoDoMinimo=true
+
+### A2 — Filtro com valor inválido
+# Esperado: 400, "Parâmetro 'abaixoDoMinimo' só aceita o valor 'true'"
+GET {{baseUrl}}/pecas?abaixoDoMinimo=sim
+
+### A3 — Compra de correias (preparação)
+# Esperado: 200, saldo 4 -> 10
+POST {{baseUrl}}/pecas/3/entradas
+Content-Type: application/json
+
+{
+  "quantidade": 6,
+  "custoUnitario": 118
+}
+
+### A4 — Correia sai da lista de reposição
+# Esperado: 200, só o filtro de ar FLT-002 (a correia NÃO aparece mais)
+GET {{baseUrl}}/pecas?abaixoDoMinimo=true

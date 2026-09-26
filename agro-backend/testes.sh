@@ -74,8 +74,12 @@ if ! curl -s -o /dev/null "$BASE/maquinas"; then
   exit 1
 fi
 
-if [ "$(curl -s "$BASE/movimentacoes")" != "[]" ]; then
-  echo -e "${AMARELO}Atenção:${NORMAL} o servidor já tem movimentações registradas."
+# Os testes dependem do estado inicial: sem movimentações de máquinas,
+# sem peças cadastradas além das 3 iniciais e sem compras registradas.
+if [ "$(curl -s "$BASE/movimentacoes")" != "[]" ] \
+   || [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/pecas/4")" != "404" ] \
+   || curl -s "$BASE/pecas/1/movimentos" | grep -q '"tipo":"entrada"'; then
+  echo -e "${AMARELO}Atenção:${NORMAL} o servidor já tem dados de testes anteriores."
   echo "Salve o server.ts (ou reinicie o servidor) para zerar os dados e rode de novo."
   exit 1
 fi
@@ -172,6 +176,100 @@ testar G2 "Método não suportado" 404 "Rota DELETE /maquinas não existe" \
 # -i inclui os cabeçalhos na resposta, para conferir que o X-Powered-By sumiu
 testar G3 "Sem cabeçalho X-Powered-By" 200 '!X-Powered-By' \
   -i "$BASE/maquinas"
+
+# =====================================================================
+#  MÓDULO DE ESTOQUE
+# =====================================================================
+
+# ---------------------------------------------------------------------
+secao "GET /pecas e GET /pecas/:id"
+# ---------------------------------------------------------------------
+testar P1 "Listar peças" 200 '"codigo":"FLT-001"' \
+  "$BASE/pecas"
+
+testar P2 "Buscar peça existente" 200 '"codigo":"OLE-001"' \
+  "$BASE/pecas/2"
+
+testar P3 "Peça inexistente" 404 "Peça não encontrada" \
+  "$BASE/pecas/99"
+
+testar P4 "Id inválido" 400 "O id deve ser um número inteiro" \
+  "$BASE/pecas/abc"
+
+# ---------------------------------------------------------------------
+secao "POST /pecas (cadastro)"
+# ---------------------------------------------------------------------
+testar C1 "Cadastro válido (código normalizado, saldo zero)" 201 '"codigo":"FLT-002"' \
+  -X POST "$BASE/pecas" -H "$JSON" -d '{"codigo":" flt-002 ","descricao":"Filtro de ar","unidade":"un","estoqueMinimo":3}'
+
+testar C2 "Código repetido" 409 "Já existe uma peça com o código FLT-002" \
+  -X POST "$BASE/pecas" -H "$JSON" -d '{"codigo":"FLT-002","descricao":"Outro","unidade":"un"}'
+
+testar C3 "Unidade inválida" 400 "'unidade' deve ser um destes: un, L" \
+  -X POST "$BASE/pecas" -H "$JSON" -d '{"codigo":"GRX-001","descricao":"Graxa","unidade":"kg"}'
+
+testar C4 "Saldo informado no cadastro" 400 "Use a entrada de estoque" \
+  -X POST "$BASE/pecas" -H "$JSON" -d '{"codigo":"GRX-001","descricao":"Graxa","unidade":"un","saldo":50}'
+
+testar C5 "Estoque mínimo fracionado em peça por unidade" 400 "'estoqueMinimo' deve ser um número inteiro" \
+  -X POST "$BASE/pecas" -H "$JSON" -d '{"codigo":"GRX-001","descricao":"Graxa","unidade":"un","estoqueMinimo":2.5}'
+
+testar C6 "Sem código" 400 "'codigo' é obrigatório" \
+  -X POST "$BASE/pecas" -H "$JSON" -d '{"descricao":"Graxa","unidade":"un"}'
+
+# ---------------------------------------------------------------------
+secao "POST /pecas/:id/entradas (compra)"
+# ---------------------------------------------------------------------
+testar E1 "Compra de filtros (saldo 10 -> 15)" 200 '"saldo":15,' \
+  -X POST "$BASE/pecas/1/entradas" -H "$JSON" -d '{"quantidade":5,"custoUnitario":92.456}'
+
+testar E2 "Custo arredondado e atualizado (última compra)" 200 '"custoUnitario":92.46' \
+  "$BASE/pecas/1"
+
+testar E3 "Compra fracionada em litros" 200 '"saldo":220.5' \
+  -X POST "$BASE/pecas/2/entradas" -H "$JSON" -d '{"quantidade":20.5,"custoUnitario":19.9}'
+
+testar E4 "Quantidade fracionada em peça por unidade" 400 "deve ser um número inteiro" \
+  -X POST "$BASE/pecas/1/entradas" -H "$JSON" -d '{"quantidade":1.5,"custoUnitario":90}'
+
+testar E5 "Quantidade zero" 400 "'quantidade' deve ser um número maior que zero" \
+  -X POST "$BASE/pecas/1/entradas" -H "$JSON" -d '{"quantidade":0,"custoUnitario":90}'
+
+testar E6 "Custo negativo" 400 "'custoUnitario' deve ser um número maior que zero" \
+  -X POST "$BASE/pecas/1/entradas" -H "$JSON" -d '{"quantidade":5,"custoUnitario":-1}'
+
+testar E7 "Peça inexistente" 404 "Peça não encontrada" \
+  -X POST "$BASE/pecas/99/entradas" -H "$JSON" -d '{"quantidade":5,"custoUnitario":90}'
+
+# ---------------------------------------------------------------------
+secao "GET /pecas/:id/movimentos (kardex)"
+# ---------------------------------------------------------------------
+testar K1 "Kardex com implantação" 200 '"tipo":"implantacao"' \
+  "$BASE/pecas/1/movimentos"
+
+testar K2 "Kardex com a compra (saldo após 15)" 200 '"saldoApos":15' \
+  "$BASE/pecas/1/movimentos"
+
+testar K3 "Kardex de peça nova, sem compras" 200 '[]' \
+  "$BASE/pecas/4/movimentos"
+
+testar K4 "Kardex de peça inexistente" 404 "Peça não encontrada" \
+  "$BASE/pecas/99/movimentos"
+
+# ---------------------------------------------------------------------
+secao "GET /pecas?abaixoDoMinimo=true (reposição)"
+# ---------------------------------------------------------------------
+testar A1 "Correia abaixo do mínimo (4 < 5)" 200 '"faltaParaMinimo":1' \
+  "$BASE/pecas?abaixoDoMinimo=true"
+
+testar A2 "Filtro com valor inválido" 400 "só aceita o valor 'true'" \
+  "$BASE/pecas?abaixoDoMinimo=sim"
+
+testar A3 "Compra de correias (preparação)" 200 '"saldo":10,' \
+  -X POST "$BASE/pecas/3/entradas" -H "$JSON" -d '{"quantidade":6,"custoUnitario":118}'
+
+testar A4 "Correia sai da lista de reposição" 200 '!COR-001' \
+  "$BASE/pecas?abaixoDoMinimo=true"
 
 # ---------------------------------------------------------------------
 # Resumo

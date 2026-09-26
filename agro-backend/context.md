@@ -51,7 +51,20 @@ O ambiente do Back-end foi completamente configurado e o servidor já está oper
 - `GET /movimentacoes` (filtro opcional `?maquinaId=`): histórico de saídas e retornos.
 - Segurança: JSON inválido → 400 em JSON; rota inexistente → 404 em JSON; erros inesperados → 500 genérico (detalhe só no console); cabeçalho `X-Powered-By` desativado.
 
+### Atualização: Módulo de Estoque concluído (Partes E1 a E6)
+
+- Tipos `UnidadeMedida` (`un` | `L`), `Peca` e `MovimentoEstoque` (`implantacao` | `entrada` | `saida`).
+- 3 peças iniciais (FLT-001, OLE-001, COR-001), com movimentos de implantação no kardex.
+- `GET /pecas` (filtro `?abaixoDoMinimo=true`, com o campo calculado `faltaParaMinimo`) e `GET /pecas/:id`.
+- `POST /pecas`: cadastro com código único normalizado (409); a peça nasce com saldo 0 e custo 0; `saldo`/`custoUnitario` no cadastro são recusados (400); `estoqueMinimo` opcional.
+- `POST /pecas/:id/entradas`: soma ao saldo e define o custo pela última compra (arredondado para 2 casas); peças em `un` só aceitam quantidades inteiras; grava um movimento `entrada`.
+- `GET /pecas/:id/movimentos`: kardex com `saldoApos` e custo congelado por movimento.
+- Função auxiliar `arredondar(valor, casas)`.
+- Material atualizado: README (Partes E1–E6), `testes.sh` e `testes.http` (50 cenários), glossário e desafios extras.
+
 ## 5. O Que Ficou Pendente / Próximos Passos Combinados
+
+> **Status:** o Módulo de Uso e o Módulo de Estoque estão concluídos. Falta o **Módulo de Manutenção (O.S.)**, que usará o movimento `saida` do kardex. Ponto a resolver: como fica a movimentação aberta quando uma O.S. é aberta com a máquina em campo (o retorno exige o status `Em Operação`).
 
 - **Finalizar a Etapa 1 (Back-end em Memória):**
 - Criar os arrays em memória `ordensServico` e `itensEstoque`.
@@ -79,6 +92,11 @@ O ambiente do Back-end foi completamente configurado e o servidor já está oper
 - **Validação:** manual, diretamente nas rotas (sem Zod/Joi).
 - **Autenticação:** sem login e sem perfis no MVP; todas as rotas abertas.
 - **Custo da O.S.:** usa o valor unitário da última compra registrada da peça.
+- **Estoque negativo:** proibido. Se alguma peça da O.S. não tiver saldo suficiente, o fechamento inteiro é recusado (nenhuma baixa parcial).
+- **Momento da baixa:** as peças são baixadas do estoque somente ao **fechar** a O.S.
+- **Custo congelado:** a O.S. grava o custo unitário de cada peça no momento da baixa; compras futuras não alteram o custo de manutenções já fechadas.
+- **O.S. com máquina em campo:** é permitido abrir O.S. para uma máquina com status `Em Operação`.
+- **Persistência:** o banco de dados (PostgreSQL + Prisma) não será implementado neste momento; os dados seguem em memória.
 
 **Perguntas originais:**
 

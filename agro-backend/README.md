@@ -4,7 +4,10 @@
 >
 > 📖 Encontrou um termo desconhecido? Consulte o [glossário](docs/glossario.md). Para praticar, veja os [exercícios](docs/exercicios.md).
 
-API REST para controlar o uso de máquinas agrícolas: saída para o campo, retorno com horímetro, registro de avarias e histórico de movimentações.
+API REST para a gestão de frota agrícola, com dois módulos prontos:
+
+- **Módulo de Uso:** saída de máquinas para o campo, retorno com horímetro, registro de avarias e histórico de movimentações.
+- **Módulo de Estoque (almoxarifado):** cadastro de peças, entradas (compras) com custo da última compra, histórico de movimentos (kardex) e alerta de estoque mínimo.
 
 Os dados ficam **em memória**, sem banco de dados, para que o foco fique nas **regras de negócio** e nos **contratos da API**. O front-end (Angular) e o banco de dados (PostgreSQL + Prisma) vêm em etapas futuras.
 
@@ -58,7 +61,7 @@ Outros comandos úteis:
 npx tsc --noEmit   # verifica erros de tipo sem executar
 ```
 
-> ⚠️ **Os dados zeram a cada reinício.** Como tudo fica em memória, ao salvar o arquivo (o servidor reinicia sozinho) as máquinas voltam ao estado inicial e o histórico fica vazio.
+> ⚠️ **Os dados zeram a cada reinício.** Como tudo fica em memória, ao salvar o arquivo (o servidor reinicia sozinho) as máquinas e as peças voltam ao estado inicial e os históricos são recriados.
 
 ### Estrutura
 
@@ -83,12 +86,24 @@ Tudo fica num único `server.ts` de propósito, para facilitar o aprendizado. A 
 
 ## 3. Visão geral da API
 
+### Módulo de Uso
+
 | Método | Rota | O que faz |
 |---|---|---|
 | `GET` | `/maquinas` | Lista as máquinas |
 | `POST` | `/maquinas/:id/saida` | Registra a saída da máquina para o campo |
 | `POST` | `/maquinas/:id/retorno` | Registra o retorno, o horímetro e as avarias |
 | `GET` | `/movimentacoes` | Lista o histórico (filtro opcional `?maquinaId=`) |
+
+### Módulo de Estoque
+
+| Método | Rota | O que faz |
+|---|---|---|
+| `GET` | `/pecas` | Lista as peças (filtro opcional `?abaixoDoMinimo=true`) |
+| `GET` | `/pecas/:id` | Busca uma peça |
+| `POST` | `/pecas` | Cadastra uma peça (nasce com saldo zero) |
+| `POST` | `/pecas/:id/entradas` | Registra uma compra: soma ao saldo e atualiza o custo |
+| `GET` | `/pecas/:id/movimentos` | Histórico de movimentos da peça (kardex) |
 
 Toda resposta de erro segue o formato:
 
@@ -150,11 +165,67 @@ Disponível ──────────────► Em Operação ──�
 
 O status `Em Manutenção` já existe no tipo e será usado no módulo de Ordens de Serviço.
 
+### Peça
+
+```ts
+type UnidadeMedida = 'un' | 'L';
+
+interface Peca {
+  id: number;
+  codigo: string;          // código interno do almoxarifado, ex.: 'FLT-001'
+  descricao: string;
+  unidade: UnidadeMedida;  // 'un' (unidade) ou 'L' (litro)
+  saldo: number;           // quantidade disponível, na unidade acima
+  custoUnitario: number;   // em reais (R$), valor da última compra
+  estoqueMinimo: number;   // abaixo deste saldo, a peça precisa ser reposta
+}
+```
+
+Dados iniciais:
+
+| id | código | descrição | unidade | saldo | custo (R$) | mínimo |
+|---|---|---|---|---|---|---|
+| 1 | FLT-001 | Filtro de óleo do motor | un | 10 | 85,90 | 5 |
+| 2 | OLE-001 | Óleo hidráulico | L | 200 | 18,50 | 50 |
+| 3 | COR-001 | Correia do alternador | un | 4 | 120,00 | 5 |
+
+> A correia já começa **abaixo do mínimo**, de propósito, para demonstrar o alerta de reposição.
+
+### Movimento de estoque (kardex)
+
+Cada linha registra uma mudança no saldo de uma peça. **O saldo atual de qualquer peça é sempre explicado pelo seu histórico.**
+
+```ts
+type TipoMovimentoEstoque = 'implantacao' | 'entrada' | 'saida';
+
+interface MovimentoEstoque {
+  id: number;
+  pecaId: number;          // referência a Peca.id
+  tipo: TipoMovimentoEstoque;
+  quantidade: number;      // sempre positiva; o tipo diz se soma ou subtrai
+  custoUnitario: number;   // custo NESTE movimento (fica congelado)
+  valorTotal: number;      // quantidade x custoUnitario
+  saldoApos: number;       // saldo da peça logo depois deste movimento
+  data: string;
+}
+```
+
+| Tipo | Quando acontece | Efeito no saldo |
+|---|---|---|
+| `implantacao` | Na inicialização: saldo que já estava na prateleira | define o saldo inicial |
+| `entrada` | Compra de peças (`POST /pecas/:id/entradas`) | soma |
+| `saida` | Baixa por Ordem de Serviço (próximo módulo) | subtrai |
+
 ---
 
 ## 5. Construção passo a passo
 
 O projeto foi construído em **partes pequenas**. Cada parte traz: 🎯 o **objetivo**, 🧩 o **código**, 📚 os **conceitos** e 🧪 os **testes**.
+
+| Módulo | Partes |
+|---|---|
+| **Uso** (máquinas) | [Ponto de partida](#ponto-de-partida), [Parte 0](#parte-0--script-de-desenvolvimento) a [Parte 6](#parte-6--avarias-no-retorno-campo-opcional) |
+| **Estoque** (peças) | [Parte E1](#parte-e1--modelo-de-peça-e-listagem) a [Parte E6](#parte-e6--estoque-mínimo-e-alerta-de-reposição) |
 
 > **Dica para os alunos:** reproduzam as partes na ordem, testando cada uma antes de seguir. É assim que se constrói software de forma segura: um passo pequeno e verificado de cada vez.
 
@@ -611,9 +682,292 @@ curl.exe -i -X POST http://localhost:3000/maquinas/2/retorno -H "Content-Type: a
 
 ---
 
+## Módulo de Estoque
+
+Com o padrão do módulo de uso aprendido, o estoque reaproveita as mesmas técnicas (tipos, validações em ordem, histórico) e acrescenta conceitos novos: **valores monetários**, **kardex** e **dados derivados**.
+
+No `server.ts`, o módulo fica numa seção própria, marcada com `// ===== ESTOQUE (ALMOXARIFADO) =====`.
+
+---
+
+### Parte E1 — Modelo de peça e listagem
+
+🎯 Representar as peças do almoxarifado e listá-las.
+
+🧩
+
+```ts
+type UnidadeMedida = 'un' | 'L';
+
+interface Peca {
+  id: number;
+  codigo: string;
+  descricao: string;
+  unidade: UnidadeMedida;
+  saldo: number;
+  custoUnitario: number;
+}
+
+let pecas: Peca[] = [
+  { id: 1, codigo: 'FLT-001', descricao: 'Filtro de óleo do motor', unidade: 'un', saldo: 10, custoUnitario: 85.9 },
+  // ...
+];
+
+app.get('/pecas', (req, res) => {
+  res.json(pecas);
+});
+```
+
+📚 **Conceitos**
+- **Modelar um domínio novo:** antes das rotas, pergunte "o que o almoxarife precisa saber?". A resposta define o que é a peça, quanto tem e quanto custa.
+- **`id` × `codigo`:** o `id` é interno do sistema (URLs e relações), e o `codigo` (`FLT-001`) é o que as **pessoas** usam. Mesmo papel do `id` e da `tag` nas máquinas.
+- **Unidade de medida:** sem ela, "saldo: 200" não quer dizer nada (200 filtros ou 200 litros?).
+- **Saldo de implantação:** as peças iniciais já têm saldo porque representam o que **já estava na prateleira** quando o sistema começou.
+- **Dinheiro em ponto flutuante:** `0.1 + 0.2 = 0.30000000000000004`. Por isso os valores são arredondados (Parte E4). Sistemas financeiros costumam guardar valores **em centavos** (inteiros).
+
+🧪 **Testes**
+
+```bash
+curl.exe http://localhost:3000/pecas   # 200, as 3 peças
+```
+
+---
+
+### Parte E2 — Buscar peça por id
+
+🎯 Consultar uma única peça.
+
+🧩
+
+```ts
+app.get('/pecas/:id', (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  const peca = pecas.find(p => p.id === id);
+  if (!peca) {
+    return res.status(404).json({ erro: 'Peça não encontrada' });
+  }
+
+  res.json(peca);
+});
+```
+
+📚 **Conceitos**
+- **Reaproveitar um padrão:** o mesmo esqueleto de "buscar por id" serve para qualquer recurso. Código consistente acelera cada funcionalidade nova.
+- **`Number` × `parseInt`:** `parseInt('1.5')` dá `1` e `parseInt('2abc')` dá `2`, aceitando valores inválidos sem avisar. `Number` resulta em `1.5` e `NaN`, e o `Number.isInteger` recusa os dois.
+- **400 antes do 404:** sem um id válido, nem faz sentido procurar.
+
+🧪 **Testes**
+
+```bash
+curl.exe -i http://localhost:3000/pecas/2     # 200
+curl.exe -i http://localhost:3000/pecas/99    # 404
+curl.exe -i http://localhost:3000/pecas/abc   # 400
+```
+
+> Esta rota é praticamente a solução do [exercício 1](docs/exercicios.md#exercício-1--buscar-uma-máquina-pelo-id). Se a turma ainda não o fez, vale propô-lo antes.
+
+---
+
+### Parte E3 — Cadastro de peça
+
+🎯 Cadastrar peças novas, sempre com **saldo zero**.
+
+🧩
+
+```ts
+app.post('/pecas', (req, res) => {
+  const { codigo, descricao, unidade, saldo, custoUnitario } = req.body ?? {};
+
+  // Formato: codigo, descricao e unidade                              -> 400
+  if (!UNIDADES_VALIDAS.includes(unidade)) { /* ... */ }
+
+  // Regra: saldo e custo só mudam por entrada de estoque              -> 400
+  if (saldo !== undefined || custoUnitario !== undefined) {
+    return res.status(400).json({
+      erro: "Saldo e custo não são informados no cadastro. Use a entrada de estoque (compra) para abastecer a peça"
+    });
+  }
+
+  // Regra: código único (normalizado)                                 -> 409
+  const codigoNormalizado = codigo.trim().toUpperCase();
+  if (pecas.some(p => p.codigo === codigoNormalizado)) { /* ... */ }
+
+  // Cria a peça zerada                                                -> 201
+  const novaPeca: Peca = { id: proximoIdPeca++, codigo: codigoNormalizado, /* ... */ saldo: 0, custoUnitario: 0 };
+  pecas.push(novaPeca);
+  res.status(201).json(novaPeca);
+});
+```
+
+📚 **Conceitos**
+- **O saldo só muda por movimentação:** é a regra central de qualquer estoque. Se o cadastro aceitasse `"saldo": 50`, ninguém saberia de onde vieram essas unidades nem quanto custaram.
+- **Recusar × ignorar campos indevidos:** aqui o `saldo` é **recusado** com uma mensagem que ensina o caminho certo, porque o cliente provavelmente **acha** que o campo funciona. Campos irrelevantes podem ser simplesmente ignorados.
+- **201 Created:** o código certo quando um recurso é criado.
+- **Constante com os valores válidos:** `UNIDADES_VALIDAS` fica num só lugar, e a mensagem de erro é montada a partir dela.
+- **Normalização:** `" flt-002 "` vira `"FLT-002"` antes de gravar **e** antes de checar se já existe.
+
+🧪 **Testes**
+
+```bash
+curl.exe -i -X POST http://localhost:3000/pecas -H "Content-Type: application/json" -d '{"codigo":" flt-002 ","descricao":"Filtro de ar","unidade":"un"}'           # 201
+curl.exe -i -X POST http://localhost:3000/pecas -H "Content-Type: application/json" -d '{"codigo":"FLT-002","descricao":"Outro","unidade":"un"}'                # 409
+curl.exe -i -X POST http://localhost:3000/pecas -H "Content-Type: application/json" -d '{"codigo":"GRX-001","descricao":"Graxa","unidade":"kg"}'                # 400
+curl.exe -i -X POST http://localhost:3000/pecas -H "Content-Type: application/json" -d '{"codigo":"GRX-001","descricao":"Graxa","unidade":"un","saldo":50}'     # 400
+```
+
+---
+
+### Parte E4 — Entrada de estoque (compra)
+
+🎯 Registrar compras: somar ao saldo e atualizar o custo para o **valor da última compra**.
+
+🧩 Função auxiliar de arredondamento:
+
+```ts
+function arredondar(valor: number, casas: number): number {
+  const fator = 10 ** casas;
+  return Math.round(valor * fator) / fator;
+}
+```
+
+Rota `POST /pecas/:id/entradas`:
+
+```ts
+// id válido (400) -> peça existe (404) -> quantidade e custo > 0 (400)
+// -> peça contada em unidades não aceita fração (400)
+if (peca.unidade === 'un' && !Number.isInteger(quantidade)) {
+  return res.status(400).json({
+    erro: `A peça ${peca.codigo} é contada em unidades: a quantidade deve ser um número inteiro`
+  });
+}
+
+const custoAnterior = peca.custoUnitario;
+peca.saldo = arredondar(peca.saldo + quantidade, 2);
+peca.custoUnitario = arredondar(custoUnitario, 2);   // regra: custo da última compra
+```
+
+📚 **Conceitos**
+- **Extrair uma função:** o arredondamento se repetia pelo código. Uma função com nome (`arredondar`) deixa a intenção clara e evita repetição.
+- **Validação que depende do dado armazenado:** "unidade não aceita fração" só pode ser checada **depois** de encontrar a peça, porque depende da `unidade` dela.
+- **Regra de custo:** o projeto usa o **custo da última compra**. Veja o efeito: comprar **0,1 L a R$ 1,00** muda o custo dos **220 litros** do estoque para R$ 1,00. As alternativas reais são:
+  - **custo médio ponderado:** `(saldo × custo atual + qtd × custo novo) / (saldo + qtd)`, o mais usado no Brasil;
+  - **PEPS/FIFO:** cada lote tem o seu custo.
+
+  Uma regra de negócio muda o resultado, e a escolha é do negócio, não da tecnologia.
+
+🧪 **Testes**
+
+```bash
+curl.exe -X POST http://localhost:3000/pecas/1/entradas -H "Content-Type: application/json" -d '{"quantidade":5,"custoUnitario":92.456}'    # 200: saldo 15, custo 92.46
+curl.exe -X POST http://localhost:3000/pecas/2/entradas -H "Content-Type: application/json" -d '{"quantidade":20.5,"custoUnitario":19.9}'   # 200: litros aceitam fração
+curl.exe -i -X POST http://localhost:3000/pecas/1/entradas -H "Content-Type: application/json" -d '{"quantidade":1.5,"custoUnitario":90}'  # 400
+curl.exe -i -X POST http://localhost:3000/pecas/1/entradas -H "Content-Type: application/json" -d '{"quantidade":0,"custoUnitario":90}'    # 400
+```
+
+---
+
+### Parte E5 — Histórico de movimentos (kardex)
+
+🎯 Registrar **toda** mudança de saldo, de forma que o saldo atual seja sempre explicável.
+
+🧩 Histórico iniciado com a implantação das peças iniciais:
+
+```ts
+let movimentosEstoque: MovimentoEstoque[] = pecas.map((peca, indice) => ({
+  id: indice + 1,
+  pecaId: peca.id,
+  tipo: 'implantacao',
+  quantidade: peca.saldo,
+  custoUnitario: peca.custoUnitario,
+  valorTotal: arredondar(peca.saldo * peca.custoUnitario, 2),
+  saldoApos: peca.saldo,
+  data: new Date().toISOString()
+}));
+```
+
+A rota de entrada passa a gravar um movimento `'entrada'`, e há uma rota nova de consulta:
+
+```ts
+app.get('/pecas/:id/movimentos', (req, res) => {
+  // id válido (400) -> peça existe (404)
+  res.json(movimentosEstoque.filter(mov => mov.pecaId === peca.id));
+});
+```
+
+Exemplo de kardex do filtro FLT-001:
+
+| Tipo | Qtd | Custo | Valor | Saldo após |
+|---|---|---|---|---|
+| implantação | 10 | 85,90 | 859,00 | **10** |
+| entrada | 5 | 92,46 | 462,30 | **15** |
+| entrada | 3 | 95,00 | 285,00 | **18** |
+
+📚 **Conceitos**
+- **Kardex:** a ficha de movimentação de cada item. É como um **extrato bancário**: o saldo é o resultado de todos os lançamentos.
+- **Implantação:** sem ela, os 10 filtros iniciais não teriam explicação no histórico. Todo sistema de estoque real tem esse lançamento de "saldo inicial".
+- **Custo congelado:** cada movimento guarda o custo **daquele momento**. Mesmo que o custo da peça mude depois, o histórico não muda.
+- **`saldoApos`:** permite ler o histórico sem refazer contas e ajuda a detectar inconsistências.
+- **Modelo pensado para o futuro:** o tipo `'saida'` já existe e será usado na baixa por Ordem de Serviço.
+- **`Array.map` para gerar dados:** as linhas de implantação são criadas a partir da lista de peças, sem repetir valores à mão.
+
+🧪 **Testes**
+
+```bash
+curl.exe http://localhost:3000/pecas/1/movimentos        # implantação
+curl.exe -X POST http://localhost:3000/pecas/1/entradas -H "Content-Type: application/json" -d '{"quantidade":5,"custoUnitario":92.46}'
+curl.exe http://localhost:3000/pecas/1/movimentos        # implantação + entrada
+```
+
+---
+
+### Parte E6 — Estoque mínimo e alerta de reposição
+
+🎯 Saber quais peças precisam ser compradas, e quanto falta.
+
+🧩 `Peca` ganha o campo `estoqueMinimo` (opcional no cadastro, padrão 0), e a listagem ganha um filtro:
+
+```ts
+app.get('/pecas', (req, res) => {
+  const { abaixoDoMinimo } = req.query;
+  if (abaixoDoMinimo === undefined) return res.json(pecas);
+
+  if (abaixoDoMinimo !== 'true') {
+    return res.status(400).json({ erro: "Parâmetro 'abaixoDoMinimo' só aceita o valor 'true'" });
+  }
+
+  const paraRepor = pecas
+    .filter(p => p.saldo < p.estoqueMinimo)
+    .map(p => ({ ...p, faltaParaMinimo: arredondar(p.estoqueMinimo - p.saldo, 2) }));
+
+  res.json(paraRepor);
+});
+```
+
+📚 **Conceitos**
+- **O TypeScript mostra o impacto de uma mudança:** ao acrescentar `estoqueMinimo` à interface, o editor acusou na hora que o cadastro criava peças sem o campo. Mudar o modelo revela tudo o que precisa ser ajustado.
+- **Spread (`...p`):** copia os campos da peça para um objeto **novo** e acrescenta `faltaParaMinimo`, sem alterar a peça original.
+- **Dado derivado:** `faltaParaMinimo` é calculado a cada consulta. É o que o almoxarife precisa para o pedido de compra.
+- **Valor padrão com `??`:** `estoqueMinimo ?? 0` usa o valor enviado ou zero.
+- **Para discutir:** com `saldo < mínimo`, uma peça **exatamente no** mínimo não aparece. Muitas empresas usam `<=`, repondo ao **atingir** o mínimo. É mais uma regra a confirmar com o negócio.
+
+🧪 **Testes**
+
+```bash
+curl.exe "http://localhost:3000/pecas?abaixoDoMinimo=true"    # correia (4 < 5)
+curl.exe -X POST http://localhost:3000/pecas/3/entradas -H "Content-Type: application/json" -d '{"quantidade":6,"custoUnitario":118}'
+curl.exe "http://localhost:3000/pecas?abaixoDoMinimo=true"    # a correia sai da lista
+```
+
+---
+
 ## 6. Roteiro completo de testes com curl
 
-> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 25 cenários abaixo e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
+> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 50 cenários abaixo (25 do uso e 25 do estoque) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
 >
 > 💡 **Alternativa sem terminal:** o arquivo [testes.http](testes.http) tem este mesmo roteiro para a extensão **REST Client** do VS Code. Basta clicar em "Send Request" acima de cada teste, sem se preocupar com aspas.
 
@@ -712,6 +1066,94 @@ curl.exe -X DELETE $B/maquinas      # G2
 curl.exe -i $B/maquinas             # G3
 ```
 
+### Estoque — `GET /pecas` e `GET /pecas/:id`
+
+| # | Cenário | Esperado |
+|---|---|---|
+| P1 | Listar peças | **200**, as 3 peças iniciais |
+| P2 | Buscar peça 2 | **200**, `OLE-001` |
+| P3 | Peça inexistente | **404**, `Peça não encontrada` |
+| P4 | Id inválido | **400**, `O id deve ser um número inteiro` |
+
+```bash
+curl.exe $B/pecas        # P1
+curl.exe $B/pecas/2      # P2
+curl.exe $B/pecas/99     # P3
+curl.exe $B/pecas/abc    # P4
+```
+
+### Estoque — `POST /pecas` (cadastro)
+
+| # | Cenário | Esperado |
+|---|---|---|
+| C1 | Cadastro válido | **201**, código `FLT-002`, saldo 0, mínimo 3 |
+| C2 | Código repetido | **409**, `Já existe uma peça com o código FLT-002` |
+| C3 | Unidade inválida | **400**, `Campo 'unidade' deve ser um destes: un, L` |
+| C4 | Saldo informado no cadastro | **400**, `... Use a entrada de estoque ...` |
+| C5 | Mínimo fracionado em peça por unidade | **400**, `... 'estoqueMinimo' deve ser um número inteiro` |
+| C6 | Sem código | **400**, `Campo 'codigo' é obrigatório` |
+
+```bash
+curl.exe -X POST $B/pecas -H "$H" -d '{"codigo":" flt-002 ","descricao":"Filtro de ar","unidade":"un","estoqueMinimo":3}'   # C1
+curl.exe -X POST $B/pecas -H "$H" -d '{"codigo":"FLT-002","descricao":"Outro","unidade":"un"}'                             # C2
+curl.exe -X POST $B/pecas -H "$H" -d '{"codigo":"GRX-001","descricao":"Graxa","unidade":"kg"}'                             # C3
+curl.exe -X POST $B/pecas -H "$H" -d '{"codigo":"GRX-001","descricao":"Graxa","unidade":"un","saldo":50}'                  # C4
+curl.exe -X POST $B/pecas -H "$H" -d '{"codigo":"GRX-001","descricao":"Graxa","unidade":"un","estoqueMinimo":2.5}'         # C5
+curl.exe -X POST $B/pecas -H "$H" -d '{"descricao":"Graxa","unidade":"un"}'                                                # C6
+```
+
+### Estoque — `POST /pecas/:id/entradas` (compra)
+
+| # | Cenário | Esperado |
+|---|---|---|
+| E1 | 5 filtros a R$ 92,456 | **200**, saldo 10 → 15 |
+| E2 | Conferir a peça | **200**, custo 92,46 (arredondado, última compra) |
+| E3 | 20,5 L de óleo | **200**, saldo 200 → 220,5 |
+| E4 | 1,5 filtro | **400**, `... contada em unidades ...` |
+| E5 | Quantidade zero | **400**, `Campo 'quantidade' deve ser um número maior que zero` |
+| E6 | Custo negativo | **400**, `Campo 'custoUnitario' deve ser um número maior que zero` |
+| E7 | Peça inexistente | **404** |
+
+```bash
+curl.exe -X POST $B/pecas/1/entradas  -H "$H" -d '{"quantidade":5,"custoUnitario":92.456}'   # E1
+curl.exe $B/pecas/1                                                                          # E2
+curl.exe -X POST $B/pecas/2/entradas  -H "$H" -d '{"quantidade":20.5,"custoUnitario":19.9}'  # E3
+curl.exe -X POST $B/pecas/1/entradas  -H "$H" -d '{"quantidade":1.5,"custoUnitario":90}'     # E4
+curl.exe -X POST $B/pecas/1/entradas  -H "$H" -d '{"quantidade":0,"custoUnitario":90}'       # E5
+curl.exe -X POST $B/pecas/1/entradas  -H "$H" -d '{"quantidade":5,"custoUnitario":-1}'       # E6
+curl.exe -X POST $B/pecas/99/entradas -H "$H" -d '{"quantidade":5,"custoUnitario":90}'       # E7
+```
+
+### Estoque — `GET /pecas/:id/movimentos` (kardex)
+
+| # | Cenário | Esperado |
+|---|---|---|
+| K1/K2 | Kardex do filtro | **200**, implantação (saldo após 10) + entrada (saldo após 15) |
+| K3 | Kardex da peça nova | **200**, `[]` |
+| K4 | Peça inexistente | **404** |
+
+```bash
+curl.exe $B/pecas/1/movimentos     # K1/K2
+curl.exe $B/pecas/4/movimentos     # K3
+curl.exe $B/pecas/99/movimentos    # K4
+```
+
+### Estoque — reposição (`?abaixoDoMinimo=true`)
+
+| # | Cenário | Esperado |
+|---|---|---|
+| A1 | Peças abaixo do mínimo | **200**, correia (`faltaParaMinimo: 1`) e filtro de ar FLT-002 |
+| A2 | Valor inválido | **400**, `Parâmetro 'abaixoDoMinimo' só aceita o valor 'true'` |
+| A3 | Compra de 6 correias (preparação) | **200**, saldo 4 → 10 |
+| A4 | Lista após a compra | **200**, a correia **não** aparece mais |
+
+```bash
+curl.exe "$B/pecas?abaixoDoMinimo=true"                                       # A1
+curl.exe "$B/pecas?abaixoDoMinimo=sim"                                        # A2
+curl.exe -X POST $B/pecas/3/entradas -H "$H" -d '{"quantidade":6,"custoUnitario":118}'   # A3
+curl.exe "$B/pecas?abaixoDoMinimo=true"                                       # A4
+```
+
 > **Dica:** para ver só o código HTTP de cada resposta, acrescente `-w "  [%{http_code}]\n"` ao comando.
 
 ---
@@ -722,7 +1164,8 @@ curl.exe -i $B/maquinas             # G3
 
 | Código | Quando usar | Exemplo nesta API |
 |---|---|---|
-| **200 OK** | Deu certo | Saída ou retorno registrados |
+| **200 OK** | Deu certo | Saída ou retorno registrados, compra registrada |
+| **201 Created** | Um recurso foi criado | Cadastro de peça |
 | **400 Bad Request** | O cliente enviou dados inválidos | Campo faltando, tipo errado, JSON quebrado |
 | **404 Not Found** | Recurso ou rota inexistente | Máquina 99, `GET /xyz` |
 | **409 Conflict** | O estado atual impede a ação | Saída de máquina já em operação |
@@ -742,6 +1185,15 @@ curl.exe -i $B/maquinas             # G3
 | Retorno | `horimetro` ≥ horímetro atual | 400 |
 | Retorno | Precisa existir movimentação aberta | 409 |
 | Histórico | `maquinaId`, se informado, deve ser inteiro | 400 |
+| Peças (todas com `:id`) | `id` deve ser inteiro / peça precisa existir | 400 / 404 |
+| Cadastro de peça | `codigo`, `descricao` obrigatórios; `unidade` deve ser `un` ou `L` | 400 |
+| Cadastro de peça | `saldo` e `custoUnitario` não podem ser informados | 400 |
+| Cadastro de peça | `estoqueMinimo`, se informado, ≥ 0 (inteiro para `un`) | 400 |
+| Cadastro de peça | Código único (após normalizar) | 409 |
+| Entrada | `quantidade` e `custoUnitario` > 0 | 400 |
+| Entrada | Peça em `un` só aceita quantidade inteira | 400 |
+| Entrada | Custo da peça passa a ser o da **última compra** | — |
+| Reposição | `abaixoDoMinimo` só aceita `true` | 400 |
 
 ### Anatomia de uma rota com validação
 
@@ -852,6 +1304,17 @@ O padrão desta API (**um recurso com status + movimentações de "sai e volta"*
 | `avarias` | danos ao livro | defeitos | avarias |
 | Movimentação | Empréstimo | Contrato | Viagem |
 
+O padrão do estoque (**catálogo + histórico de movimentos que explica o saldo**) também é muito comum:
+
+| Neste projeto | Loja | Farmácia | Banco |
+|---|---|---|---|
+| Peça | Produto | Medicamento | Conta |
+| Saldo | Estoque | Estoque | Saldo |
+| Entrada | Compra do fornecedor | Recebimento | Depósito |
+| Saída | Venda | Dispensação | Saque |
+| Kardex | Movimentação de estoque | Controle de lotes | Extrato |
+| Estoque mínimo | Ponto de pedido | Estoque de segurança | Limite de alerta |
+
 ### Pratique antes
 
 Antes de começar um projeto do zero, resolva os [exercícios](docs/exercicios.md). São 8 desafios que acrescentam funcionalidades reais a esta API: buscar por id, filtros, cadastro, regras entre entidades, indicadores e exclusão com integridade referencial. O [gabarito](docs/gabarito.md) traz as soluções comentadas.
@@ -863,6 +1326,7 @@ Antes de começar um projeto do zero, resolva os [exercícios](docs/exercicios.m
 - [ ] Para cada rota de escrita, listar as validações: **existe → estado → formato → regra**
 - [ ] Escolher o **código HTTP** certo para cada erro
 - [ ] Registrar um **histórico** das ações (quem, quando, o quê)
+- [ ] Garantir que todo **saldo/total** seja explicável pelo histórico (nada muda "por fora")
 - [ ] Adicionar o **404 genérico** e o **tratador de erros**
 - [ ] Escrever o **roteiro de testes** com curl, incluindo os casos de erro, e não só o de sucesso
 
@@ -895,9 +1359,14 @@ Antes de começar um projeto do zero, resolva os [exercícios](docs/exercicios.m
 
 ### Próximos passos
 
-**Etapa 1, back-end em memória (continuação):**
-1. **Módulo de Estoque:** cadastro e listagem de peças, com saldo e custo unitário (valor da última compra).
-2. **Módulo de Manutenção (O.S.):** abrir O.S. preventiva ou corretiva (a máquina vai para `Em Manutenção`) e fechar a O.S. com **baixa automática** das peças e cálculo do custo total.
+**Etapa 1, back-end em memória:**
+1. ✅ **Módulo de Uso:** saída, retorno, avarias e histórico.
+2. ✅ **Módulo de Estoque:** cadastro de peças, entradas, kardex e estoque mínimo.
+3. ⏳ **Módulo de Manutenção (O.S.):** abrir O.S. preventiva ou corretiva (a máquina vai para `Em Manutenção`) e fechar a O.S. com **baixa automática** das peças (movimento `saida`) e cálculo do custo total. Regras já decididas:
+   - estoque **nunca** fica negativo (fechamento recusado por inteiro);
+   - baixa só no **fechamento** da O.S.;
+   - custo de cada peça **congelado** na O.S.;
+   - O.S. pode ser aberta com a máquina em campo.
 
 **Etapa 2:** front-end em Angular consumindo esta API.
 
