@@ -1,0 +1,22 @@
+# Dependências (reinstaladas com npm install)
+node_modules/
+
+# Build
+dist/
+
+# Variáveis de ambiente (podem conter senhas)
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operacional / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+
+# Configurações locais do Claude Code
+.claude/settings.local.json

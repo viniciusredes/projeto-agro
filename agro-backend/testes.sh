@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# =====================================================================
+#  Roteiro de testes automatizado — Agro Backend
+# =====================================================================
+#
+#  Como usar (no Git Bash, Linux ou Mac):
+#    1. Em um terminal:  npm run dev
+#    2. Salve o server.ts (ou reinicie o servidor) para ZERAR os dados.
+#    3. Em outro terminal:  bash testes.sh
+#
+#  Cada teste confere duas coisas:
+#    - o código HTTP da resposta (200, 400, 404, 409...)
+#    - um trecho que deve aparecer na resposta
+#      (se o trecho começar com "!", ele NÃO pode aparecer)
+#
+#  Os códigos (M0, S1, R4...) são os mesmos do README.md e do testes.http.
+# =====================================================================
+
+BASE="${BASE:-http://localhost:3000}"
+JSON="Content-Type: application/json"
+
+VERDE='\033[0;32m'
+VERMELHO='\033[0;31m'
+AMARELO='\033[0;33m'
+NORMAL='\033[0m'
+
+passou=0
+falhou=0
+
+# ---------------------------------------------------------------------
+# testar ID "descrição" STATUS_ESPERADO "trecho esperado" [argumentos do curl...]
+# ---------------------------------------------------------------------
+testar() {
+  local id="$1" descricao="$2" status_esperado="$3" trecho="$4"
+  shift 4
+
+  # -s: silencioso | -w: acrescenta o código HTTP numa última linha
+  local resposta status corpo
+  resposta=$(curl -s -w '\n%{http_code}' "$@")
+  status="${resposta##*$'\n'}"   # última linha  = código HTTP
+  corpo="${resposta%$'\n'*}"     # todo o resto  = corpo da resposta
+
+  local ok=true
+  [ "$status" = "$status_esperado" ] || ok=false
+
+  if [[ "$trecho" == !* ]]; then
+    # Trecho que NÃO pode aparecer
+    grep -qF -- "${trecho:1}" <<< "$corpo" && ok=false
+  else
+    grep -qF -- "$trecho" <<< "$corpo" || ok=false
+  fi
+
+  if $ok; then
+    echo -e "${VERDE}✅ $id${NORMAL}  $descricao"
+    passou=$((passou + 1))
+  else
+    echo -e "${VERMELHO}❌ $id${NORMAL}  $descricao"
+    echo "      esperado: HTTP $status_esperado contendo: $trecho"
+    echo "      recebido: HTTP $status  $corpo"
+    falhou=$((falhou + 1))
+  fi
+}
+
+secao() {
+  echo
+  echo -e "${AMARELO}── $1 ──${NORMAL}"
+}
+
+# ---------------------------------------------------------------------
+# Verificações antes de começar
+# ---------------------------------------------------------------------
+if ! curl -s -o /dev/null "$BASE/maquinas"; then
+  echo -e "${VERMELHO}Servidor fora do ar em $BASE.${NORMAL} Rode 'npm run dev' antes."
+  exit 1
+fi
+
+if [ "$(curl -s "$BASE/movimentacoes")" != "[]" ]; then
+  echo -e "${AMARELO}Atenção:${NORMAL} o servidor já tem movimentações registradas."
+  echo "Salve o server.ts (ou reinicie o servidor) para zerar os dados e rode de novo."
+  exit 1
+fi
+
+echo "Testando a API em $BASE"
+
+# ---------------------------------------------------------------------
+secao "GET /maquinas"
+# ---------------------------------------------------------------------
+testar M0 "Listar máquinas" 200 '"status":"Disponível"' \
+  "$BASE/maquinas"
+
+# ---------------------------------------------------------------------
+secao "POST /maquinas/:id/saida"
+# ---------------------------------------------------------------------
+testar S1 "Saída válida da máquina 1" 200 '"status":"Em Operação"' \
+  -X POST "$BASE/maquinas/1/saida" -H "$JSON" -d '{"operador":"Joao","frenteTrabalho":"Talhao 5"}'
+
+testar S2 "Saída da máquina 1 de novo" 409 "não pode sair" \
+  -X POST "$BASE/maquinas/1/saida" -H "$JSON" -d '{"operador":"Joao","frenteTrabalho":"Talhao 5"}'
+
+testar S3 "Máquina inexistente" 404 "Máquina não encontrada" \
+  -X POST "$BASE/maquinas/99/saida" -H "$JSON" -d '{"operador":"Joao","frenteTrabalho":"Talhao 5"}'
+
+testar S4 "Sem corpo" 400 "'operador' é obrigatório" \
+  -X POST "$BASE/maquinas/2/saida"
+
+testar S5 "Operador só com espaços" 400 "'operador' é obrigatório" \
+  -X POST "$BASE/maquinas/2/saida" -H "$JSON" -d '{"operador":"   ","frenteTrabalho":"Talhao 8"}'
+
+testar S6 "Sem frenteTrabalho" 400 "'frenteTrabalho' é obrigatório" \
+  -X POST "$BASE/maquinas/2/saida" -H "$JSON" -d '{"operador":"Maria"}'
+
+testar S7 "JSON mal formado" 400 "JSON inválido" \
+  -X POST "$BASE/maquinas/2/saida" -H "$JSON" -d '{operador:Maria}'
+
+testar S8 "JSON sem cabeçalho Content-Type" 400 "'operador' é obrigatório" \
+  -X POST "$BASE/maquinas/2/saida" -d '{"operador":"Maria","frenteTrabalho":"Talhao 8"}'
+
+# ---------------------------------------------------------------------
+secao "POST /maquinas/:id/retorno"
+# ---------------------------------------------------------------------
+testar R1 "Retorno de máquina que não saiu" 409 "não pode retornar" \
+  -X POST "$BASE/maquinas/2/retorno" -H "$JSON" -d '{"horimetro":510}'
+
+testar R2 "Máquina inexistente" 404 "Máquina não encontrada" \
+  -X POST "$BASE/maquinas/99/retorno" -H "$JSON" -d '{"horimetro":510}'
+
+testar R3 "Sem corpo" 400 "'horimetro' é obrigatório" \
+  -X POST "$BASE/maquinas/1/retorno"
+
+testar R4 "Horímetro como texto" 400 "'horimetro' é obrigatório" \
+  -X POST "$BASE/maquinas/1/retorno" -H "$JSON" -d '{"horimetro":"1012"}'
+
+testar R5 "Avarias com tipo errado" 400 "'avarias', quando informado" \
+  -X POST "$BASE/maquinas/1/retorno" -H "$JSON" -d '{"horimetro":1012.3,"avarias":123}'
+
+testar R6 "Horímetro menor que o atual" 400 "(900) é menor que o atual (1000)" \
+  -X POST "$BASE/maquinas/1/retorno" -H "$JSON" -d '{"horimetro":900}'
+
+testar R7 "Retorno válido com avarias" 200 '"horasTrabalhadas":12.3' \
+  -X POST "$BASE/maquinas/1/retorno" -H "$JSON" -d '{"horimetro":1012.3,"avarias":"Vazamento de oleo"}'
+
+# ---------------------------------------------------------------------
+secao "GET /movimentacoes"
+# ---------------------------------------------------------------------
+testar H1 "Histórico após o R7" 200 '"avarias":"Vazamento de oleo"' \
+  "$BASE/movimentacoes"
+
+testar H2 "Saída da máquina 2 (preparação)" 200 '"horimetroSaida":500' \
+  -X POST "$BASE/maquinas/2/saida" -H "$JSON" -d '{"operador":"Maria","frenteTrabalho":"Talhao 8"}'
+
+testar H3 "Filtro maquinaId=2 (máquina em campo)" 200 '!dataRetorno' \
+  "$BASE/movimentacoes?maquinaId=2"
+
+testar H4 "Filtro inválido" 400 "deve ser um número inteiro" \
+  "$BASE/movimentacoes?maquinaId=abc"
+
+testar H5 "Retorno da máquina 2 sem avarias" 200 '"horasTrabalhadas":10' \
+  -X POST "$BASE/maquinas/2/retorno" -H "$JSON" -d '{"horimetro":510}'
+
+testar H6 "Histórico final (2 movimentações)" 200 '"id":2' \
+  "$BASE/movimentacoes"
+
+# ---------------------------------------------------------------------
+secao "Comportamentos globais"
+# ---------------------------------------------------------------------
+testar G1 "Rota inexistente" 404 "Rota GET /xyz não existe" \
+  "$BASE/xyz"
+
+testar G2 "Método não suportado" 404 "Rota DELETE /maquinas não existe" \
+  -X DELETE "$BASE/maquinas"
+
+# -i inclui os cabeçalhos na resposta, para conferir que o X-Powered-By sumiu
+testar G3 "Sem cabeçalho X-Powered-By" 200 '!X-Powered-By' \
+  -i "$BASE/maquinas"
+
+# ---------------------------------------------------------------------
+# Resumo
+# ---------------------------------------------------------------------
+echo
+total=$((passou + falhou))
+if [ "$falhou" -eq 0 ]; then
+  echo -e "${VERDE}Todos os $total testes passaram!${NORMAL}"
+  exit 0
+else
+  echo -e "${VERMELHO}$falhou de $total testes falharam.${NORMAL}"
+  exit 1
+fi

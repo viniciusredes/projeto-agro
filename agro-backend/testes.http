@@ -1,0 +1,223 @@
+# =====================================================================
+#  Roteiro de testes da API — Agro Backend
+# =====================================================================
+#
+#  Como usar:
+#  1. Instale a extensão "REST Client" (autor: Huachao Mao) no VS Code.
+#  2. Rode o servidor:  npm run dev
+#  3. Clique em "Send Request", que aparece acima de cada requisição.
+#
+#  IMPORTANTE: execute os testes EM ORDEM, com o servidor recém-iniciado
+#  (salve o server.ts para zerar os dados). Cada teste depende do estado
+#  deixado pelos anteriores.
+#
+#  Os códigos (M0, S1, R4...) são os mesmos da seção 6 do README.md.
+# =====================================================================
+
+@baseUrl = http://localhost:3000
+
+
+# =====================================================================
+#  GET /maquinas
+# =====================================================================
+
+### M0 — Listar máquinas
+# Esperado: 200, as 2 máquinas com status "Disponível"
+GET {{baseUrl}}/maquinas
+
+
+# =====================================================================
+#  POST /maquinas/:id/saida
+# =====================================================================
+
+### S1 — Saída válida da máquina 1
+# Esperado: 200, status "Em Operação", movimentação 1 aberta
+POST {{baseUrl}}/maquinas/1/saida
+Content-Type: application/json
+
+{
+  "operador": "João",
+  "frenteTrabalho": "Talhão 5"
+}
+
+### S2 — Saída da máquina 1 de novo (já está em operação)
+# Esperado: 409, "não pode sair: status atual é 'Em Operação'"
+POST {{baseUrl}}/maquinas/1/saida
+Content-Type: application/json
+
+{
+  "operador": "João",
+  "frenteTrabalho": "Talhão 5"
+}
+
+### S3 — Máquina inexistente
+# Esperado: 404, "Máquina não encontrada"
+POST {{baseUrl}}/maquinas/99/saida
+Content-Type: application/json
+
+{
+  "operador": "João",
+  "frenteTrabalho": "Talhão 5"
+}
+
+### S4 — Sem corpo
+# Esperado: 400, "Campo 'operador' é obrigatório"
+POST {{baseUrl}}/maquinas/2/saida
+
+### S5 — Operador só com espaços
+# Esperado: 400, "Campo 'operador' é obrigatório"
+POST {{baseUrl}}/maquinas/2/saida
+Content-Type: application/json
+
+{
+  "operador": "   ",
+  "frenteTrabalho": "Talhão 8"
+}
+
+### S6 — Sem frenteTrabalho
+# Esperado: 400, "Campo 'frenteTrabalho' é obrigatório"
+POST {{baseUrl}}/maquinas/2/saida
+Content-Type: application/json
+
+{
+  "operador": "Maria"
+}
+
+### S7 — JSON mal formado (sem aspas nos nomes dos campos)
+# Esperado: 400, "JSON inválido no corpo da requisição" (em JSON, não em HTML!)
+POST {{baseUrl}}/maquinas/2/saida
+Content-Type: application/json
+
+{operador: Maria}
+
+### S8 — JSON sem o cabeçalho Content-Type
+# Esperado: 400, "Campo 'operador' é obrigatório"
+# Sem o cabeçalho, o express.json() não lê o corpo e o req.body fica vazio.
+POST {{baseUrl}}/maquinas/2/saida
+
+{
+  "operador": "Maria",
+  "frenteTrabalho": "Talhão 8"
+}
+
+
+# =====================================================================
+#  POST /maquinas/:id/retorno
+# =====================================================================
+
+### R1 — Retorno de máquina que não saiu (máquina 2 está disponível)
+# Esperado: 409, "não pode retornar: status atual é 'Disponível'"
+POST {{baseUrl}}/maquinas/2/retorno
+Content-Type: application/json
+
+{
+  "horimetro": 510
+}
+
+### R2 — Máquina inexistente
+# Esperado: 404, "Máquina não encontrada"
+POST {{baseUrl}}/maquinas/99/retorno
+Content-Type: application/json
+
+{
+  "horimetro": 510
+}
+
+### R3 — Sem corpo
+# Esperado: 400, "Campo 'horimetro' é obrigatório e deve ser um número"
+POST {{baseUrl}}/maquinas/1/retorno
+
+### R4 — Horímetro como texto
+# Esperado: 400, "Campo 'horimetro' é obrigatório e deve ser um número"
+POST {{baseUrl}}/maquinas/1/retorno
+Content-Type: application/json
+
+{
+  "horimetro": "1012"
+}
+
+### R5 — Avarias com tipo errado (número em vez de texto)
+# Esperado: 400, "Campo 'avarias', quando informado, deve ser um texto"
+POST {{baseUrl}}/maquinas/1/retorno
+Content-Type: application/json
+
+{
+  "horimetro": 1012.3,
+  "avarias": 123
+}
+
+### R6 — Horímetro menor que o atual
+# Esperado: 400, "Horímetro informado (900) é menor que o atual (1000)"
+POST {{baseUrl}}/maquinas/1/retorno
+Content-Type: application/json
+
+{
+  "horimetro": 900
+}
+
+### R7 — Retorno válido com avarias
+# Esperado: 200, horasTrabalhadas: 12.3, avarias gravado
+POST {{baseUrl}}/maquinas/1/retorno
+Content-Type: application/json
+
+{
+  "horimetro": 1012.3,
+  "avarias": "Vazamento de óleo no hidráulico"
+}
+
+
+# =====================================================================
+#  GET /movimentacoes
+# =====================================================================
+
+### H1 — Histórico após o R7
+# Esperado: 200, 1 movimentação fechada (12.3 h, com avarias)
+GET {{baseUrl}}/movimentacoes
+
+### H2 — Saída da máquina 2 (preparação para os próximos testes)
+# Esperado: 200, movimentação 2 aberta
+POST {{baseUrl}}/maquinas/2/saida
+Content-Type: application/json
+
+{
+  "operador": "Maria",
+  "frenteTrabalho": "Talhão 8"
+}
+
+### H3 — Filtro por máquina
+# Esperado: 200, só a movimentação 2, SEM dataRetorno (a máquina está em campo)
+GET {{baseUrl}}/movimentacoes?maquinaId=2
+
+### H4 — Filtro inválido
+# Esperado: 400, "Parâmetro 'maquinaId' deve ser um número inteiro"
+GET {{baseUrl}}/movimentacoes?maquinaId=abc
+
+### H5 — Retorno da máquina 2 sem avarias
+# Esperado: 200, horasTrabalhadas: 10, SEM o campo avarias
+POST {{baseUrl}}/maquinas/2/retorno
+Content-Type: application/json
+
+{
+  "horimetro": 510
+}
+
+### H6 — Histórico final
+# Esperado: 200, 2 movimentações fechadas
+GET {{baseUrl}}/movimentacoes
+
+
+# =====================================================================
+#  Comportamentos globais
+# =====================================================================
+
+### G1 — Rota inexistente
+# Esperado: 404, "Rota GET /xyz não existe"
+GET {{baseUrl}}/xyz
+
+### G2 — Método não suportado numa rota existente
+# Esperado: 404, "Rota DELETE /maquinas não existe"
+DELETE {{baseUrl}}/maquinas
+
+### G3 — Cabeçalhos da resposta
+# Esperado: 200, e nos cabeçalhos NÃO deve aparecer "X-Powered-By"
+GET {{baseUrl}}/maquinas
