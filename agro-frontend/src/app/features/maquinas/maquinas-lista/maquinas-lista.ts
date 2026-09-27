@@ -11,6 +11,7 @@ import { MaquinaService } from '../../../core/services/maquina.service';
 import { Maquina, RespostaRetorno, RespostaSaida, StatusMaquina } from '../../../core/models/maquina';
 import { SaidaDialog } from '../saida-dialog/saida-dialog';
 import { RetornoDialog } from '../retorno-dialog/retorno-dialog';
+import { NovaMaquinaDialog } from '../nova-maquina-dialog/nova-maquina-dialog';   // ← nova
 
 @Component({
   selector: 'app-maquinas-lista',
@@ -61,7 +62,20 @@ export class MaquinasLista {
           this.erro.set('Não foi possível carregar as máquinas. Verifique se a API está rodando.'),
       });
   }
+   // Abre o diálogo de cadastro; se a máquina for criada, avisa e recarrega a tabela
+  protected abrirCadastro(): void {
+    this.dialog
+      .open<NovaMaquinaDialog, void, Maquina>(NovaMaquinaDialog, { width: '440px' })
+      .afterClosed()
+      .subscribe(maquina => {
+        if (maquina) {
+          this.snackBar.open(`Máquina ${maquina.tag} cadastrada!`, 'OK', { duration: 4000 });
+          this.carregar();
+        }
+      });
+  }
 
+ 
   // Abre o diálogo de saída; se a saída for registrada, avisa e recarrega a tabela
   protected abrirSaida(maquina: Maquina): void {
     this.dialog

@@ -3,8 +3,9 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_URL } from '../api';
 import {
-  DadosRetorno, DadosSaida, Maquina, Movimentacao, RespostaRetorno, RespostaSaida,
+  DadosNovaMaquina, DadosRetorno, DadosSaida, Maquina, Movimentacao, RespostaRetorno, RespostaSaida,
 } from '../models/maquina';
+
 
 @Injectable({ providedIn: 'root' }) // uma única instância para o app inteiro
 export class MaquinaService {
@@ -14,6 +15,11 @@ export class MaquinaService {
   // GET /api/maquinas -> lista de máquinas
   listar(): Observable<Maquina[]> {
     return this.http.get<Maquina[]>(this.url);
+  }
+
+    // POST /api/maquinas -> cadastra uma máquina (a API responde 201 com a máquina criada)
+  cadastrar(dados: DadosNovaMaquina): Observable<Maquina> {
+    return this.http.post<Maquina>(this.url, dados);
   }
 
   // POST /api/maquinas/:id/saida -> registra a saída para o campo

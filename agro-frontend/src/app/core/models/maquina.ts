@@ -22,6 +22,12 @@ export interface Movimentacao {
   horasTrabalhadas?: number;
   avarias?: string;
 }
+// Corpo enviado em POST /maquinas (cadastro)
+export interface DadosNovaMaquina {
+  tag: string;
+  modelo: string;
+  horimetro: number;
+}
 
 // Corpo enviado em POST /maquinas/:id/saida
 export interface DadosSaida {

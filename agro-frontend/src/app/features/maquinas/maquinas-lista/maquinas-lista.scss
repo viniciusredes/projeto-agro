@@ -55,3 +55,9 @@
 .acoes {
   text-align: right;
 }
+
+// Botões do cabeçalho lado a lado
+.botoes {
+  display: flex;
+  gap: 8px;
+}

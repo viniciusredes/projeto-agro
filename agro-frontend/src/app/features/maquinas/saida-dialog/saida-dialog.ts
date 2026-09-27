@@ -7,9 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MaquinaService } from '../../../core/services/maquina.service';
 import { Maquina, RespostaSaida } from '../../../core/models/maquina';
-
-// "Tem pelo menos um caractere que não é espaço" (o back-end recusa texto só com espaços)
-const NAO_VAZIO = /\S/;
+import { NAO_VAZIO } from '../../../core/validacao';                  
 
 @Component({
   selector: 'app-saida-dialog',

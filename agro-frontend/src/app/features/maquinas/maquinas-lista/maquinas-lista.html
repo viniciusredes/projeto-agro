@@ -1,10 +1,17 @@
 <div class="cabecalho">
   <h2>Máquinas</h2>
-  <button mat-stroked-button (click)="carregar()" [disabled]="carregando()">
-    <mat-icon>refresh</mat-icon>
-    Atualizar
-  </button>
+  <div class="botoes">
+    <button mat-stroked-button (click)="carregar()" [disabled]="carregando()">
+      <mat-icon>refresh</mat-icon>
+      Atualizar
+    </button>
+    <button mat-flat-button (click)="abrirCadastro()">
+      <mat-icon>add</mat-icon>
+      Nova máquina
+    </button>
+  </div>
 </div>
+
 
 <!-- Barra de progresso enquanto a requisição está em andamento -->
 @if (carregando()) {
