@@ -1,0 +1,52 @@
+// Título à esquerda, botão à direita
+.cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.tabela {
+  width: 100%;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container);
+}
+
+.aviso--erro {
+  color: var(--mat-sys-on-error-container);
+  background: var(--mat-sys-error-container);
+}
+
+// "Etiqueta" colorida do status
+.status {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 0.85em;
+}
+
+.status--disponivel {
+  background: #e3f4e6;
+  color: #1b6b2c;
+}
+
+.status--operacao {
+  background: #e0ecfb;
+  color: #1a4f8f;
+}
+
+.status--manutencao {
+  background: #fdecd8;
+  color: #8a4b08;
+}
