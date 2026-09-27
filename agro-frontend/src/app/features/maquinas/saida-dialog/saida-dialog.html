@@ -1,0 +1,34 @@
+<h2 mat-dialog-title>Saída da máquina {{ maquina.tag }}</h2>
+
+<form [formGroup]="form" (ngSubmit)="confirmar()">
+  <mat-dialog-content>
+    <p class="info">{{ maquina.modelo }} · horímetro atual: {{ maquina.horimetro }} h</p>
+
+    <mat-form-field appearance="outline" class="campo">
+      <mat-label>Operador</mat-label>
+      <input matInput formControlName="operador" autocomplete="off" />
+      <mat-error>Informe quem vai operar a máquina</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="campo">
+      <mat-label>Frente de trabalho</mat-label>
+      <input matInput formControlName="frenteTrabalho" autocomplete="off" placeholder="Ex.: Talhão 5" />
+      <mat-error>Informe para onde a máquina vai</mat-error>
+    </mat-form-field>
+
+    <!-- Erro devolvido pela API (ex.: 409 se a máquina não estiver mais disponível) -->
+    @if (erro(); as mensagem) {
+      <p class="erro">
+        <mat-icon>error</mat-icon>
+        {{ mensagem }}
+      </p>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" mat-dialog-close>Cancelar</button>
+    <button mat-flat-button type="submit" [disabled]="salvando()">
+      {{ salvando() ? 'Registrando...' : 'Registrar saída' }}
+    </button>
+  </mat-dialog-actions>
+</form>

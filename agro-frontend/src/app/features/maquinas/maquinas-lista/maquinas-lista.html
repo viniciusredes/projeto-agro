@@ -46,6 +46,18 @@
         <span class="status" [class]="classeDoStatus(maquina.status)">{{ maquina.status }}</span>
       </td>
     </ng-container>
+    <!-- Coluna: ações (os botões dependem do status da máquina) -->
+    <ng-container matColumnDef="acoes">
+      <th mat-header-cell *matHeaderCellDef></th>
+      <td mat-cell *matCellDef="let maquina" class="acoes">
+        @if (maquina.status === 'Disponível') {
+          <button mat-stroked-button (click)="abrirSaida(maquina)">
+            <mat-icon>logout</mat-icon>
+            Saída
+          </button>
+        }
+      </td>
+    </ng-container>
 
     <!-- Linha de cabeçalho e linhas de dados -->
     <tr mat-header-row *matHeaderRowDef="colunas"></tr>

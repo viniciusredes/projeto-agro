@@ -4,8 +4,11 @@ import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaquinaService } from '../../../core/services/maquina.service';
-import { Maquina, StatusMaquina } from '../../../core/models/maquina';
+import { Maquina, RespostaSaida, StatusMaquina } from '../../../core/models/maquina';
+import { SaidaDialog } from '../saida-dialog/saida-dialog';
 
 @Component({
   selector: 'app-maquinas-lista',
@@ -15,6 +18,8 @@ import { Maquina, StatusMaquina } from '../../../core/models/maquina';
 })
 export class MaquinasLista {
   private readonly maquinaService = inject(MaquinaService);
+  private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
 
   // Estado da tela (signals: a tela se atualiza quando eles mudam)
   protected readonly maquinas = signal<Maquina[]>([]);
@@ -22,7 +27,7 @@ export class MaquinasLista {
   protected readonly erro = signal<string | null>(null);
 
   // Colunas exibidas na tabela, na ordem
-  protected readonly colunas = ['tag', 'modelo', 'horimetro', 'status'];
+  protected readonly colunas = ['tag', 'modelo', 'horimetro', 'status', 'acoes'];
 
   // Classe CSS de cada status (Record obriga a ter TODOS os status)
   private readonly classesStatus: Record<StatusMaquina, string> = {
@@ -52,6 +57,20 @@ export class MaquinasLista {
         next: maquinas => this.maquinas.set(maquinas),
         error: () =>
           this.erro.set('Não foi possível carregar as máquinas. Verifique se a API está rodando.'),
+      });
+  }
+
+  // Abre o diálogo de saída; se a saída for registrada, avisa e recarrega a tabela
+  protected abrirSaida(maquina: Maquina): void {
+    this.dialog
+      .open<SaidaDialog, Maquina, RespostaSaida>(SaidaDialog, { data: maquina, width: '440px' })
+      .afterClosed()
+      .subscribe(resposta => {
+        // resposta é undefined quando o usuário cancela
+        if (resposta) {
+          this.snackBar.open(resposta.mensagem, 'OK', { duration: 4000 });
+          this.carregar();
+        }
       });
   }
 }

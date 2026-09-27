@@ -22,3 +22,16 @@ export interface Movimentacao {
   horasTrabalhadas?: number;
   avarias?: string;
 }
+
+// Corpo enviado em POST /maquinas/:id/saida
+export interface DadosSaida {
+  operador: string;
+  frenteTrabalho: string;
+}
+
+// Resposta de POST /maquinas/:id/saida (status 200)
+export interface RespostaSaida {
+  mensagem: string;
+  maquina: Maquina;
+  movimentacao: Movimentacao;
+}
