@@ -42,11 +42,13 @@ Branch atual: `feat/front-base` · PR #2 (aberto)
 - [x] **Passo 8.2** *(front-end)* — Diálogo de cadastro de máquina + regra `NAO_VAZIO` compartilhada em `core/validacao.ts` · `4f64c77`
 - [x] **Passo 9** — Cadastro de peça (formulário com unidade e estoque mínimo; trata o 409 de código duplicado) · `208d344`
 - [x] **Passo 10** — Entrada de estoque (compra) com validador condicional (inteiro para `un`) · `6bda400`
-- [x] **Passo 11** — Kardex da peça (rota com parâmetro `/estoque/:id`) · _hash a registrar após o commit_
+- [x] **Passo 11** — Kardex da peça (rota com parâmetro `/estoque/:id`) · `f3353c4`
 
-### Fase 3 — Módulo de Manutenção (O.S.)
+### Fase 3 — Módulo de Manutenção (O.S.) 🚧
 
-- [ ] **Passo 12** — Lista de O.S. com filtros na URL (query params)
+> Nesta fase, o Claude implementa os passos (edições visíveis para os alunos) e o usuário faz os commits.
+
+- [x] **Passo 12** — Lista de O.S. com filtros na URL (query params → `input()`), `rxResource` e modelo/service de O.S. · *commit: a preencher*
 - [ ] **Passo 13** — Abertura de O.S. (aviso quando a máquina está em campo)
 - [ ] **Passo 14** — Detalhe e fechamento da O.S. com `FormArray` (peças dinâmicas, tudo ou nada)
 - [ ] **Passo 15** — Custo de manutenção por máquina
@@ -64,4 +66,5 @@ Branch atual: `feat/front-base` · PR #2 (aberto)
 - [x] **Cadastro de máquinas** — decidido: **entra no sistema** (Passos 8.1 e 8.2).
 - [ ] **Material do back-end após o cadastro de máquinas** — atualizar o README do back-end (nova rota), o `testes.http` e trocar o exercício 4 (que passa a ser "resposta pronta") por outro desafio, com gabarito.
 - [ ] **Branch/PR do front-end** — o Passo 8 foi commitado na `feat/front-base` (PR #2). Decidir: manter tudo no PR #2 (e ajustar o título no fim) ou separar a Fase 2 numa branch própria.
+- [ ] *(Opcional)* **Migrar services para `@Service()`** — decorador novo do Angular 22 (gerado pelo CLI), equivalente a `@Injectable({ providedIn: 'root' })`. Hoje os 3 services usam `@Injectable` por consistência; migrar os três juntos.
 - [ ] **Testes unitários** — os `.spec.ts` gerados pelo CLI ainda não foram ajustados (planejado para a Fase 4).

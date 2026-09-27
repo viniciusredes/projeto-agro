@@ -1,0 +1,79 @@
+.cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.filtros {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  mat-form-field {
+    width: 240px;
+  }
+}
+
+.tabela {
+  width: 100%;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.numero {
+  text-align: right;
+}
+
+.numero-os {
+  font-weight: 600;
+}
+
+.detalhe {
+  font-size: 0.85em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.etiqueta {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.etiqueta--aberta {
+  background: #fdecd8;
+  color: #8a4b08;
+}
+
+.etiqueta--fechada {
+  background: #e3f4e6;
+  color: #1b6b2c;
+}
+
+.etiqueta--preventiva {
+  background: #e0ecfb;
+  color: #1a4f8f;
+}
+
+.etiqueta--corretiva {
+  background: #fde2e1;
+  color: #9b1c1c;
+}
+
+.aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container);
+}
+
+.aviso--erro {
+  color: var(--mat-sys-on-error-container);
+  background: var(--mat-sys-error-container);
+}
