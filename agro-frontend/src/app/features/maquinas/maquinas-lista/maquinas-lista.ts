@@ -11,7 +11,10 @@ import { MaquinaService } from '../../../core/services/maquina.service';
 import { Maquina, RespostaRetorno, RespostaSaida, StatusMaquina } from '../../../core/models/maquina';
 import { SaidaDialog } from '../saida-dialog/saida-dialog';
 import { RetornoDialog } from '../retorno-dialog/retorno-dialog';
-import { NovaMaquinaDialog } from '../nova-maquina-dialog/nova-maquina-dialog';   // ← nova
+import { NovaMaquinaDialog } from '../nova-maquina-dialog/nova-maquina-dialog';
+import { AbrirOsDialog } from '../../ordens-servico/abrir-os-dialog/abrir-os-dialog';
+import { mensagemAberturaOS } from '../../ordens-servico/mensagens';
+import { RespostaAberturaOS } from '../../../core/models/ordem-servico';
 
 @Component({
   selector: 'app-maquinas-lista',
@@ -76,6 +79,19 @@ export class MaquinasLista {
   }
 
  
+  // Abre a O.S. com a máquina JÁ escolhida (o mesmo diálogo da tela de O.S., reaproveitado)
+  protected abrirOs(maquina: Maquina): void {
+    this.dialog
+      .open<AbrirOsDialog, Maquina, RespostaAberturaOS>(AbrirOsDialog, { data: maquina, width: '520px' })
+      .afterClosed()
+      .subscribe(resposta => {
+        if (resposta) {
+          this.snackBar.open(mensagemAberturaOS(resposta), 'OK', { duration: 6000 });
+          this.carregar(); // a máquina foi para "Em Manutenção"
+        }
+      });
+  }
+
   // Abre o diálogo de saída; se a saída for registrada, avisa e recarrega a tabela
   protected abrirSaida(maquina: Maquina): void {
     this.dialog

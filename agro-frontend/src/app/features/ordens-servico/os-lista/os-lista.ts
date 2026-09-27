@@ -8,9 +8,13 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { OrdemServicoService } from '../../../core/services/ordem-servico.service';
 import { MaquinaService } from '../../../core/services/maquina.service';
-import { STATUS_OS, StatusOS, TipoOS } from '../../../core/models/ordem-servico';
+import { RespostaAberturaOS, STATUS_OS, StatusOS, TipoOS } from '../../../core/models/ordem-servico';
+import { AbrirOsDialog } from '../abrir-os-dialog/abrir-os-dialog';
+import { mensagemAberturaOS } from '../mensagens';
 
 // Converte o texto da URL (?maquinaId=2) em número; valor ausente ou inválido = sem filtro
 function paraMaquinaId(valor: string | undefined): number | undefined {
@@ -38,6 +42,8 @@ export class OsLista {
   private readonly maquinaService = inject(MaquinaService);
   private readonly router = inject(Router);
   private readonly rota = inject(ActivatedRoute);
+  private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
 
   // Filtros vindos da URL (query params viram input() graças ao withComponentInputBinding)
   readonly maquinaId = input<number | undefined, string | undefined>(undefined, { transform: paraMaquinaId });
@@ -92,6 +98,20 @@ export class OsLista {
 
   protected classeDoTipo(tipo: TipoOS): string {
     return this.classesTipo[tipo];
+  }
+
+  // Abre o diálogo sem máquina escolhida (o usuário escolhe no select do diálogo)
+  protected abrirOs(): void {
+    this.dialog
+      .open<AbrirOsDialog, null, RespostaAberturaOS>(AbrirOsDialog, { data: null, width: '520px' })
+      .afterClosed()
+      .subscribe(resposta => {
+        if (resposta) {
+          this.snackBar.open(mensagemAberturaOS(resposta), 'OK', { duration: 6000 });
+          this.ordens.reload();   // a lista ganhou uma O.S.
+          this.maquinas.reload(); // e a máquina mudou de status
+        }
+      });
   }
 
   // Os selects NÃO buscam dados: só atualizam a URL. A URL muda o input, que recarrega o recurso.

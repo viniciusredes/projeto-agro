@@ -1,9 +1,15 @@
 <div class="cabecalho">
   <h2>Ordens de Serviço</h2>
-  <button mat-stroked-button (click)="ordens.reload()" [disabled]="ordens.isLoading()">
-    <mat-icon>refresh</mat-icon>
-    Atualizar
-  </button>
+  <div class="botoes">
+    <button mat-stroked-button (click)="ordens.reload()" [disabled]="ordens.isLoading()">
+      <mat-icon>refresh</mat-icon>
+      Atualizar
+    </button>
+    <button mat-flat-button (click)="abrirOs()">
+      <mat-icon>add</mat-icon>
+      Abrir O.S.
+    </button>
+  </div>
 </div>
 
 <!-- Filtros: o valor exibido vem da URL (inputs); mudar o select muda a URL -->
