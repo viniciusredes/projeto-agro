@@ -312,3 +312,17 @@ Para quem terminou tudo:
 2. **Máquinas em campo há muito tempo:** `GET /movimentacoes/atrasadas` lista as saídas abertas há mais de 12 horas (compare `dataSaida` com `new Date()`).
 3. **Testes automatizados:** acrescente os cenários dos seus exercícios ao `testes.sh` e ao `testes.http`.
 4. **Aplicar em outro domínio:** usando a seção 8 do README, crie uma API de empréstimo de livros ou de locação de ferramentas.
+
+### Desafios extras do Módulo de Estoque (sem gabarito)
+
+5. **Conferência de estoque:** `GET /pecas/:id/conferencia` soma as implantações e entradas do kardex, subtrai as saídas e compara com o `saldo` da peça. Responda se o saldo "bate" e a diferença, se houver.
+6. **Custo médio ponderado:** altere a entrada de estoque para calcular o custo pela média ponderada, em vez do custo da última compra. Compare os dois resultados comprando 0,1 L de óleo a R$ 1,00.
+7. **Refatoração:** troque os arredondamentos antigos do módulo de uso (`Math.round(x * 10) / 10`) pela função `arredondar(x, 1)`. Rode o `testes.sh` para garantir que nada mudou.
+8. **Valor do estoque:** `GET /pecas/valor-total` devolve o valor total do almoxarifado (soma de `saldo × custoUnitario` de todas as peças). Atenção à ordem das rotas: `/pecas/valor-total` precisa ser declarada **antes** de `/pecas/:id`. Por quê?
+
+### Desafios extras do Módulo de Manutenção (sem gabarito)
+
+9. **Cancelar O.S.:** `POST /ordens-servico/:id/cancelamento`, que só vale para O.S. `Aberta`, exige um `motivo` e devolve a máquina para `Disponível`. Crie o status `Cancelada`. Uma O.S. cancelada entra no custo da máquina?
+10. **Mão de obra:** no fechamento, aceite um campo opcional `horasMaoDeObra` e uma constante `VALOR_HORA_MECANICO`. O `custoTotal` passa a ser peças + mão de obra. Mostre os dois valores separados na O.S.
+11. **Preventiva vencida:** `GET /maquinas/preventivas-vencidas` lista as máquinas que rodaram mais de 250 h desde a última O.S. preventiva fechada (compare o horímetro atual com o `horimetroParada` dessa O.S.).
+12. **Peças mais consumidas:** `GET /pecas/mais-consumidas` soma as saídas do kardex por peça e devolve o ranking, do maior para o menor valor consumido.

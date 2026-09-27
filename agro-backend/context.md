@@ -51,7 +51,30 @@ O ambiente do Back-end foi completamente configurado e o servidor já está oper
 - `GET /movimentacoes` (filtro opcional `?maquinaId=`): histórico de saídas e retornos.
 - Segurança: JSON inválido → 400 em JSON; rota inexistente → 404 em JSON; erros inesperados → 500 genérico (detalhe só no console); cabeçalho `X-Powered-By` desativado.
 
+### Atualização: Módulo de Estoque concluído (Partes E1 a E6)
+
+- Tipos `UnidadeMedida` (`un` | `L`), `Peca` e `MovimentoEstoque` (`implantacao` | `entrada` | `saida`).
+- 3 peças iniciais (FLT-001, OLE-001, COR-001), com movimentos de implantação no kardex.
+- `GET /pecas` (filtro `?abaixoDoMinimo=true`, com o campo calculado `faltaParaMinimo`) e `GET /pecas/:id`.
+- `POST /pecas`: cadastro com código único normalizado (409); a peça nasce com saldo 0 e custo 0; `saldo`/`custoUnitario` no cadastro são recusados (400); `estoqueMinimo` opcional.
+- `POST /pecas/:id/entradas`: soma ao saldo e define o custo pela última compra (arredondado para 2 casas); peças em `un` só aceitam quantidades inteiras; grava um movimento `entrada`.
+- `GET /pecas/:id/movimentos`: kardex com `saldoApos` e custo congelado por movimento.
+- Função auxiliar `arredondar(valor, casas)`.
+- Material atualizado: README (Partes E1–E6), `testes.sh` e `testes.http` (50 cenários), glossário e desafios extras.
+
+### Atualização: Módulo de Manutenção concluído (Partes OS1 a OS7)
+
+- Tipos `TipoOS` (`Preventiva` | `Corretiva`), `StatusOS` (`Aberta` | `Fechada`), `ItemOS` e `OrdemServico` (cabeçalho + itens).
+- `GET /ordens-servico` (filtros combináveis `?maquinaId=` e `?status=`) e `GET /ordens-servico/:id` (com `tag` e `modelo` da máquina).
+- `POST /ordens-servico`: abre a O.S. (201), uma por máquina (409), horímetro ≥ atual; a máquina vai para `Em Manutenção`. Com a máquina em campo, a movimentação aberta é encerrada automaticamente com o horímetro da parada e a avaria `O.S. nº X: descrição`.
+- Funções `buscarMovimentacaoAberta` e `fecharMovimentacao`, compartilhadas entre o retorno e a abertura de O.S.
+- `POST /ordens-servico/:id/fechamento`: valida a lista de peças inteira antes de alterar qualquer dado (`validarPecasDoFechamento`, tudo ou nada; estoque insuficiente → 409 listando todas as peças); baixa cada peça com movimento `saida` no kardex (`ordemServicoId`), custo congelado no item e `custoTotal`; a máquina volta para `Disponível`.
+- `GET /maquinas/:id/manutencoes`: total de O.S., abertas/fechadas, custo total e custo por tipo (só O.S. fechadas).
+- Material atualizado: README (Partes OS1–OS7), `testes.sh` e `testes.http` (82 cenários), glossário e desafios extras.
+
 ## 5. O Que Ficou Pendente / Próximos Passos Combinados
+
+> **Status:** a **Etapa 1 (back-end em memória) está concluída**: Módulo de Uso, Módulo de Estoque e Módulo de Manutenção. O próximo passo é a **Etapa 2 (front-end em Angular)**.
 
 - **Finalizar a Etapa 1 (Back-end em Memória):**
 - Criar os arrays em memória `ordensServico` e `itensEstoque`.
@@ -79,6 +102,14 @@ O ambiente do Back-end foi completamente configurado e o servidor já está oper
 - **Validação:** manual, diretamente nas rotas (sem Zod/Joi).
 - **Autenticação:** sem login e sem perfis no MVP; todas as rotas abertas.
 - **Custo da O.S.:** usa o valor unitário da última compra registrada da peça.
+- **Estoque negativo:** proibido. Se alguma peça da O.S. não tiver saldo suficiente, o fechamento inteiro é recusado (nenhuma baixa parcial).
+- **Momento da baixa:** as peças são baixadas do estoque somente ao **fechar** a O.S.
+- **Custo congelado:** a O.S. grava o custo unitário de cada peça no momento da baixa; compras futuras não alteram o custo de manutenções já fechadas.
+- **O.S. com máquina em campo:** é permitido abrir O.S. para uma máquina com status `Em Operação`.
+- **O.S. aberta com máquina em campo:** a abertura da O.S. fecha automaticamente a movimentação aberta, usando o horímetro da parada (calcula as horas trabalhadas); a descrição do problema é registrada como avaria. A máquina vai direto para `Em Manutenção`.
+- **Uma O.S. aberta por máquina:** não é permitido abrir uma segunda O.S. para uma máquina que já tem O.S. aberta (409).
+- **Peça repetida no fechamento:** recusada com 400; cada peça deve aparecer uma única vez, com a quantidade total.
+- **Persistência:** o banco de dados (PostgreSQL + Prisma) não será implementado neste momento; os dados seguem em memória.
 
 **Perguntas originais:**
 

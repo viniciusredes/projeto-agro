@@ -41,6 +41,198 @@ interface Movimentacao {
 let movimentacoes: Movimentacao[] = [];
 let proximoIdMovimentacao = 1; // simula o auto-incremento de um banco de dados
 
+// Encontra a movimentação "aberta" (sem retorno) de uma máquina
+function buscarMovimentacaoAberta(maquinaId: number): Movimentacao | undefined {
+  return movimentacoes.find(mov => mov.maquinaId === maquinaId && mov.dataRetorno === undefined);
+}
+
+// Fecha uma movimentação: usada no retorno E na abertura de O.S. com a máquina em campo
+function fecharMovimentacao(movimentacao: Movimentacao, horimetro: number, avarias?: string): void {
+  movimentacao.horimetroRetorno = horimetro;
+  movimentacao.dataRetorno = new Date().toISOString();
+  // Arredonda para 1 casa decimal (evita resultados como 12.299999999)
+  movimentacao.horasTrabalhadas = Math.round((horimetro - movimentacao.horimetroSaida) * 10) / 10;
+
+  // Só grava avarias se houver texto de verdade (ignora "" e "   ")
+  if (avarias !== undefined && avarias.trim() !== '') {
+    movimentacao.avarias = avarias.trim();
+  }
+}
+
+// ===================== ESTOQUE (ALMOXARIFADO) =====================
+
+// Unidades de medida aceitas: unidade (peças) ou litro (fluidos)
+type UnidadeMedida = 'un' | 'L';
+
+// Formato de uma peça do almoxarifado
+interface Peca {
+  id: number;
+  codigo: string;          // código interno do almoxarifado, ex.: 'FLT-001'
+  descricao: string;
+  unidade: UnidadeMedida;
+  saldo: number;           // quantidade disponível, na unidade acima
+  custoUnitario: number;   // em reais (R$), valor da última compra
+  estoqueMinimo: number;   // abaixo deste saldo, a peça precisa ser reposta
+}
+
+// Peças em memória (saldo de implantação: o que já havia na prateleira)
+let pecas: Peca[] = [
+  { id: 1, codigo: 'FLT-001', descricao: 'Filtro de óleo do motor', unidade: 'un', saldo: 10, custoUnitario: 85.9, estoqueMinimo: 5 },
+  { id: 2, codigo: 'OLE-001', descricao: 'Óleo hidráulico', unidade: 'L', saldo: 200, custoUnitario: 18.5, estoqueMinimo: 50 },
+  { id: 3, codigo: 'COR-001', descricao: 'Correia do alternador', unidade: 'un', saldo: 4, custoUnitario: 120, estoqueMinimo: 5 }
+];
+let proximoIdPeca = 4; // as 3 peças iniciais usam os ids 1, 2 e 3
+
+// Lista de unidades válidas (usada para validar o que chega na requisição)
+const UNIDADES_VALIDAS: UnidadeMedida[] = ['un', 'L'];
+
+// Arredonda um número para N casas decimais (evita 0.1 + 0.2 = 0.30000000000000004)
+function arredondar(valor: number, casas: number): number {
+  const fator = 10 ** casas;
+  return Math.round(valor * fator) / fator;
+}
+
+// Tipos de movimento de estoque:
+// - implantacao: saldo que já existia quando o sistema começou
+// - entrada:     compra de peças (soma ao saldo)
+// - saida:       baixa por Ordem de Serviço (subtrai do saldo) — usado no módulo de O.S.
+type TipoMovimentoEstoque = 'implantacao' | 'entrada' | 'saida';
+
+// Formato de um movimento de estoque (uma linha do "kardex")
+interface MovimentoEstoque {
+  id: number;
+  pecaId: number;          // "chave estrangeira": aponta para Peca.id
+  tipo: TipoMovimentoEstoque;
+  quantidade: number;      // sempre positiva; o tipo diz se soma ou subtrai
+  custoUnitario: number;   // custo da peça NESTE movimento (fica congelado)
+  valorTotal: number;      // quantidade x custoUnitario
+  saldoApos: number;       // saldo da peça logo depois deste movimento
+  data: string;
+  ordemServicoId?: number; // só nas saídas: a O.S. que consumiu a peça
+}
+
+// Histórico de movimentos: começa com a implantação do saldo das peças iniciais
+let movimentosEstoque: MovimentoEstoque[] = pecas.map((peca, indice) => ({
+  id: indice + 1,
+  pecaId: peca.id,
+  tipo: 'implantacao',
+  quantidade: peca.saldo,
+  custoUnitario: peca.custoUnitario,
+  valorTotal: arredondar(peca.saldo * peca.custoUnitario, 2),
+  saldoApos: peca.saldo,
+  data: new Date().toISOString()
+}));
+let proximoIdMovimentoEstoque = movimentosEstoque.length + 1;
+
+// ===================== MANUTENÇÃO (ORDENS DE SERVIÇO) =====================
+
+type TipoOS = 'Preventiva' | 'Corretiva';
+type StatusOS = 'Aberta' | 'Fechada';
+
+const TIPOS_OS: TipoOS[] = ['Preventiva', 'Corretiva'];
+const STATUS_OS: StatusOS[] = ['Aberta', 'Fechada'];
+
+// Uma linha da O.S.: uma peça usada no reparo (preenchida no fechamento)
+interface ItemOS {
+  pecaId: number;          // "chave estrangeira": aponta para Peca.id
+  codigo: string;          // cópia do código da peça, para leitura rápida
+  quantidade: number;
+  custoUnitario: number;   // custo da peça NO MOMENTO da baixa (congelado)
+  valorTotal: number;      // quantidade x custoUnitario
+}
+
+// A O.S. é um "documento": um cabeçalho (dados gerais) + uma lista de itens
+interface OrdemServico {
+  id: number;
+  maquinaId: number;       // "chave estrangeira": aponta para Maquina.id
+  tipo: TipoOS;
+  status: StatusOS;
+  descricao: string;       // problema encontrado ou serviço a fazer
+  horimetroParada: number; // horímetro da máquina quando parou para manutenção
+  dataAbertura: string;
+  dataFechamento?: string; // preenchido no fechamento
+  itens: ItemOS[];         // peças usadas (vazia até o fechamento)
+  custoTotal: number;      // soma dos valorTotal dos itens
+}
+
+// Ordens de serviço em memória
+let ordensServico: OrdemServico[] = [];
+let proximoIdOS = 1;
+
+// Resultado da validação das peças do fechamento: OU deu certo (com os itens
+// já conferidos), OU deu erro (com o código HTTP e a mensagem)
+type ResultadoValidacaoPecas =
+  | { ok: true; itens: { peca: Peca; quantidade: number }[] }
+  | { ok: false; status: number; erro: string };
+
+// Valida a lista de peças do fechamento INTEIRA antes de qualquer baixa (tudo ou nada)
+function validarPecasDoFechamento(pecasInformadas: unknown): ResultadoValidacaoPecas {
+  // Sem peças: fechamento sem baixa de estoque
+  if (pecasInformadas === undefined) {
+    return { ok: true, itens: [] };
+  }
+
+  if (!Array.isArray(pecasInformadas)) {
+    return { ok: false, status: 400, erro: "Campo 'pecas', quando informado, deve ser uma lista" };
+  }
+
+  const itens: { peca: Peca; quantidade: number }[] = [];
+
+  for (let i = 0; i < pecasInformadas.length; i++) {
+    const n = i + 1; // posição "humana" do item na lista (1, 2, 3...)
+    const item = pecasInformadas[i];
+
+    // Formato de cada item
+    if (typeof item !== 'object' || item === null) {
+      return { ok: false, status: 400, erro: `Item ${n}: formato inválido, use { "pecaId": ..., "quantidade": ... }` };
+    }
+    const { pecaId, quantidade } = item as { pecaId?: unknown; quantidade?: unknown };
+
+    if (!Number.isInteger(pecaId)) {
+      return { ok: false, status: 400, erro: `Item ${n}: 'pecaId' deve ser um número inteiro` };
+    }
+    if (typeof quantidade !== 'number' || !Number.isFinite(quantidade) || quantidade <= 0) {
+      return { ok: false, status: 400, erro: `Item ${n}: 'quantidade' deve ser um número maior que zero` };
+    }
+
+    // A peça existe?
+    const peca = pecas.find(p => p.id === pecaId);
+    if (!peca) {
+      return { ok: false, status: 404, erro: `Item ${n}: peça ${pecaId} não encontrada` };
+    }
+
+    // Regras de negócio do item
+    if (itens.some(it => it.peca.id === peca.id)) {
+      return {
+        ok: false, status: 400,
+        erro: `A peça ${peca.codigo} aparece mais de uma vez: informe a quantidade total numa única linha`
+      };
+    }
+    if (peca.unidade === 'un' && !Number.isInteger(quantidade)) {
+      return {
+        ok: false, status: 400,
+        erro: `Item ${n}: a peça ${peca.codigo} é contada em unidades, a quantidade deve ser um número inteiro`
+      };
+    }
+
+    itens.push({ peca, quantidade });
+  }
+
+  // Estoque nunca fica negativo: lista TODAS as peças sem saldo de uma vez
+  const insuficientes = itens.filter(it => it.quantidade > it.peca.saldo);
+  if (insuficientes.length > 0) {
+    const detalhes = insuficientes
+      .map(it => `${it.peca.codigo} (pedido ${it.quantidade}, saldo ${it.peca.saldo})`)
+      .join('; ');
+    return {
+      ok: false, status: 409,
+      erro: `Estoque insuficiente: ${detalhes}. Nenhuma baixa foi realizada.`
+    };
+  }
+
+  return { ok: true, itens };
+}
+
 // 1. Caminho para VER as máquinas (Listagem)
 app.get('/maquinas', (req, res) => {
   res.json(maquinas);
@@ -125,9 +317,7 @@ app.post('/maquinas/:id/retorno', (req, res) => {
   }
 
   // Localiza a movimentação "aberta" (sem retorno) desta máquina
-  const movimentacao = movimentacoes.find(
-    mov => mov.maquinaId === maquina.id && mov.dataRetorno === undefined
-  );
+  const movimentacao = buscarMovimentacaoAberta(maquina.id);
 
   if (!movimentacao) {
     // Não deveria acontecer: toda máquina 'Em Operação' saiu pela rota de saída
@@ -135,15 +325,7 @@ app.post('/maquinas/:id/retorno', (req, res) => {
   }
 
   // Tudo certo: fecha a movimentação e registra o retorno
-  movimentacao.horimetroRetorno = horimetro;
-  movimentacao.dataRetorno = new Date().toISOString();
-  // Arredonda para 1 casa decimal (evita resultados como 12.299999999)
-  movimentacao.horasTrabalhadas = Math.round((horimetro - movimentacao.horimetroSaida) * 10) / 10;
-
-  // Só grava avarias se houver texto de verdade (ignora "" e "   ")
-  if (avarias !== undefined && avarias.trim() !== '') {
-    movimentacao.avarias = avarias.trim();
-  }
+  fecharMovimentacao(movimentacao, horimetro, avarias);
 
   maquina.status = 'Disponível';
   maquina.horimetro = horimetro;
@@ -166,6 +348,408 @@ app.get('/movimentacoes', (req, res) => {
   }
 
   res.json(movimentacoes.filter(mov => mov.maquinaId === idFiltro));
+});
+
+// 5. Caminho para VER as peças do estoque
+// (filtro opcional: ?abaixoDoMinimo=true lista só as peças que precisam de reposição)
+app.get('/pecas', (req, res) => {
+  const { abaixoDoMinimo } = req.query;
+
+  // Sem filtro: devolve todas
+  if (abaixoDoMinimo === undefined) {
+    return res.json(pecas);
+  }
+
+  if (abaixoDoMinimo !== 'true') {
+    return res.status(400).json({ erro: "Parâmetro 'abaixoDoMinimo' só aceita o valor 'true'" });
+  }
+
+  // Com filtro: peças abaixo do mínimo + quanto falta para chegar nele (dado calculado)
+  const paraRepor = pecas
+    .filter(p => p.saldo < p.estoqueMinimo)
+    .map(p => ({ ...p, faltaParaMinimo: arredondar(p.estoqueMinimo - p.saldo, 2) }));
+
+  res.json(paraRepor);
+});
+
+// 6. Caminho para VER uma peça específica
+app.get('/pecas/:id', (req, res) => {
+  const id = Number(req.params.id);
+
+  // Validação 1 (formato): o id é um número inteiro?
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  // Validação 2: a peça existe?
+  const peca = pecas.find(p => p.id === id);
+  if (!peca) {
+    return res.status(404).json({ erro: 'Peça não encontrada' });
+  }
+
+  res.json(peca);
+});
+
+// 7. Caminho para CADASTRAR uma peça
+app.post('/pecas', (req, res) => {
+  const { codigo, descricao, unidade, estoqueMinimo, saldo, custoUnitario } = req.body ?? {};
+
+  // Validação 1 (formato): campos obrigatórios
+  if (typeof codigo !== 'string' || codigo.trim() === '') {
+    return res.status(400).json({ erro: "Campo 'codigo' é obrigatório" });
+  }
+  if (typeof descricao !== 'string' || descricao.trim() === '') {
+    return res.status(400).json({ erro: "Campo 'descricao' é obrigatório" });
+  }
+  if (!UNIDADES_VALIDAS.includes(unidade)) {
+    return res.status(400).json({ erro: `Campo 'unidade' deve ser um destes: ${UNIDADES_VALIDAS.join(', ')}` });
+  }
+
+  // Campo OPCIONAL: se vier, precisa ser um número >= 0 (inteiro, se a peça for contada em unidades)
+  if (estoqueMinimo !== undefined) {
+    if (typeof estoqueMinimo !== 'number' || !Number.isFinite(estoqueMinimo) || estoqueMinimo < 0) {
+      return res.status(400).json({ erro: "Campo 'estoqueMinimo', quando informado, deve ser um número maior ou igual a zero" });
+    }
+    if (unidade === 'un' && !Number.isInteger(estoqueMinimo)) {
+      return res.status(400).json({ erro: "Peça contada em unidades: 'estoqueMinimo' deve ser um número inteiro" });
+    }
+  }
+
+  // Validação 2 (regra de negócio): saldo e custo só mudam por entrada de estoque
+  if (saldo !== undefined || custoUnitario !== undefined) {
+    return res.status(400).json({
+      erro: "Saldo e custo não são informados no cadastro. Use a entrada de estoque (compra) para abastecer a peça"
+    });
+  }
+
+  // Validação 3 (regra de negócio): código único (comparando já normalizado)
+  const codigoNormalizado = codigo.trim().toUpperCase();
+  if (pecas.some(p => p.codigo === codigoNormalizado)) {
+    return res.status(409).json({ erro: `Já existe uma peça com o código ${codigoNormalizado}` });
+  }
+
+  // Tudo certo: cria a peça zerada
+  const novaPeca: Peca = {
+    id: proximoIdPeca++,
+    codigo: codigoNormalizado,
+    descricao: descricao.trim(),
+    unidade,
+    saldo: 0,
+    custoUnitario: 0,
+    estoqueMinimo: estoqueMinimo ?? 0   // sem mínimo informado, não gera alerta de reposição
+  };
+  pecas.push(novaPeca);
+
+  res.status(201).json(novaPeca);
+});
+
+// 8. Caminho para registrar uma ENTRADA de estoque (compra de peças)
+app.post('/pecas/:id/entradas', (req, res) => {
+  const id = Number(req.params.id);
+
+  // Validação 1 (formato): o id é um número inteiro?
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  // Validação 2: a peça existe?
+  const peca = pecas.find(p => p.id === id);
+  if (!peca) {
+    return res.status(404).json({ erro: 'Peça não encontrada' });
+  }
+
+  // Validação 3 (formato): quantidade e custo são números positivos?
+  const { quantidade, custoUnitario } = req.body ?? {};
+
+  if (typeof quantidade !== 'number' || !Number.isFinite(quantidade) || quantidade <= 0) {
+    return res.status(400).json({ erro: "Campo 'quantidade' deve ser um número maior que zero" });
+  }
+  if (typeof custoUnitario !== 'number' || !Number.isFinite(custoUnitario) || custoUnitario <= 0) {
+    return res.status(400).json({ erro: "Campo 'custoUnitario' deve ser um número maior que zero" });
+  }
+
+  // Validação 4 (regra de negócio): peça contada em unidades não aceita fração
+  if (peca.unidade === 'un' && !Number.isInteger(quantidade)) {
+    return res.status(400).json({
+      erro: `A peça ${peca.codigo} é contada em unidades: a quantidade deve ser um número inteiro`
+    });
+  }
+
+  // Tudo certo: soma ao saldo e o custo passa a ser o da última compra
+  const custoAnterior = peca.custoUnitario;
+  peca.saldo = arredondar(peca.saldo + quantidade, 2);
+  peca.custoUnitario = arredondar(custoUnitario, 2);
+
+  // Registra o movimento no histórico (kardex)
+  const movimento: MovimentoEstoque = {
+    id: proximoIdMovimentoEstoque++,
+    pecaId: peca.id,
+    tipo: 'entrada',
+    quantidade,
+    custoUnitario: peca.custoUnitario,
+    valorTotal: arredondar(quantidade * peca.custoUnitario, 2),
+    saldoApos: peca.saldo,
+    data: new Date().toISOString()
+  };
+  movimentosEstoque.push(movimento);
+
+  res.json({ mensagem: 'Entrada registrada com sucesso!', peca, custoAnterior, movimento });
+});
+
+// 9. Caminho para VER o histórico de movimentos de uma peça (kardex)
+app.get('/pecas/:id/movimentos', (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  const peca = pecas.find(p => p.id === id);
+  if (!peca) {
+    return res.status(404).json({ erro: 'Peça não encontrada' });
+  }
+
+  res.json(movimentosEstoque.filter(mov => mov.pecaId === peca.id));
+});
+
+// 10. Caminho para VER as ordens de serviço
+// (filtros opcionais e combináveis: ?maquinaId=1 e ?status=Aberta)
+app.get('/ordens-servico', (req, res) => {
+  const { maquinaId, status } = req.query;
+  let resultado = ordensServico;
+
+  if (maquinaId !== undefined) {
+    const idFiltro = Number(maquinaId);
+    if (!Number.isInteger(idFiltro)) {
+      return res.status(400).json({ erro: "Parâmetro 'maquinaId' deve ser um número inteiro" });
+    }
+    resultado = resultado.filter(os => os.maquinaId === idFiltro);
+  }
+
+  if (status !== undefined) {
+    if (!STATUS_OS.includes(status as StatusOS)) {
+      return res.status(400).json({ erro: `Parâmetro 'status' deve ser um destes: ${STATUS_OS.join(', ')}` });
+    }
+    resultado = resultado.filter(os => os.status === status);
+  }
+
+  res.json(resultado);
+});
+
+// 11. Caminho para VER uma ordem de serviço específica (com os dados da máquina)
+app.get('/ordens-servico/:id', (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  const ordemServico = ordensServico.find(os => os.id === id);
+  if (!ordemServico) {
+    return res.status(404).json({ erro: 'Ordem de serviço não encontrada' });
+  }
+
+  // "Junta" a O.S. com a máquina, para a tela de detalhes não precisar de outra chamada
+  const maquina = maquinas.find(m => m.id === ordemServico.maquinaId);
+
+  res.json({
+    ...ordemServico,
+    maquina: maquina ? { id: maquina.id, tag: maquina.tag, modelo: maquina.modelo } : null
+  });
+});
+
+// 12. Caminho para VER o histórico e o custo de manutenção de uma máquina
+app.get('/maquinas/:id/manutencoes', (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  const maquina = maquinas.find(m => m.id === id);
+  if (!maquina) {
+    return res.status(404).json({ erro: 'Máquina não encontrada' });
+  }
+
+  const ordens = ordensServico.filter(os => os.maquinaId === maquina.id);
+  const fechadas = ordens.filter(os => os.status === 'Fechada');
+
+  // Soma o custo das O.S. fechadas de um tipo (ou de todas, sem tipo)
+  const somarCusto = (tipo?: TipoOS) => arredondar(
+    fechadas
+      .filter(os => tipo === undefined || os.tipo === tipo)
+      .reduce((soma, os) => soma + os.custoTotal, 0),
+    2
+  );
+
+  res.json({
+    maquina: maquina.tag,
+    status: maquina.status,
+    totalOrdens: ordens.length,
+    abertas: ordens.length - fechadas.length,
+    fechadas: fechadas.length,
+    custoTotal: somarCusto(),
+    custoPorTipo: {
+      Preventiva: somarCusto('Preventiva'),
+      Corretiva: somarCusto('Corretiva')
+    },
+    ordens
+  });
+});
+
+// 13. Caminho para ABRIR uma ordem de serviço
+app.post('/ordens-servico', (req, res) => {
+  const { maquinaId, tipo, descricao, horimetro } = req.body ?? {};
+
+  // Validação 1 (formato): qual máquina?
+  if (!Number.isInteger(maquinaId)) {
+    return res.status(400).json({ erro: "Campo 'maquinaId' é obrigatório e deve ser um número inteiro" });
+  }
+
+  // Validação 2: a máquina existe?
+  const maquina = maquinas.find(m => m.id === maquinaId);
+  if (!maquina) {
+    return res.status(404).json({ erro: 'Máquina não encontrada' });
+  }
+
+  // Validação 3 (estado): uma O.S. aberta por máquina
+  if (maquina.status === 'Em Manutenção') {
+    const osAberta = ordensServico.find(os => os.maquinaId === maquina.id && os.status === 'Aberta');
+    return res.status(409).json({
+      erro: `Máquina ${maquina.tag} já está em manutenção (O.S. nº ${osAberta?.id} aberta)`
+    });
+  }
+
+  // Validação 4 (estado): máquina em campo precisa ter a saída em aberto
+  // (ela será fechada automaticamente com o horímetro da parada)
+  const movimentacaoAberta = maquina.status === 'Em Operação'
+    ? buscarMovimentacaoAberta(maquina.id)
+    : undefined;
+
+  if (maquina.status === 'Em Operação' && !movimentacaoAberta) {
+    // Não deveria acontecer: toda máquina 'Em Operação' saiu pela rota de saída
+    return res.status(409).json({ erro: `Nenhuma saída em aberto para a máquina ${maquina.tag}` });
+  }
+
+  // Validação 5 (formato): dados da O.S.
+  if (!TIPOS_OS.includes(tipo)) {
+    return res.status(400).json({ erro: `Campo 'tipo' deve ser um destes: ${TIPOS_OS.join(', ')}` });
+  }
+  if (typeof descricao !== 'string' || descricao.trim() === '') {
+    return res.status(400).json({ erro: "Campo 'descricao' é obrigatório" });
+  }
+  if (typeof horimetro !== 'number' || !Number.isFinite(horimetro)) {
+    return res.status(400).json({ erro: "Campo 'horimetro' é obrigatório e deve ser um número" });
+  }
+
+  // Validação 6 (regra de negócio): o horímetro nunca anda para trás
+  if (horimetro < maquina.horimetro) {
+    return res.status(400).json({
+      erro: `Horímetro informado (${horimetro}) é menor que o atual (${maquina.horimetro})`
+    });
+  }
+
+  // Tudo certo: abre a O.S. e a máquina vai para a oficina
+  const ordemServico: OrdemServico = {
+    id: proximoIdOS++,
+    maquinaId: maquina.id,
+    tipo,
+    status: 'Aberta',
+    descricao: descricao.trim(),
+    horimetroParada: horimetro,
+    dataAbertura: new Date().toISOString(),
+    itens: [],        // as peças entram no fechamento
+    custoTotal: 0
+  };
+  ordensServico.push(ordemServico);
+
+  // Máquina estava em campo: encerra a saída com o horímetro da parada,
+  // registrando o problema da O.S. como avaria
+  if (movimentacaoAberta) {
+    fecharMovimentacao(movimentacaoAberta, horimetro, `O.S. nº ${ordemServico.id}: ${ordemServico.descricao}`);
+  }
+
+  maquina.status = 'Em Manutenção';
+  maquina.horimetro = horimetro;
+
+  res.status(201).json({
+    mensagem: movimentacaoAberta
+      ? 'Ordem de serviço aberta! A saída da máquina foi encerrada automaticamente.'
+      : 'Ordem de serviço aberta!',
+    ordemServico,
+    maquina,
+    movimentacaoEncerrada: movimentacaoAberta ?? null
+  });
+});
+
+// 14. Caminho para FECHAR uma ordem de serviço
+app.post('/ordens-servico/:id/fechamento', (req, res) => {
+  const id = Number(req.params.id);
+
+  // Validação 1 (formato): o id é um número inteiro?
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  // Validação 2: a O.S. existe?
+  const ordemServico = ordensServico.find(os => os.id === id);
+  if (!ordemServico) {
+    return res.status(404).json({ erro: 'Ordem de serviço não encontrada' });
+  }
+
+  // Validação 3 (estado): só fecha O.S. aberta
+  if (ordemServico.status !== 'Aberta') {
+    return res.status(409).json({ erro: `O.S. nº ${ordemServico.id} já está fechada` });
+  }
+
+  // Validação 4: peças usadas — valida a lista inteira (tudo ou nada)
+  const validacao = validarPecasDoFechamento(req.body?.pecas);
+  if (!validacao.ok) {
+    return res.status(validacao.status).json({ erro: validacao.erro });
+  }
+
+  // Tudo validado: agora sim, baixa automática de cada peça no estoque
+  const dataFechamento = new Date().toISOString();
+
+  for (const { peca, quantidade } of validacao.itens) {
+    const custoUnitario = peca.custoUnitario;                  // custo congelado AGORA
+    const valorTotal = arredondar(quantidade * custoUnitario, 2);
+
+    peca.saldo = arredondar(peca.saldo - quantidade, 2);
+
+    // Movimento de saída no kardex, apontando para a O.S.
+    movimentosEstoque.push({
+      id: proximoIdMovimentoEstoque++,
+      pecaId: peca.id,
+      tipo: 'saida',
+      quantidade,
+      custoUnitario,
+      valorTotal,
+      saldoApos: peca.saldo,
+      data: dataFechamento,
+      ordemServicoId: ordemServico.id
+    });
+
+    // Item da O.S., com o custo copiado (não muda com compras futuras)
+    ordemServico.itens.push({ pecaId: peca.id, codigo: peca.codigo, quantidade, custoUnitario, valorTotal });
+  }
+
+  // Custo total da manutenção: soma dos itens
+  ordemServico.custoTotal = arredondar(
+    ordemServico.itens.reduce((soma, item) => soma + item.valorTotal, 0),
+    2
+  );
+
+  // Fecha a O.S. e a máquina volta para o pátio
+  ordemServico.status = 'Fechada';
+  ordemServico.dataFechamento = dataFechamento;
+
+  const maquina = maquinas.find(m => m.id === ordemServico.maquinaId);
+  if (maquina) {
+    maquina.status = 'Disponível';
+  }
+
+  res.json({ mensagem: 'Ordem de serviço fechada! Máquina liberada.', ordemServico, maquina });
 });
 
 // Rota não encontrada: se a requisição chegou até aqui, nenhuma rota acima atendeu.
