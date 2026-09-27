@@ -22,13 +22,7 @@
       <mat-label>Avarias (opcional)</mat-label>
       <textarea matInput formControlName="avarias" rows="3" placeholder="Ex.: pneu dianteiro com corte"></textarea>
     </mat-form-field>
-
-    @if (erro(); as mensagem) {
-      <p class="erro">
-        <mat-icon>error</mat-icon>
-        {{ mensagem }}
-      </p>
-    }
+    
   </mat-dialog-content>
 
   <mat-dialog-actions align="end">

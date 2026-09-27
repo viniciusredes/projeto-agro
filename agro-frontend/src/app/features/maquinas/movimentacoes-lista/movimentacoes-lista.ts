@@ -7,7 +7,6 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MaquinaService } from '../../../core/services/maquina.service';
-import { mensagemDeErro } from '../../../core/api';
 import { Maquina, Movimentacao } from '../../../core/models/maquina';
 
 @Component({
@@ -46,7 +45,7 @@ export class MovimentacoesLista {
   constructor() {
     this.maquinaService.listar().subscribe({
       next: maquinas => this.maquinas.set(maquinas),
-      error: erro => this.erro.set(mensagemDeErro(erro)),
+      error: () => this.erro.set('Não foi possível carregar as máquinas.'),
     });
     this.carregar();
   }
@@ -70,7 +69,8 @@ export class MovimentacoesLista {
       .pipe(finalize(() => this.carregando.set(false)))
       .subscribe({
         next: movimentacoes => this.movimentacoes.set(movimentacoes),
-        error: erro => this.erro.set(mensagemDeErro(erro)),
+        error: () => this.erro.set('Não foi possível carregar as movimentações.'),
+
       });
   }
 }

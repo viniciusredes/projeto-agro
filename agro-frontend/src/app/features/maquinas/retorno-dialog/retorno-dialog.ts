@@ -6,16 +6,14 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MaquinaService } from '../../../core/services/maquina.service';
-import { mensagemDeErro } from '../../../core/api';
 import { Maquina, RespostaRetorno } from '../../../core/models/maquina';
 
 @Component({
   selector: 'app-retorno-dialog',
   imports: [
     ReactiveFormsModule,
-    MatDialogModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule,
+    MatDialogModule, MatFormFieldModule, MatInputModule, MatButtonModule,
   ],
   templateUrl: './retorno-dialog.html',
   styleUrl: './retorno-dialog.scss',
@@ -47,7 +45,6 @@ export class RetornoDialog {
   });
 
   protected readonly salvando = signal(false);
-  protected readonly erro = signal<string | null>(null);
 
   protected confirmar(): void {
     if (this.form.invalid) {
@@ -58,7 +55,6 @@ export class RetornoDialog {
     const { horimetro, avarias } = this.form.getRawValue();
 
     this.salvando.set(true);
-    this.erro.set(null);
 
     this.maquinaService
       .registrarRetorno(this.maquina.id, {
@@ -69,7 +65,8 @@ export class RetornoDialog {
       .pipe(finalize(() => this.salvando.set(false)))
       .subscribe({
         next: resposta => this.dialogRef.close(resposta),
-        error: erro => this.erro.set(mensagemDeErro(erro)),
+        // Erro: a mensagem já foi exibida pelo interceptor; o diálogo só continua aberto
+        error: () => {},
       });
   }
 }

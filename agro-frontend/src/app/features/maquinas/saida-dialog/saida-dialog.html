@@ -15,14 +15,7 @@
       <input matInput formControlName="frenteTrabalho" autocomplete="off" placeholder="Ex.: Talhão 5" />
       <mat-error>Informe para onde a máquina vai</mat-error>
     </mat-form-field>
-
-    <!-- Erro devolvido pela API (ex.: 409 se a máquina não estiver mais disponível) -->
-    @if (erro(); as mensagem) {
-      <p class="erro">
-        <mat-icon>error</mat-icon>
-        {{ mensagem }}
-      </p>
-    }
+    
   </mat-dialog-content>
 
   <mat-dialog-actions align="end">

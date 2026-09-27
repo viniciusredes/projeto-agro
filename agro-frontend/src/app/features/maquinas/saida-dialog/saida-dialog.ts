@@ -5,9 +5,7 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MaquinaService } from '../../../core/services/maquina.service';
-import { mensagemDeErro } from '../../../core/api';
 import { Maquina, RespostaSaida } from '../../../core/models/maquina';
 
 // "Tem pelo menos um caractere que não é espaço" (o back-end recusa texto só com espaços)
@@ -17,7 +15,7 @@ const NAO_VAZIO = /\S/;
   selector: 'app-saida-dialog',
   imports: [
     ReactiveFormsModule,
-    MatDialogModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule,
+    MatDialogModule, MatFormFieldModule, MatInputModule, MatButtonModule,
   ],
   templateUrl: './saida-dialog.html',
   styleUrl: './saida-dialog.scss',
@@ -36,7 +34,6 @@ export class SaidaDialog {
   });
 
   protected readonly salvando = signal(false);
-  protected readonly erro = signal<string | null>(null);
 
   protected confirmar(): void {
     // Formulário inválido: mostra as mensagens de todos os campos e não envia
@@ -46,7 +43,6 @@ export class SaidaDialog {
     }
 
     this.salvando.set(true);
-    this.erro.set(null);
 
     this.maquinaService
       .registrarSaida(this.maquina.id, this.form.getRawValue())
@@ -54,8 +50,8 @@ export class SaidaDialog {
       .subscribe({
         // Sucesso: fecha o diálogo devolvendo a resposta para quem o abriu
         next: resposta => this.dialogRef.close(resposta),
-        // Erro: o diálogo continua aberto e mostra a mensagem da API
-        error: erro => this.erro.set(mensagemDeErro(erro)),
+        // Erro: a mensagem já foi exibida pelo interceptor; o diálogo só continua aberto
+        error: () => {},
       });
   }
 }
