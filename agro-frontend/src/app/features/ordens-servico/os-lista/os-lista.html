@@ -62,7 +62,9 @@
   <table mat-table [dataSource]="ordensOrdenadas()" class="tabela">
     <ng-container matColumnDef="numero">
       <th mat-header-cell *matHeaderCellDef>Nº</th>
-      <td mat-cell *matCellDef="let os" class="numero-os">{{ os.id }}</td>
+      <td mat-cell *matCellDef="let os" class="numero-os">
+        <a [routerLink]="['/ordens-servico', os.id]">{{ os.id }}</a>
+      </td>
     </ng-container>
 
     <ng-container matColumnDef="maquina">

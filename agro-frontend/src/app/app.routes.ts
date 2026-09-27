@@ -30,7 +30,14 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/ordens-servico/os-lista/os-lista').then(m => m.OsLista),
   },
-    {
+  {
+    // Detalhe e fechamento da O.S.: /ordens-servico/1 (o :id vira o input "id")
+    path: 'ordens-servico/:id',
+    title: 'Ordem de Serviço | Agro Frota',
+    loadComponent: () =>
+      import('./features/ordens-servico/os-detalhe/os-detalhe').then(m => m.OsDetalhe),
+  },
+  {
     path: 'movimentacoes',
     title: 'Movimentações | Agro Frota',
     loadComponent: () =>

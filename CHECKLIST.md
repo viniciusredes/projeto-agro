@@ -49,8 +49,8 @@ Branch atual: `feat/front-base` · PR #2 (aberto)
 > Nesta fase, o Claude implementa os passos (edições visíveis para os alunos) e o usuário faz os commits.
 
 - [x] **Passo 12** — Lista de O.S. com filtros na URL (query params → `input()`), `rxResource` e modelo/service de O.S. · `89a4611`
-- [x] **Passo 13** — Abertura de O.S. (aviso quando a máquina está em campo; horímetro mínimo dinâmico; aberta pela lista de O.S. e pela lista de Máquinas) · *commit: a preencher*
-- [ ] **Passo 14** — Detalhe e fechamento da O.S. com `FormArray` (peças dinâmicas, tudo ou nada)
+- [x] **Passo 13** — Abertura de O.S. (aviso quando a máquina está em campo; horímetro mínimo dinâmico; aberta pela lista de O.S. e pela lista de Máquinas) · `818f127`
+- [x] **Passo 14** — Detalhe e fechamento da O.S. com `FormArray` (peças dinâmicas, tudo ou nada); links O.S. ↔ kardex · *commit: a preencher*
 - [ ] **Passo 15** — Custo de manutenção por máquina
 
 ### Fase 4 — Fechamento

@@ -1,0 +1,149 @@
+.voltar {
+  margin-bottom: 8px;
+}
+
+.cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  h2 {
+    display: inline-block;
+    margin: 0 12px 0 0;
+  }
+
+  .etiqueta {
+    margin-right: 8px;
+  }
+}
+
+// Dados do cabeçalho em "cartões" lado a lado
+.dados {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 16px 0 24px;
+
+  div {
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--mat-sys-surface-container);
+  }
+
+  dt {
+    font-size: 0.8em;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  dd {
+    margin: 4px 0 0;
+    font-weight: 500;
+  }
+}
+
+.dados__largo {
+  grid-column: 1 / -1; // a descrição ocupa a linha inteira
+}
+
+.info {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// Uma linha do FormArray: peça (larga) + quantidade + botão remover
+.linha {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.linha__peca {
+  flex: 3;
+}
+
+.linha__quantidade {
+  flex: 1;
+}
+
+.erro-linha {
+  color: var(--mat-sys-error);
+}
+
+.alerta-linha {
+  color: #8a4b08;
+  font-weight: 500;
+}
+
+.rodape {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.estimativa {
+  flex: 1;
+  text-align: right;
+}
+
+.tabela {
+  width: 100%;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.numero {
+  text-align: right;
+}
+
+.codigo {
+  font-family: monospace;
+  font-weight: 500;
+}
+
+.detalhe {
+  font-size: 0.85em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.etiqueta {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.etiqueta--aberta {
+  background: #fdecd8;
+  color: #8a4b08;
+}
+
+.etiqueta--fechada {
+  background: #e3f4e6;
+  color: #1b6b2c;
+}
+
+.etiqueta--preventiva {
+  background: #e0ecfb;
+  color: #1a4f8f;
+}
+
+.etiqueta--corretiva {
+  background: #fde2e1;
+  color: #9b1c1c;
+}
+
+.aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container);
+}
+
+.aviso--erro {
+  color: var(--mat-sys-on-error-container);
+  background: var(--mat-sys-error-container);
+}

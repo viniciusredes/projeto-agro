@@ -1,6 +1,6 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -30,7 +30,7 @@ function paraStatus(valor: string | undefined): StatusOS | undefined {
 @Component({
   selector: 'app-os-lista',
   imports: [
-    CurrencyPipe, DatePipe,
+    CurrencyPipe, DatePipe, RouterLink,
     MatTableModule, MatFormFieldModule, MatSelectModule, MatButtonModule, MatIconModule,
     MatProgressBarModule,
   ],
