@@ -8,8 +8,8 @@
   margin: 0 0 16px;
   padding: 12px;
   border-radius: 8px;
-  background: #fff4d6;
-  color: #6b4a00;
+  background: var(--agro-atencao-fundo);
+  color: var(--agro-atencao-texto);
 
   mat-icon {
     flex-shrink: 0;

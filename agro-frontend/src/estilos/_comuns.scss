@@ -4,6 +4,23 @@
 //  Agora existem em um lugar só: mudou aqui, muda no sistema inteiro.
 // =====================================================================
 
+// ----- Cores próprias do sistema (fora das cores do Material), nos DOIS temas -----
+// light-dark(claro, escuro): o navegador escolhe conforme o "color-scheme" do <html>
+// (o mesmo mecanismo que o Material usa nas cores dele). Definidas uma vez, usadas nas telas.
+:root {
+  --agro-sucesso-fundo: light-dark(#e3f4e6, #1c3a26);
+  --agro-sucesso-texto: light-dark(#1b6b2c, #9fe0b2);
+  --agro-info-fundo: light-dark(#e0ecfb, #1b3050);
+  --agro-info-texto: light-dark(#1a4f8f, #a9c9f5);
+  --agro-alerta-fundo: light-dark(#fdecd8, #45300f);
+  --agro-alerta-texto: light-dark(#8a4b08, #f6c38a);
+  --agro-corretiva-fundo: light-dark(#fde6da, #4a2413);
+  --agro-corretiva-texto: light-dark(#9a3a12, #f8b594);
+  --agro-atencao-fundo: light-dark(#fff4d6, #3d3210); // aviso amarelo (ex.: máquina em campo)
+  --agro-atencao-texto: light-dark(#6b4a00, #f3d27a);
+  --agro-linha-destaque: light-dark(#fff7ed, #2e2415); // linha de tabela em destaque (repor)
+}
+
 // ----- Links com a cor do tema (em vez do azul sublinhado padrão do navegador) -----
 // :where(...) tem peso ZERO: a regra vale para todo link comum, mas qualquer componente
 // que estilize um link (ex.: um cartão clicável) consegue sobrescrever sem brigar com ela
@@ -103,18 +120,18 @@ a:where(:not(.mat-mdc-button-base):not(.mat-mdc-list-item)) {
 }
 
 .etiqueta--sucesso {
-  background: #e3f4e6;
-  color: #1b6b2c;
+  background: var(--agro-sucesso-fundo);
+  color: var(--agro-sucesso-texto);
 }
 
 .etiqueta--info {
-  background: #e0ecfb;
-  color: #1a4f8f;
+  background: var(--agro-info-fundo);
+  color: var(--agro-info-texto);
 }
 
 .etiqueta--alerta {
-  background: #fdecd8;
-  color: #8a4b08;
+  background: var(--agro-alerta-fundo);
+  color: var(--agro-alerta-texto);
 }
 
 .etiqueta--neutro {
@@ -124,6 +141,6 @@ a:where(:not(.mat-mdc-button-base):not(.mat-mdc-list-item)) {
 
 // Mesma família de cor da série "Corretiva" no gráfico de custo da máquina
 .etiqueta--corretiva {
-  background: #fde6da;
-  color: #9a3a12;
+  background: var(--agro-corretiva-fundo);
+  color: var(--agro-corretiva-texto);
 }

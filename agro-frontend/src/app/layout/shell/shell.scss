@@ -5,8 +5,21 @@
   height: 100vh;
 }
 
+// Barra superior: superfície clara/escura do tema, com uma borda sutil embaixo
+// e uma faixa fina com as cores da marca (verde -> laranja) no topo
 .barra {
+  position: relative;
   gap: 8px;
+  background: var(--mat-sys-surface-container-lowest);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--mat-sys-primary), var(--mat-sys-tertiary));
+  }
 }
 
 // Logo na barra: altura fixa, largura proporcional
@@ -20,14 +33,33 @@
   }
 }
 
+// Empurra o botão de tema para a direita
+.espaco {
+  flex: 1;
+}
+
+// Check da opção de tema selecionada, alinhado à direita do item
+.marcado {
+  margin: 0 0 0 16px;
+  color: var(--mat-sys-primary);
+}
+
 .container {
   flex: 1; // ocupa toda a altura que sobra abaixo da barra
 }
 
+// Menu lateral um tom abaixo do conteúdo, para separar as áreas sem precisar de sombras
 .menu {
   width: 240px;
+  padding-top: 8px;
+  background: var(--mat-sys-surface-container-low);
+  border-right: 1px solid var(--mat-sys-outline-variant);
 }
 
 .conteudo {
+  // O Material dá "height: 100%" a esta área. Sem border-box, o padding SOMA à altura
+  // (100% + 48px) e os últimos 48px da página ficam escondidos atrás da borda da tela.
+  box-sizing: border-box;
   padding: 24px;
+  background: var(--mat-sys-surface);
 }

@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MaquinaService } from '../../core/services/maquina.service';
 import { PecaService } from '../../core/services/peca.service';
+import { TemaService } from '../../core/ui/tema.service';
 
 // Um cartão de módulo da página inicial
 interface Modulo {
@@ -24,6 +25,7 @@ interface Modulo {
 export class Inicio {
   private readonly maquinaService = inject(MaquinaService);
   private readonly pecaService = inject(PecaService);
+  protected readonly tema = inject(TemaService); // para escolher a versão clara/escura da logo
 
   // Dados ao vivo para o bloco "A frota agora"
   protected readonly maquinas = rxResource({ stream: () => this.maquinaService.listar() });

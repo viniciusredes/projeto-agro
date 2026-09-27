@@ -2,7 +2,7 @@
 <section class="apresentacao">
   <img
     class="apresentacao__logo"
-    src="img/logo-agrofrota.webp"
+    [src]="tema.escuroAtivo() ? 'img/logo-agrofrota-escuro.webp' : 'img/logo-agrofrota.webp'"
     alt="Agro Frota — Gestão inteligente de máquinas agrícolas"
     width="900"
     height="460"

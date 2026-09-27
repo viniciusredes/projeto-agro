@@ -23,10 +23,10 @@
 
 .falta {
   font-weight: 600;
-  color: #8a4b08;
+  color: var(--agro-alerta-texto);
 }
 
-// Fundo suave na linha inteira das peças abaixo do mínimo
+// Fundo suave na linha inteira das peças abaixo do mínimo (cor nos dois temas: _comuns.scss)
 .linha-repor {
-  background: #fff7ed;
+  background: var(--agro-linha-destaque);
 }
