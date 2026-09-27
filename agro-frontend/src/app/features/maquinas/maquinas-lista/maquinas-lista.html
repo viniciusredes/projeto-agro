@@ -1,3 +1,7 @@
 <h2>Máquinas</h2>
-<p>Em construção: a lista de máquinas chega no Passo 3.</p>
 
+@if (quantidade() === null) {
+  <p>Carregando...</p>
+} @else {
+  <p>{{ quantidade() }} máquina(s) carregada(s) da API.</p>
+}

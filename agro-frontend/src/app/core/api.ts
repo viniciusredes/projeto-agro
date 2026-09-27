@@ -1,0 +1,3 @@
+// Prefixo de todas as chamadas à API.
+// O proxy do ng serve (proxy.conf.json) repassa /api/... para http://localhost:3000/...
+export const API_URL = '/api';
