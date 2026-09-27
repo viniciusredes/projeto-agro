@@ -1,0 +1,19 @@
+.info {
+  margin-top: 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.campo {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+// Unidade e estoque mínimo lado a lado, dividindo a largura
+.linha {
+  display: flex;
+  gap: 12px;
+
+  mat-form-field {
+    flex: 1;
+  }
+}

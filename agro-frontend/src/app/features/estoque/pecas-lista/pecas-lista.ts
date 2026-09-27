@@ -6,8 +6,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { PecaService } from '../../../core/services/peca.service';
 import { Peca, PecaParaRepor } from '../../../core/models/peca';
+import { NovaPecaDialog } from '../nova-peca-dialog/nova-peca-dialog';
 
 @Component({
   selector: 'app-pecas-lista',
@@ -20,6 +23,9 @@ import { Peca, PecaParaRepor } from '../../../core/models/peca';
 })
 export class PecasLista {
   private readonly pecaService = inject(PecaService);
+  private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
+
 
   // A lista pode conter peças comuns ou peças "para repor" (com faltaParaMinimo)
   protected readonly pecas = signal<(Peca | PecaParaRepor)[]>([]);
@@ -48,6 +54,20 @@ export class PecasLista {
   protected precisaRepor(peca: Peca): boolean {
     return peca.saldo < peca.estoqueMinimo;
   }
+  // Abre o diálogo de cadastro; se a peça for criada, avisa e recarrega a tabela
+  protected abrirCadastro(): void {
+    this.dialog
+      .open<NovaPecaDialog, void, Peca>(NovaPecaDialog, { width: '480px' })
+      .afterClosed()
+      .subscribe(peca => {
+        if (peca) {
+          this.snackBar.open(`Peça ${peca.codigo} cadastrada!`, 'OK', { duration: 4000 });
+          this.carregar();
+        }
+      });
+  }
+
+
 
   // Chamado pelo slide-toggle
   protected alternarReposicao(ativo: boolean): void {

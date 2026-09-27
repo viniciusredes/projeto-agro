@@ -2,7 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_URL } from '../api';
-import { Peca, PecaParaRepor } from '../models/peca';
+import { DadosNovaPeca, Peca, PecaParaRepor } from '../models/peca';
+
 
 @Injectable({ providedIn: 'root' })
 export class PecaService {
@@ -19,4 +20,10 @@ export class PecaService {
     const params = new HttpParams().set('abaixoDoMinimo', true);
     return this.http.get<PecaParaRepor[]>(this.url, { params });
   }
+
+    // POST /api/pecas -> cadastra uma peça (a API responde 201 com a peça criada, saldo zero)
+  cadastrar(dados: DadosNovaPeca): Observable<Peca> {
+    return this.http.post<Peca>(this.url, dados);
+  }
+
 }
