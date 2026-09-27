@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
@@ -18,7 +19,7 @@ import { RespostaAberturaOS } from '../../../core/models/ordem-servico';
 
 @Component({
   selector: 'app-maquinas-lista',
-    imports: [DecimalPipe, MatTableModule, MatButtonModule, MatIconModule, MatProgressBarModule],
+  imports: [DecimalPipe, RouterLink, MatTableModule, MatButtonModule, MatIconModule, MatProgressBarModule],
   templateUrl: './maquinas-lista.html',
   styleUrl: './maquinas-lista.scss',
 })

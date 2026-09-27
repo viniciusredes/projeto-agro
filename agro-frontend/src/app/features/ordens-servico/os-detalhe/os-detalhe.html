@@ -32,7 +32,11 @@
   <dl class="dados">
     <div>
       <dt>Máquina</dt>
-      <dd>{{ ordem.maquina ? ordem.maquina.tag + ' · ' + ordem.maquina.modelo : '#' + ordem.maquinaId }}</dd>
+      <dd>
+        <a [routerLink]="['/maquinas', ordem.maquinaId]">
+          {{ ordem.maquina ? ordem.maquina.tag + ' · ' + ordem.maquina.modelo : '#' + ordem.maquinaId }}
+        </a>
+      </dd>
     </div>
     <div>
       <dt>Horímetro na parada</dt>

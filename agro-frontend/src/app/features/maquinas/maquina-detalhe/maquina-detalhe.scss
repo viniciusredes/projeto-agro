@@ -1,0 +1,185 @@
+// Cores das séries (tipo de O.S.): par categórico validado para daltonismo e contraste.
+// Declaradas uma vez; a barra, a legenda e as etiquetas usam as mesmas.
+:host {
+  --serie-preventiva: #2a78d6;
+  --serie-corretiva: #eb6834;
+}
+
+.voltar {
+  margin-bottom: 8px;
+}
+
+.cabecalho {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  h2 {
+    margin: 0;
+  }
+}
+
+.subtitulo {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// ===== Indicadores (stat tiles) =====
+.indicadores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.indicador {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--mat-sys-surface-container);
+}
+
+.indicador__rotulo,
+.indicador__detalhe {
+  font-size: 0.85em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.indicador__valor {
+  font-size: 1.6em;
+  font-weight: 600;
+}
+
+.indicador__valor--destaque {
+  font-size: 2.2em;
+}
+
+// ===== Barra "custo por tipo" (parte do todo) =====
+.custo-tipo {
+  margin-bottom: 24px;
+}
+
+.barra {
+  display: flex;
+  gap: 2px; // espaço de 2px entre os segmentos (separa as cores sem depender só delas)
+  height: 16px;
+}
+
+.barra__segmento {
+  flex-basis: 0; // a largura vem do flex-grow = valor do segmento (proporcional ao custo)
+  min-width: 4px;
+
+  &:first-child {
+    border-radius: 4px 0 0 4px;
+  }
+
+  &:last-child {
+    border-radius: 0 4px 4px 0;
+  }
+
+  &:only-child {
+    border-radius: 4px;
+  }
+}
+
+// A cor segue o TIPO (atributo data-tipo), nunca a posição
+[data-tipo='Preventiva'].barra__segmento,
+[data-tipo='Preventiva'].legenda__cor {
+  background: var(--serie-preventiva);
+}
+
+[data-tipo='Corretiva'].barra__segmento,
+[data-tipo='Corretiva'].legenda__cor {
+  background: var(--serie-corretiva);
+}
+
+.legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.legenda__cor {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.legenda__valor {
+  font-weight: 600;
+}
+
+.legenda__percentual {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// ===== Tabela e etiquetas =====
+.tabela {
+  width: 100%;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.numero {
+  text-align: right;
+}
+
+.etiqueta {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.etiqueta[data-tipo='Preventiva'] {
+  background: #e0ecfb;
+  color: #1a4f8f;
+}
+
+.etiqueta[data-tipo='Corretiva'] {
+  background: #fde6da;
+  color: #9a3a12;
+}
+
+.etiqueta[data-status='Disponível'] {
+  background: #e3f4e6;
+  color: #1b6b2c;
+}
+
+.etiqueta[data-status='Em Operação'] {
+  background: #e0ecfb;
+  color: #1a4f8f;
+}
+
+.etiqueta[data-status='Em Manutenção'] {
+  background: #fdecd8;
+  color: #8a4b08;
+}
+
+.aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container);
+}
+
+.aviso--erro {
+  color: var(--mat-sys-on-error-container);
+  background: var(--mat-sys-error-container);
+}

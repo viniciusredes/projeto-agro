@@ -50,12 +50,12 @@ Branch atual: `feat/front-base` · PR #2 (aberto)
 
 - [x] **Passo 12** — Lista de O.S. com filtros na URL (query params → `input()`), `rxResource` e modelo/service de O.S. · `89a4611`
 - [x] **Passo 13** — Abertura de O.S. (aviso quando a máquina está em campo; horímetro mínimo dinâmico; aberta pela lista de O.S. e pela lista de Máquinas) · `818f127`
-- [x] **Passo 14** — Detalhe e fechamento da O.S. com `FormArray` (peças dinâmicas, tudo ou nada); links O.S. ↔ kardex · *commit: a preencher*
-- [ ] **Passo 15** — Custo de manutenção por máquina
+- [x] **Passo 14** — Detalhe e fechamento da O.S. com `FormArray` (peças dinâmicas, tudo ou nada); links O.S. ↔ kardex · `04f768c`
+- [x] **Passo 15** — Custo de manutenção por máquina (`/maquinas/:id`: indicadores + barra preventiva × corretiva com paleta validada; tag e máquina viram links) · *commit: a preencher*
 
 ### Fase 4 — Fechamento
 
-- [ ] **Passo 16** — Polimento: estados padronizados, confirmações, responsividade
+- [ ] **Passo 16** — Polimento: estados padronizados, confirmações, responsividade; links com a cor do tema (hoje usam o azul/sublinhado padrão do navegador); estilos repetidos (`.aviso`, `.etiqueta`, `.tabela`) centralizados
 - [ ] **Passo 17** — `ng build`, README do front-end, atualização do `context.md` e PR final
 - [ ] *(Opcional)* Testes unitários de um service e de um componente
 

@@ -12,6 +12,13 @@ export const routes: Routes = [
       import('./features/maquinas/maquinas-lista/maquinas-lista').then(m => m.MaquinasLista),
   },
   {
+    // Detalhe da máquina com os indicadores de manutenção: /maquinas/1
+    path: 'maquinas/:id',
+    title: 'Máquina | Agro Frota',
+    loadComponent: () =>
+      import('./features/maquinas/maquina-detalhe/maquina-detalhe').then(m => m.MaquinaDetalhe),
+  },
+  {
     path: 'estoque',
     title: 'Estoque | Agro Frota',
     loadComponent: () =>
