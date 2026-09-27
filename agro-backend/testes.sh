@@ -77,6 +77,7 @@ fi
 # Os testes dependem do estado inicial: sem movimentações de máquinas,
 # sem peças cadastradas além das 3 iniciais e sem compras registradas.
 if [ "$(curl -s "$BASE/movimentacoes")" != "[]" ] \
+   || [ "$(curl -s "$BASE/ordens-servico")" != "[]" ] \
    || [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/pecas/4")" != "404" ] \
    || curl -s "$BASE/pecas/1/movimentos" | grep -q '"tipo":"entrada"'; then
   echo -e "${AMARELO}Atenção:${NORMAL} o servidor já tem dados de testes anteriores."
@@ -270,6 +271,121 @@ testar A3 "Compra de correias (preparação)" 200 '"saldo":10,' \
 
 testar A4 "Correia sai da lista de reposição" 200 '!COR-001' \
   "$BASE/pecas?abaixoDoMinimo=true"
+
+# =====================================================================
+#  MÓDULO DE MANUTENÇÃO (ORDENS DE SERVIÇO)
+#  Estado herdado dos testes anteriores:
+#  - TR-01 disponível com horímetro 1012.3; CO-02 disponível com 510
+#  - Filtro FLT-001: saldo 15, custo 92.46 | Óleo OLE-001: saldo 220.5, custo 19.9
+# =====================================================================
+
+# ---------------------------------------------------------------------
+secao "POST /ordens-servico (abertura)"
+# ---------------------------------------------------------------------
+testar O1 "Nenhuma O.S. no início" 200 '[]' \
+  "$BASE/ordens-servico"
+
+testar O2 "Abrir O.S. com a máquina disponível" 201 '"status":"Em Manutenção"' \
+  -X POST "$BASE/ordens-servico" -H "$JSON" -d '{"maquinaId":1,"tipo":"Preventiva","descricao":"Revisao 1000 h","horimetro":1012.3}'
+
+testar O3 "Segunda O.S. para a mesma máquina" 409 "já está em manutenção (O.S. nº 1 aberta)" \
+  -X POST "$BASE/ordens-servico" -H "$JSON" -d '{"maquinaId":1,"tipo":"Corretiva","descricao":"Outro","horimetro":1012.3}'
+
+testar O4 "Saída de máquina em manutenção" 409 "status atual é 'Em Manutenção'" \
+  -X POST "$BASE/maquinas/1/saida" -H "$JSON" -d '{"operador":"Joao","frenteTrabalho":"Talhao 5"}'
+
+testar O5 "maquinaId como texto" 400 "'maquinaId' é obrigatório e deve ser um número inteiro" \
+  -X POST "$BASE/ordens-servico" -H "$JSON" -d '{"maquinaId":"2","tipo":"Corretiva","descricao":"X","horimetro":510}'
+
+testar O6 "Máquina inexistente" 404 "Máquina não encontrada" \
+  -X POST "$BASE/ordens-servico" -H "$JSON" -d '{"maquinaId":99,"tipo":"Corretiva","descricao":"X","horimetro":1}'
+
+testar O7 "Tipo inválido" 400 "'tipo' deve ser um destes: Preventiva, Corretiva" \
+  -X POST "$BASE/ordens-servico" -H "$JSON" -d '{"maquinaId":2,"tipo":"Urgente","descricao":"X","horimetro":510}'
+
+testar O8 "Horímetro menor que o atual" 400 "(400) é menor que o atual (510)" \
+  -X POST "$BASE/ordens-servico" -H "$JSON" -d '{"maquinaId":2,"tipo":"Corretiva","descricao":"X","horimetro":400}'
+
+# ---------------------------------------------------------------------
+secao "Abertura de O.S. com a máquina em campo"
+# ---------------------------------------------------------------------
+testar O9 "Saída da CO-02 (preparação)" 200 '"status":"Em Operação"' \
+  -X POST "$BASE/maquinas/2/saida" -H "$JSON" -d '{"operador":"Maria","frenteTrabalho":"Talhao 8"}'
+
+testar O10 "O.S. encerra a saída automaticamente (7.5 h)" 201 '"horasTrabalhadas":7.5' \
+  -X POST "$BASE/ordens-servico" -H "$JSON" -d '{"maquinaId":2,"tipo":"Corretiva","descricao":"Correia partiu","horimetro":517.5}'
+
+testar O11 "Retorno depois da O.S. não é mais possível" 409 "não pode retornar" \
+  -X POST "$BASE/maquinas/2/retorno" -H "$JSON" -d '{"horimetro":520}'
+
+testar O12 "Avaria registrada com o número da O.S." 200 'Correia partiu"' \
+  "$BASE/movimentacoes?maquinaId=2"
+
+# ---------------------------------------------------------------------
+secao "POST /ordens-servico/:id/fechamento"
+# ---------------------------------------------------------------------
+testar F1 "O.S. inexistente" 404 "Ordem de serviço não encontrada" \
+  -X POST "$BASE/ordens-servico/99/fechamento"
+
+testar F2 "'pecas' não é uma lista" 400 "'pecas', quando informado, deve ser uma lista" \
+  -X POST "$BASE/ordens-servico/1/fechamento" -H "$JSON" -d '{"pecas":{"pecaId":1}}'
+
+testar F3 "Peça repetida" 400 "aparece mais de uma vez" \
+  -X POST "$BASE/ordens-servico/1/fechamento" -H "$JSON" -d '{"pecas":[{"pecaId":1,"quantidade":1},{"pecaId":1,"quantidade":1}]}'
+
+testar F4 "Peça inexistente na lista" 404 "Item 2: peça 99 não encontrada" \
+  -X POST "$BASE/ordens-servico/1/fechamento" -H "$JSON" -d '{"pecas":[{"pecaId":1,"quantidade":1},{"pecaId":99,"quantidade":1}]}'
+
+testar F5 "Estoque insuficiente (tudo ou nada)" 409 "Nenhuma baixa foi realizada" \
+  -X POST "$BASE/ordens-servico/1/fechamento" -H "$JSON" -d '{"pecas":[{"pecaId":2,"quantidade":10},{"pecaId":1,"quantidade":20}]}'
+
+testar F6 "Saldos intactos após o erro" 200 '"saldo":220.5' \
+  "$BASE/pecas/2"
+
+testar F7 "Fechamento com baixa e custo total" 200 '"custoTotal":493.37' \
+  -X POST "$BASE/ordens-servico/1/fechamento" -H "$JSON" -d '{"pecas":[{"pecaId":1,"quantidade":2},{"pecaId":2,"quantidade":15.5}]}'
+
+testar F8 "Saída no kardex apontando para a O.S." 200 '"ordemServicoId":1' \
+  "$BASE/pecas/1/movimentos"
+
+testar F9 "Saldo do filtro baixado (15 -> 13)" 200 '"saldo":13,' \
+  "$BASE/pecas/1"
+
+testar F10 "Fechar O.S. já fechada" 409 "já está fechada" \
+  -X POST "$BASE/ordens-servico/1/fechamento"
+
+testar F11 "Fechar O.S. sem peças" 200 '"custoTotal":0' \
+  -X POST "$BASE/ordens-servico/2/fechamento"
+
+testar F12 "Máquina volta a ficar disponível" 200 '"horimetro":517.5,"status":"Disponível"' \
+  "$BASE/maquinas"
+
+# ---------------------------------------------------------------------
+secao "Consultas de O.S. e custo congelado"
+# ---------------------------------------------------------------------
+testar Q1 "Detalhe da O.S. com os dados da máquina" 200 '"tag":"TR-01"' \
+  "$BASE/ordens-servico/1"
+
+testar Q2 "O.S. inexistente" 404 "Ordem de serviço não encontrada" \
+  "$BASE/ordens-servico/99"
+
+testar Q3 "Filtros combinados (máquina 2, fechadas)" 200 '"descricao":"Correia partiu"' \
+  "$BASE/ordens-servico?maquinaId=2&status=Fechada"
+
+testar Q4 "Status inválido no filtro" 400 "'status' deve ser um destes: Aberta, Fechada" \
+  "$BASE/ordens-servico?status=aberta"
+
+testar Q5 "Custo de manutenção por tipo" 200 '"Preventiva":493.37' \
+  "$BASE/maquinas/1/manutencoes"
+
+testar Q6 "Manutenções de máquina inexistente" 404 "Máquina não encontrada" \
+  "$BASE/maquinas/99/manutencoes"
+
+testar Q7 "Compra de filtros mais cara (preparação)" 200 '"custoUnitario":110' \
+  -X POST "$BASE/pecas/1/entradas" -H "$JSON" -d '{"quantidade":5,"custoUnitario":110}'
+
+testar Q8 "Custo congelado: a O.S. não muda" 200 '"custoUnitario":92.46' \
+  "$BASE/ordens-servico/1"
 
 # ---------------------------------------------------------------------
 # Resumo

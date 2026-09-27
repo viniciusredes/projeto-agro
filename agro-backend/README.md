@@ -4,10 +4,11 @@
 >
 > 📖 Encontrou um termo desconhecido? Consulte o [glossário](docs/glossario.md). Para praticar, veja os [exercícios](docs/exercicios.md).
 
-API REST para a gestão de frota agrícola, com dois módulos prontos:
+API REST para a gestão de frota agrícola, com três módulos prontos:
 
 - **Módulo de Uso:** saída de máquinas para o campo, retorno com horímetro, registro de avarias e histórico de movimentações.
 - **Módulo de Estoque (almoxarifado):** cadastro de peças, entradas (compras) com custo da última compra, histórico de movimentos (kardex) e alerta de estoque mínimo.
+- **Módulo de Manutenção (Ordens de Serviço):** abertura de O.S. preventiva ou corretiva, fechamento com baixa automática das peças no estoque, custo congelado e custo de manutenção por máquina.
 
 Os dados ficam **em memória**, sem banco de dados, para que o foco fique nas **regras de negócio** e nos **contratos da API**. O front-end (Angular) e o banco de dados (PostgreSQL + Prisma) vêm em etapas futuras.
 
@@ -61,7 +62,7 @@ Outros comandos úteis:
 npx tsc --noEmit   # verifica erros de tipo sem executar
 ```
 
-> ⚠️ **Os dados zeram a cada reinício.** Como tudo fica em memória, ao salvar o arquivo (o servidor reinicia sozinho) as máquinas e as peças voltam ao estado inicial e os históricos são recriados.
+> ⚠️ **Os dados zeram a cada reinício.** Como tudo fica em memória, ao salvar o arquivo (o servidor reinicia sozinho) as máquinas e as peças voltam ao estado inicial, os históricos são recriados e as ordens de serviço são apagadas.
 
 ### Estrutura
 
@@ -104,6 +105,16 @@ Tudo fica num único `server.ts` de propósito, para facilitar o aprendizado. A 
 | `POST` | `/pecas` | Cadastra uma peça (nasce com saldo zero) |
 | `POST` | `/pecas/:id/entradas` | Registra uma compra: soma ao saldo e atualiza o custo |
 | `GET` | `/pecas/:id/movimentos` | Histórico de movimentos da peça (kardex) |
+
+### Módulo de Manutenção
+
+| Método | Rota | O que faz |
+|---|---|---|
+| `GET` | `/ordens-servico` | Lista as O.S. (filtros opcionais `?maquinaId=` e `?status=`) |
+| `GET` | `/ordens-servico/:id` | Detalhe da O.S., com os dados da máquina |
+| `POST` | `/ordens-servico` | Abre uma O.S. (a máquina vai para `Em Manutenção`) |
+| `POST` | `/ordens-servico/:id/fechamento` | Fecha a O.S., com baixa automática das peças |
+| `GET` | `/maquinas/:id/manutencoes` | Histórico e custo de manutenção de uma máquina |
 
 Toda resposta de erro segue o formato:
 
@@ -160,10 +171,13 @@ interface Movimentacao {
 ```
              POST /saida                        POST /retorno
 Disponível ──────────────► Em Operação ───────────────────► Disponível
-           (abre movimentação)              (fecha movimentação)
+     │     (abre movimentação)     │        (fecha movimentação)
+     │                             │
+     │ POST /ordens-servico        │ POST /ordens-servico
+     │                             │ (fecha a movimentação automaticamente)
+     ▼                             ▼
+            Em Manutenção  ──── POST /ordens-servico/:id/fechamento ────►  Disponível
 ```
-
-O status `Em Manutenção` já existe no tipo e será usado no módulo de Ordens de Serviço.
 
 ### Peça
 
@@ -207,6 +221,7 @@ interface MovimentoEstoque {
   valorTotal: number;      // quantidade x custoUnitario
   saldoApos: number;       // saldo da peça logo depois deste movimento
   data: string;
+  ordemServicoId?: number; // só nas saídas: a O.S. que consumiu a peça
 }
 ```
 
@@ -214,7 +229,49 @@ interface MovimentoEstoque {
 |---|---|---|
 | `implantacao` | Na inicialização: saldo que já estava na prateleira | define o saldo inicial |
 | `entrada` | Compra de peças (`POST /pecas/:id/entradas`) | soma |
-| `saida` | Baixa por Ordem de Serviço (próximo módulo) | subtrai |
+| `saida` | Baixa no fechamento de uma Ordem de Serviço | subtrai |
+
+### Ordem de Serviço
+
+A O.S. é um **documento**: um cabeçalho (dados gerais) e uma lista de itens (as peças usadas).
+
+```ts
+type TipoOS = 'Preventiva' | 'Corretiva';
+type StatusOS = 'Aberta' | 'Fechada';
+
+interface ItemOS {
+  pecaId: number;          // referência a Peca.id
+  codigo: string;          // cópia do código da peça, para leitura rápida
+  quantidade: number;
+  custoUnitario: number;   // custo da peça NO MOMENTO da baixa (congelado)
+  valorTotal: number;      // quantidade x custoUnitario
+}
+
+interface OrdemServico {
+  id: number;
+  maquinaId: number;       // referência a Maquina.id
+  tipo: TipoOS;
+  status: StatusOS;
+  descricao: string;       // problema encontrado ou serviço a fazer
+  horimetroParada: number; // horímetro da máquina quando parou
+  dataAbertura: string;
+  dataFechamento?: string;
+  itens: ItemOS[];         // peças usadas (vazia até o fechamento)
+  custoTotal: number;      // soma dos valorTotal dos itens
+}
+```
+
+Ciclo de vida da O.S.: `Aberta ──(fechamento)──► Fechada`, sem volta.
+
+### Como os módulos se ligam
+
+```
+Maquina ◄── maquinaId ── Movimentacao           (uso: saída e retorno)
+   ▲
+   └──── maquinaId ── OrdemServico ── itens[] ── pecaId ──► Peca
+                           ▲                                 ▲
+                           └── ordemServicoId ── MovimentoEstoque (saída no kardex)
+```
 
 ---
 
@@ -226,6 +283,7 @@ O projeto foi construído em **partes pequenas**. Cada parte traz: 🎯 o **obje
 |---|---|
 | **Uso** (máquinas) | [Ponto de partida](#ponto-de-partida), [Parte 0](#parte-0--script-de-desenvolvimento) a [Parte 6](#parte-6--avarias-no-retorno-campo-opcional) |
 | **Estoque** (peças) | [Parte E1](#parte-e1--modelo-de-peça-e-listagem) a [Parte E6](#parte-e6--estoque-mínimo-e-alerta-de-reposição) |
+| **Manutenção** (O.S.) | [Parte OS1](#parte-os1--modelo-da-ordem-de-serviço-e-listagem) a [Parte OS7](#parte-os7--detalhe-da-os-e-custo-por-máquina) |
 
 > **Dica para os alunos:** reproduzam as partes na ordem, testando cada uma antes de seguir. É assim que se constrói software de forma segura: um passo pequeno e verificado de cada vez.
 
@@ -965,9 +1023,322 @@ curl.exe "http://localhost:3000/pecas?abaixoDoMinimo=true"    # a correia sai da
 
 ---
 
+## Módulo de Manutenção
+
+O terceiro módulo **liga os outros dois**: a O.S. muda o status da máquina, pode encerrar uma saída em andamento e consome peças do estoque. Os conceitos novos são **documento com itens**, **operações que alteram várias entidades**, **tudo ou nada** e **refatoração para reaproveitar regras**.
+
+No `server.ts`, o módulo fica na seção `// ===== MANUTENÇÃO (ORDENS DE SERVIÇO) =====`.
+
+Regras de negócio decididas antes de programar:
+
+| Decisão | Regra |
+|---|---|
+| Estoque negativo | Proibido: se faltar saldo de qualquer peça, o fechamento é recusado **por inteiro** |
+| Momento da baixa | Só no **fechamento** da O.S. |
+| Custo das peças | **Congelado** na O.S.: compras futuras não mudam O.S. fechadas |
+| Máquina em campo | Pode abrir O.S.: a saída é **encerrada automaticamente** com o horímetro da parada |
+| O.S. por máquina | **Uma aberta por vez** |
+| Peça repetida no fechamento | Recusada (400): cada peça aparece uma vez, com a quantidade total |
+
+---
+
+### Parte OS1 — Modelo da ordem de serviço e listagem
+
+🎯 Representar a O.S. e listá-la com filtros.
+
+🧩 Tipos `TipoOS`, `StatusOS`, `ItemOS` e `OrdemServico` (veja o [modelo de dados](#ordem-de-serviço)) e a rota de listagem com **filtros combináveis**:
+
+```ts
+app.get('/ordens-servico', (req, res) => {
+  const { maquinaId, status } = req.query;
+  let resultado = ordensServico;
+
+  if (maquinaId !== undefined) {
+    // valida (400) e filtra
+    resultado = resultado.filter(os => os.maquinaId === idFiltro);
+  }
+  if (status !== undefined) {
+    // valida contra STATUS_OS (400) e filtra
+    resultado = resultado.filter(os => os.status === status);
+  }
+
+  res.json(resultado);
+});
+```
+
+📚 **Conceitos**
+- **Documento com itens (cabeçalho + linhas):** é o modelo de nota fiscal, pedido e O.S. Num banco de dados, vira duas tabelas numa relação **um para muitos**.
+- **Desnormalização consciente:** o item guarda o `pecaId` (a relação) **e** uma cópia do `codigo` e do custo. O código facilita a leitura, e o custo **precisa** ser copiado por causa da regra do custo congelado.
+- **Filtros combináveis:** a lista começa completa e cada filtro presente a reduz. Qualquer combinação funciona sem multiplicar os `if`s.
+
+🧪 **Testes**
+
+```bash
+curl.exe http://localhost:3000/ordens-servico
+curl.exe -i "http://localhost:3000/ordens-servico?status=aberta"   # 400 (maiúscula importa)
+```
+
+---
+
+### Parte OS2 — Abrir O.S. com a máquina disponível
+
+🎯 Abrir a O.S. e mandar a máquina para a oficina.
+
+🧩 `POST /ordens-servico` com o corpo `{ maquinaId, tipo, descricao, horimetro }`, validando nesta ordem:
+
+```ts
+// 1. maquinaId inteiro                          -> 400
+// 2. máquina existe                             -> 404
+// 3. máquina já 'Em Manutenção' (O.S. aberta)   -> 409
+// 4. tipo, descricao e horimetro                -> 400
+// 5. horímetro não anda para trás               -> 400
+
+ordensServico.push(ordemServico);        // status 'Aberta', itens [], custoTotal 0
+maquina.status = 'Em Manutenção';
+maquina.horimetro = horimetro;
+res.status(201).json({ mensagem: 'Ordem de serviço aberta!', ordemServico, maquina });
+```
+
+📚 **Conceitos**
+- **Uma ação que muda duas entidades:** cria a O.S. e altera a máquina. Todas as validações vêm **antes** de qualquer alteração.
+- **As regras se somam:** nada foi escrito para impedir a saída de uma máquina em manutenção. A rota de saída já exigia `Disponível` desde a Parte 2.
+- **Recurso referenciado no corpo:** com o `maquinaId` no corpo, há quem responda **404** e quem responda **422**. O projeto usa 404, por consistência.
+- **`Number.isInteger` também confere o tipo:** `Number.isInteger("2")` é `false`.
+- **Passo intermediário:** nesta parte, a máquina **em campo** recebia um 409 provisório, trocado na OS3.
+
+🧪 **Testes**
+
+```bash
+curl.exe -i -X POST http://localhost:3000/ordens-servico -H "Content-Type: application/json" -d '{"maquinaId":1,"tipo":"Preventiva","descricao":"Revisao 1000 h","horimetro":1000}'   # 201
+curl.exe -i -X POST http://localhost:3000/ordens-servico -H "Content-Type: application/json" -d '{"maquinaId":1,"tipo":"Corretiva","descricao":"Outro","horimetro":1000}'           # 409
+curl.exe -i -X POST http://localhost:3000/maquinas/1/saida -H "Content-Type: application/json" -d '{"operador":"Joao","frenteTrabalho":"Talhao 5"}'                                  # 409
+```
+
+---
+
+### Parte OS3 — Abrir O.S. com a máquina em campo
+
+🎯 Se a máquina quebrou no campo, abrir a O.S. encerra a saída com o horímetro da parada.
+
+🧩 **Primeiro, uma refatoração:** a lógica de fechar a movimentação saiu da rota de retorno e virou duas funções, usadas pelas **duas** rotas:
+
+```ts
+function buscarMovimentacaoAberta(maquinaId: number): Movimentacao | undefined { /* ... */ }
+function fecharMovimentacao(movimentacao: Movimentacao, horimetro: number, avarias?: string): void { /* ... */ }
+```
+
+Na abertura da O.S.:
+
+```ts
+// Antes de alterar qualquer coisa: a máquina em campo precisa ter a saída em aberto
+const movimentacaoAberta = maquina.status === 'Em Operação'
+  ? buscarMovimentacaoAberta(maquina.id)
+  : undefined;
+
+// ... depois de criar a O.S.:
+if (movimentacaoAberta) {
+  fecharMovimentacao(movimentacaoAberta, horimetro, `O.S. nº ${ordemServico.id}: ${ordemServico.descricao}`);
+}
+```
+
+📚 **Conceitos**
+- **DRY (*Don't Repeat Yourself*):** quando surgiu o segundo uso, a regra foi **extraída** em vez de copiada. Se ela mudar, muda num lugar só.
+- **Os testes dão segurança para refatorar:** mexemos na rota de retorno, e o `testes.sh` confirmou que nada quebrou.
+- **Tipo de retorno `Movimentacao | undefined`:** a função avisa, pelo tipo, que pode não encontrar nada.
+- **Uma ação, três entidades:** cria a O.S., fecha a movimentação e altera a máquina.
+- **Rastreabilidade entre módulos:** a avaria `"O.S. nº 2: Correia partiu"` liga o histórico de uso à manutenção.
+
+🧪 **Testes** (com o servidor recém-iniciado)
+
+```bash
+curl.exe -X POST http://localhost:3000/maquinas/2/saida -H "Content-Type: application/json" -d '{"operador":"Maria","frenteTrabalho":"Talhao 8"}'
+curl.exe -X POST http://localhost:3000/ordens-servico -H "Content-Type: application/json" -d '{"maquinaId":2,"tipo":"Corretiva","descricao":"Correia partiu","horimetro":507.5}'
+curl.exe "http://localhost:3000/movimentacoes?maquinaId=2"   # fechada: 7.5 h e a avaria da O.S.
+```
+
+---
+
+### Parte OS4 — Fechar O.S. sem peças
+
+🎯 Encerrar a O.S. e devolver a máquina ao pátio.
+
+🧩 `POST /ordens-servico/:id/fechamento`:
+
+```ts
+// 1. id inteiro           -> 400
+// 2. O.S. existe          -> 404
+// 3. O.S. está 'Aberta'   -> 409
+
+ordemServico.status = 'Fechada';
+ordemServico.dataFechamento = dataFechamento;
+maquina.status = 'Disponível';
+```
+
+📚 **Conceitos**
+- **Ciclo de vida:** `Aberta → Fechada`, sem volta. O 409 protege a transição proibida.
+- **Ação como sub-recurso (`/fechamento`):** em vez de `PATCH {"status":"Fechada"}`, a ação tem rota própria, com as regras explícitas, igual a `/saida` e `/retorno`.
+- **501 Not Implemented:** nesta parte, fechar **com** peças respondia 501, o código para "o servidor ainda não sabe fazer isso". É o desenvolvimento incremental de forma honesta.
+- **`Array.isArray`:** o `typeof` de uma lista é `'object'`. Para saber se é lista, use `Array.isArray`.
+- **Lista vazia = ausência:** `"pecas": []` e nenhum corpo significam a mesma coisa.
+
+🧪 **Testes**
+
+```bash
+curl.exe -X POST http://localhost:3000/ordens-servico -H "Content-Type: application/json" -d '{"maquinaId":1,"tipo":"Preventiva","descricao":"Revisao","horimetro":1000}'
+curl.exe -i -X POST http://localhost:3000/ordens-servico/1/fechamento    # 200
+curl.exe -i -X POST http://localhost:3000/ordens-servico/1/fechamento    # 409
+```
+
+---
+
+### Parte OS5 — Validar as peças do fechamento (tudo ou nada)
+
+🎯 Garantir que **toda** a lista de peças está correta antes de baixar qualquer uma.
+
+🧩 Um tipo que representa "deu certo" **ou** "deu errado":
+
+```ts
+type ResultadoValidacaoPecas =
+  | { ok: true; itens: { peca: Peca; quantidade: number }[] }
+  | { ok: false; status: number; erro: string };
+```
+
+E uma função que percorre a lista inteira:
+
+```ts
+function validarPecasDoFechamento(pecasInformadas: unknown): ResultadoValidacaoPecas {
+  // para cada item: formato (400) -> peça existe (404) -> repetida (400) -> fração em 'un' (400)
+  // no fim, saldo de TODAS as peças de uma vez (409):
+  //   "Estoque insuficiente: FLT-001 (pedido 12, saldo 10); COR-001 (pedido 5, saldo 4). Nenhuma baixa foi realizada."
+}
+```
+
+Na rota:
+
+```ts
+const validacao = validarPecasDoFechamento(req.body?.pecas);
+if (!validacao.ok) {
+  return res.status(validacao.status).json({ erro: validacao.erro });
+}
+```
+
+📚 **Conceitos**
+- **Tudo ou nada (atomicidade):** se a 3ª peça não tivesse saldo e as duas primeiras já tivessem sido baixadas, o estoque ficaria inconsistente. Em banco de dados, isso se garante com uma **transação** (o "A" de **ACID**). Em memória, conseguimos o mesmo com "validar tudo primeiro, alterar depois".
+- **Mostrar todos os problemas de saldo de uma vez:** o usuário corrige tudo numa ida.
+- **União discriminada:** o campo `ok` separa os dois formatos. Depois do `if (!validacao.ok)`, o TypeScript sabe que `validacao.itens` existe.
+- **`unknown` × `any`:** com `unknown`, o TypeScript **obriga** a checar o tipo antes de usar. É o tipo mais seguro para dados externos.
+- **Numerar para humanos:** "Item 1", "Item 2" (`i + 1`), e não o índice 0 do código.
+- **Um código para cada problema:** 400 (formato), 404 (peça não existe), 409 (falta saldo).
+
+🧪 **Testes**
+
+```bash
+curl.exe -X POST http://localhost:3000/ordens-servico -H "Content-Type: application/json" -d '{"maquinaId":1,"tipo":"Corretiva","descricao":"Vazamento","horimetro":1000}'
+curl.exe -i -X POST http://localhost:3000/ordens-servico/1/fechamento -H "Content-Type: application/json" -d '{"pecas":[{"pecaId":1,"quantidade":2},{"pecaId":1,"quantidade":1}]}'   # 400 repetida
+curl.exe -i -X POST http://localhost:3000/ordens-servico/1/fechamento -H "Content-Type: application/json" -d '{"pecas":[{"pecaId":1,"quantidade":12},{"pecaId":3,"quantidade":5}]}'  # 409
+curl.exe http://localhost:3000/pecas   # saldos intactos
+```
+
+---
+
+### Parte OS6 — Baixa automática no estoque
+
+🎯 Com a lista validada, baixar as peças, registrar no kardex e calcular o custo da O.S.
+
+🧩
+
+```ts
+for (const { peca, quantidade } of validacao.itens) {
+  const custoUnitario = peca.custoUnitario;                  // custo congelado AGORA
+  const valorTotal = arredondar(quantidade * custoUnitario, 2);
+
+  peca.saldo = arredondar(peca.saldo - quantidade, 2);
+  movimentosEstoque.push({ /* ... */ tipo: 'saida', saldoApos: peca.saldo, ordemServicoId: ordemServico.id });
+  ordemServico.itens.push({ pecaId: peca.id, codigo: peca.codigo, quantidade, custoUnitario, valorTotal });
+}
+
+ordemServico.custoTotal = arredondar(
+  ordemServico.itens.reduce((soma, item) => soma + item.valorTotal, 0), 2
+);
+```
+
+Exemplo: O.S. fechada com 2 filtros e 15,5 L de óleo:
+
+| Item | Qtd | Custo | Valor |
+|---|---|---|---|
+| FLT-001 | 2 | 85,90 | 171,80 |
+| OLE-001 | 15,5 | 18,50 | 286,75 |
+| **Total** | | | **458,55** |
+
+📚 **Conceitos**
+- **Validar primeiro, alterar depois:** como a OS5 já garantiu tudo, o laço pode baixar sem risco de parar no meio.
+- **Integração entre módulos:** o tipo `'saida'`, previsto lá na E5, finalmente foi usado.
+- **Rastreabilidade nos dois sentidos:** a O.S. sabe **quais peças** usou (`itens`), e o kardex sabe **para onde** cada peça foi (`ordemServicoId`).
+- **Custo congelado na prática:** depois de uma compra mais cara, a O.S. antiga continua com o valor original.
+- **`for...of` com desestruturação:** percorre a lista já extraindo os campos, sem índice.
+- **Uma data para a operação inteira:** a O.S. e todas as saídas recebem o **mesmo** instante.
+
+🧪 **Testes**
+
+```bash
+curl.exe -X POST http://localhost:3000/ordens-servico -H "Content-Type: application/json" -d '{"maquinaId":1,"tipo":"Corretiva","descricao":"Vazamento","horimetro":1000}'
+curl.exe -X POST http://localhost:3000/ordens-servico/1/fechamento -H "Content-Type: application/json" -d '{"pecas":[{"pecaId":1,"quantidade":2},{"pecaId":2,"quantidade":15.5}]}'
+curl.exe http://localhost:3000/pecas/1/movimentos   # saída de 2, com ordemServicoId 1
+```
+
+---
+
+### Parte OS7 — Detalhe da O.S. e custo por máquina
+
+🎯 Consultar uma O.S. com os dados da máquina e responder "quanto custa manter esta máquina?".
+
+🧩 `GET /ordens-servico/:id` junta a O.S. com um resumo da máquina:
+
+```ts
+res.json({
+  ...ordemServico,
+  maquina: maquina ? { id: maquina.id, tag: maquina.tag, modelo: maquina.modelo } : null
+});
+```
+
+`GET /maquinas/:id/manutencoes` calcula os indicadores (só com as O.S. **fechadas**):
+
+```ts
+const somarCusto = (tipo?: TipoOS) => arredondar(
+  fechadas
+    .filter(os => tipo === undefined || os.tipo === tipo)
+    .reduce((soma, os) => soma + os.custoTotal, 0),
+  2
+);
+
+res.json({
+  maquina: maquina.tag, status: maquina.status,
+  totalOrdens: ordens.length, abertas: ordens.length - fechadas.length, fechadas: fechadas.length,
+  custoTotal: somarCusto(),
+  custoPorTipo: { Preventiva: somarCusto('Preventiva'), Corretiva: somarCusto('Corretiva') },
+  ordens
+});
+```
+
+📚 **Conceitos**
+- **Juntar dados na resposta (join):** a O.S. guarda só o `maquinaId`, e a API monta a resposta com a máquina. O front-end faz uma chamada em vez de duas. É o equivalente ao `JOIN` do SQL.
+- **Resposta mais enxuta que o dado:** da máquina, só vai o que a tela precisa.
+- **Indicador de negócio:** muito custo **corretivo** indica máquina quebrando além do esperado. Um aumento no **preventivo** tende a reduzir o corretivo.
+- **Função com parâmetro opcional:** `somarCusto()` soma tudo, e `somarCusto('Preventiva')` soma um tipo.
+
+🧪 **Testes**
+
+```bash
+curl.exe http://localhost:3000/ordens-servico/1
+curl.exe http://localhost:3000/maquinas/1/manutencoes
+curl.exe -i http://localhost:3000/maquinas/99/manutencoes   # 404
+```
+
+---
+
 ## 6. Roteiro completo de testes com curl
 
-> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 50 cenários abaixo (25 do uso e 25 do estoque) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
+> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 82 cenários abaixo (25 do uso, 25 do estoque e 32 da manutenção) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
 >
 > 💡 **Alternativa sem terminal:** o arquivo [testes.http](testes.http) tem este mesmo roteiro para a extensão **REST Client** do VS Code. Basta clicar em "Send Request" acima de cada teste, sem se preocupar com aspas.
 
@@ -1154,6 +1525,104 @@ curl.exe -X POST $B/pecas/3/entradas -H "$H" -d '{"quantidade":6,"custoUnitario"
 curl.exe "$B/pecas?abaixoDoMinimo=true"                                       # A4
 ```
 
+### Manutenção — `POST /ordens-servico` (abertura)
+
+> Estado herdado dos testes anteriores: TR-01 disponível com horímetro 1012,3; CO-02 disponível com 510; filtro com saldo 15 a R$ 92,46; óleo com saldo 220,5 a R$ 19,90.
+
+| # | Cenário | Esperado |
+|---|---|---|
+| O1 | Nenhuma O.S. no início | **200**, `[]` |
+| O2 | Abrir O.S. na TR-01 disponível | **201**, O.S. nº 1 `Aberta`, máquina `Em Manutenção` |
+| O3 | Segunda O.S. na TR-01 | **409**, `já está em manutenção (O.S. nº 1 aberta)` |
+| O4 | Saída da TR-01 em manutenção | **409**, `status atual é 'Em Manutenção'` |
+| O5 | `maquinaId` como texto | **400** |
+| O6 | Máquina inexistente | **404** |
+| O7 | Tipo inválido | **400**, `deve ser um destes: Preventiva, Corretiva` |
+| O8 | Horímetro menor que o atual | **400**, `(400) é menor que o atual (510)` |
+
+```bash
+curl.exe "$B/ordens-servico"                                                                                                   # O1
+curl.exe -X POST $B/ordens-servico -H "$H" -d '{"maquinaId":1,"tipo":"Preventiva","descricao":"Revisao 1000 h","horimetro":1012.3}'   # O2
+curl.exe -X POST $B/ordens-servico -H "$H" -d '{"maquinaId":1,"tipo":"Corretiva","descricao":"Outro","horimetro":1012.3}'             # O3
+curl.exe -X POST $B/maquinas/1/saida -H "$H" -d '{"operador":"Joao","frenteTrabalho":"Talhao 5"}'                                      # O4
+curl.exe -X POST $B/ordens-servico -H "$H" -d '{"maquinaId":"2","tipo":"Corretiva","descricao":"X","horimetro":510}'                  # O5
+curl.exe -X POST $B/ordens-servico -H "$H" -d '{"maquinaId":99,"tipo":"Corretiva","descricao":"X","horimetro":1}'                     # O6
+curl.exe -X POST $B/ordens-servico -H "$H" -d '{"maquinaId":2,"tipo":"Urgente","descricao":"X","horimetro":510}'                      # O7
+curl.exe -X POST $B/ordens-servico -H "$H" -d '{"maquinaId":2,"tipo":"Corretiva","descricao":"X","horimetro":400}'                    # O8
+```
+
+### Manutenção — abertura com a máquina em campo
+
+| # | Cenário | Esperado |
+|---|---|---|
+| O9 | Saída da CO-02 (preparação) | **200**, `Em Operação` |
+| O10 | O.S. na CO-02 com horímetro 517,5 | **201**, saída encerrada com `horasTrabalhadas: 7.5` |
+| O11 | Retorno depois da O.S. | **409**, `não pode retornar` |
+| O12 | Histórico da CO-02 | **200**, avaria `O.S. nº 2: Correia partiu` |
+
+```bash
+curl.exe -X POST $B/maquinas/2/saida -H "$H" -d '{"operador":"Maria","frenteTrabalho":"Talhao 8"}'                                     # O9
+curl.exe -X POST $B/ordens-servico -H "$H" -d '{"maquinaId":2,"tipo":"Corretiva","descricao":"Correia partiu","horimetro":517.5}'     # O10
+curl.exe -X POST $B/maquinas/2/retorno -H "$H" -d '{"horimetro":520}'                                                                 # O11
+curl.exe "$B/movimentacoes?maquinaId=2"                                                                                               # O12
+```
+
+### Manutenção — `POST /ordens-servico/:id/fechamento`
+
+| # | Cenário | Esperado |
+|---|---|---|
+| F1 | O.S. inexistente | **404** |
+| F2 | `pecas` não é lista | **400** |
+| F3 | Peça repetida | **400**, `aparece mais de uma vez` |
+| F4 | Peça 99 na lista | **404**, `Item 2: peça 99 não encontrada` |
+| F5 | 10 L de óleo (tem saldo) + 20 filtros (saldo 15) | **409**, `Estoque insuficiente ... Nenhuma baixa foi realizada.` |
+| F6 | Saldo do óleo | **200**, continua **220,5**: nem a peça com saldo foi baixada |
+| F7 | Fechar com 2 filtros + 15,5 L | **200**, `custoTotal: 493.37` (184,92 + 308,45) |
+| F8 | Kardex do filtro | **200**, saída com `ordemServicoId: 1` |
+| F9 | Saldo do filtro | **200**, 15 → **13** |
+| F10 | Fechar de novo | **409**, `já está fechada` |
+| F11 | Fechar a O.S. nº 2 sem peças | **200**, `custoTotal: 0` |
+| F12 | Máquinas | **200**, as duas `Disponível` (CO-02 com 517,5) |
+
+```bash
+curl.exe -X POST $B/ordens-servico/99/fechamento                                                                                 # F1
+curl.exe -X POST $B/ordens-servico/1/fechamento -H "$H" -d '{"pecas":{"pecaId":1}}'                                              # F2
+curl.exe -X POST $B/ordens-servico/1/fechamento -H "$H" -d '{"pecas":[{"pecaId":1,"quantidade":1},{"pecaId":1,"quantidade":1}]}'   # F3
+curl.exe -X POST $B/ordens-servico/1/fechamento -H "$H" -d '{"pecas":[{"pecaId":1,"quantidade":1},{"pecaId":99,"quantidade":1}]}'  # F4
+curl.exe -X POST $B/ordens-servico/1/fechamento -H "$H" -d '{"pecas":[{"pecaId":2,"quantidade":10},{"pecaId":1,"quantidade":20}]}' # F5
+curl.exe $B/pecas/2                                                                                                              # F6
+curl.exe -X POST $B/ordens-servico/1/fechamento -H "$H" -d '{"pecas":[{"pecaId":1,"quantidade":2},{"pecaId":2,"quantidade":15.5}]}' # F7
+curl.exe $B/pecas/1/movimentos                                                                                                   # F8
+curl.exe $B/pecas/1                                                                                                              # F9
+curl.exe -X POST $B/ordens-servico/1/fechamento                                                                                  # F10
+curl.exe -X POST $B/ordens-servico/2/fechamento                                                                                  # F11
+curl.exe $B/maquinas                                                                                                             # F12
+```
+
+### Manutenção — consultas e custo congelado
+
+| # | Cenário | Esperado |
+|---|---|---|
+| Q1 | Detalhe da O.S. nº 1 | **200**, com `"maquina": { "tag": "TR-01", ... }` |
+| Q2 | O.S. inexistente | **404** |
+| Q3 | `?maquinaId=2&status=Fechada` | **200**, só a O.S. nº 2 |
+| Q4 | `?status=aberta` | **400** |
+| Q5 | Manutenções da TR-01 | **200**, `custoPorTipo.Preventiva: 493.37` |
+| Q6 | Manutenções da máquina 99 | **404** |
+| Q7 | Compra de filtros a R$ 110 (preparação) | **200** |
+| Q8 | Detalhe da O.S. nº 1 de novo | **200**, filtro **continua** a R$ 92,46 (custo congelado) |
+
+```bash
+curl.exe $B/ordens-servico/1                                                              # Q1
+curl.exe $B/ordens-servico/99                                                             # Q2
+curl.exe "$B/ordens-servico?maquinaId=2&status=Fechada"                                   # Q3
+curl.exe "$B/ordens-servico?status=aberta"                                                # Q4
+curl.exe $B/maquinas/1/manutencoes                                                        # Q5
+curl.exe $B/maquinas/99/manutencoes                                                       # Q6
+curl.exe -X POST $B/pecas/1/entradas -H "$H" -d '{"quantidade":5,"custoUnitario":110}'   # Q7
+curl.exe $B/ordens-servico/1                                                              # Q8
+```
+
 > **Dica:** para ver só o código HTTP de cada resposta, acrescente `-w "  [%{http_code}]\n"` ao comando.
 
 ---
@@ -1165,10 +1634,10 @@ curl.exe "$B/pecas?abaixoDoMinimo=true"                                       # 
 | Código | Quando usar | Exemplo nesta API |
 |---|---|---|
 | **200 OK** | Deu certo | Saída ou retorno registrados, compra registrada |
-| **201 Created** | Um recurso foi criado | Cadastro de peça |
+| **201 Created** | Um recurso foi criado | Cadastro de peça, abertura de O.S. |
 | **400 Bad Request** | O cliente enviou dados inválidos | Campo faltando, tipo errado, JSON quebrado |
 | **404 Not Found** | Recurso ou rota inexistente | Máquina 99, `GET /xyz` |
-| **409 Conflict** | O estado atual impede a ação | Saída de máquina já em operação |
+| **409 Conflict** | O estado atual impede a ação | Saída de máquina já em operação, estoque insuficiente, O.S. já fechada |
 | **500 Internal Server Error** | Erro inesperado no servidor | Mensagem genérica, detalhe só no log |
 
 ### Regras de negócio
@@ -1194,6 +1663,17 @@ curl.exe "$B/pecas?abaixoDoMinimo=true"                                       # 
 | Entrada | Peça em `un` só aceita quantidade inteira | 400 |
 | Entrada | Custo da peça passa a ser o da **última compra** | — |
 | Reposição | `abaixoDoMinimo` só aceita `true` | 400 |
+| Abertura de O.S. | `maquinaId` inteiro / máquina existe | 400 / 404 |
+| Abertura de O.S. | Máquina sem outra O.S. aberta | 409 |
+| Abertura de O.S. | `tipo` (`Preventiva`/`Corretiva`), `descricao` e `horimetro` válidos | 400 |
+| Abertura de O.S. | Horímetro ≥ atual | 400 |
+| Abertura de O.S. | Máquina em campo: a saída é encerrada automaticamente | — |
+| Fechamento de O.S. | O.S. existe e está `Aberta` | 404 / 409 |
+| Fechamento de O.S. | `pecas`, se informado, é lista; itens com `pecaId` inteiro e `quantidade` > 0 | 400 |
+| Fechamento de O.S. | Toda peça existe; sem repetição; inteira se `un` | 404 / 400 / 400 |
+| Fechamento de O.S. | Saldo suficiente de **todas** as peças (tudo ou nada) | 409 |
+| Fechamento de O.S. | Custo de cada peça congelado no item | — |
+| Consultas de O.S. | `status`, se informado, é `Aberta` ou `Fechada` | 400 |
 
 ### Anatomia de uma rota com validação
 
@@ -1327,6 +1807,8 @@ Antes de começar um projeto do zero, resolva os [exercícios](docs/exercicios.m
 - [ ] Escolher o **código HTTP** certo para cada erro
 - [ ] Registrar um **histórico** das ações (quem, quando, o quê)
 - [ ] Garantir que todo **saldo/total** seja explicável pelo histórico (nada muda "por fora")
+- [ ] Em operações com várias entidades, **validar tudo antes de alterar** (tudo ou nada)
+- [ ] Quando uma regra for usada em dois lugares, **extrair uma função** em vez de copiar
 - [ ] Adicionar o **404 genérico** e o **tratador de erros**
 - [ ] Escrever o **roteiro de testes** com curl, incluindo os casos de erro, e não só o de sucesso
 
@@ -1355,18 +1837,15 @@ Antes de começar um projeto do zero, resolva os [exercícios](docs/exercicios.m
 - **Sem persistência:** os dados se perdem a cada reinício.
 - **Sem autenticação:** todas as rotas são abertas.
 - **Sem cadastro de máquinas pela API:** a lista inicial é fixa no código.
+- **O.S. sem cancelamento e sem mão de obra:** uma O.S. aberta só termina pelo fechamento, e o custo considera apenas as peças.
 - **Sem modo offline:** o uso assume conexão (sede, pátio ou oficina).
 
 ### Próximos passos
 
-**Etapa 1, back-end em memória:**
+**Etapa 1, back-end em memória: ✅ concluída**
 1. ✅ **Módulo de Uso:** saída, retorno, avarias e histórico.
 2. ✅ **Módulo de Estoque:** cadastro de peças, entradas, kardex e estoque mínimo.
-3. ⏳ **Módulo de Manutenção (O.S.):** abrir O.S. preventiva ou corretiva (a máquina vai para `Em Manutenção`) e fechar a O.S. com **baixa automática** das peças (movimento `saida`) e cálculo do custo total. Regras já decididas:
-   - estoque **nunca** fica negativo (fechamento recusado por inteiro);
-   - baixa só no **fechamento** da O.S.;
-   - custo de cada peça **congelado** na O.S.;
-   - O.S. pode ser aberta com a máquina em campo.
+3. ✅ **Módulo de Manutenção:** abertura e fechamento de O.S., baixa automática no estoque, custo congelado e custo por máquina.
 
 **Etapa 2:** front-end em Angular consumindo esta API.
 

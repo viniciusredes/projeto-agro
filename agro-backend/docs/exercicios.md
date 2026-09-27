@@ -319,3 +319,10 @@ Para quem terminou tudo:
 6. **Custo médio ponderado:** altere a entrada de estoque para calcular o custo pela média ponderada, em vez do custo da última compra. Compare os dois resultados comprando 0,1 L de óleo a R$ 1,00.
 7. **Refatoração:** troque os arredondamentos antigos do módulo de uso (`Math.round(x * 10) / 10`) pela função `arredondar(x, 1)`. Rode o `testes.sh` para garantir que nada mudou.
 8. **Valor do estoque:** `GET /pecas/valor-total` devolve o valor total do almoxarifado (soma de `saldo × custoUnitario` de todas as peças). Atenção à ordem das rotas: `/pecas/valor-total` precisa ser declarada **antes** de `/pecas/:id`. Por quê?
+
+### Desafios extras do Módulo de Manutenção (sem gabarito)
+
+9. **Cancelar O.S.:** `POST /ordens-servico/:id/cancelamento`, que só vale para O.S. `Aberta`, exige um `motivo` e devolve a máquina para `Disponível`. Crie o status `Cancelada`. Uma O.S. cancelada entra no custo da máquina?
+10. **Mão de obra:** no fechamento, aceite um campo opcional `horasMaoDeObra` e uma constante `VALOR_HORA_MECANICO`. O `custoTotal` passa a ser peças + mão de obra. Mostre os dois valores separados na O.S.
+11. **Preventiva vencida:** `GET /maquinas/preventivas-vencidas` lista as máquinas que rodaram mais de 250 h desde a última O.S. preventiva fechada (compare o horímetro atual com o `horimetroParada` dessa O.S.).
+12. **Peças mais consumidas:** `GET /pecas/mais-consumidas` soma as saídas do kardex por peça e devolve o ranking, do maior para o menor valor consumido.

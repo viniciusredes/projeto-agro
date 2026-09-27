@@ -31,11 +31,13 @@ Vocabulário da gestão de frota agrícola. Entender o negócio vem **antes** de
 | **Horímetro** | "Relógio" da máquina que acumula as horas de funcionamento, como o odômetro de um carro acumula quilômetros. Nunca volta para trás | Campo `horimetro` |
 | **Horas trabalhadas** | Diferença entre o horímetro no retorno e na saída | Campo calculado `horasTrabalhadas` |
 | **Kardex** | Ficha com todos os movimentos de um item do estoque (entradas e saídas), como um extrato bancário. O saldo é o resultado desses movimentos | `GET /pecas/:id/movimentos` |
-| **Manutenção corretiva** | Conserto feito **depois** que o problema aparece | Futuro módulo de O.S. |
-| **Manutenção preventiva** | Revisão programada para **evitar** problemas (ex.: troca de óleo a cada 250 h) | Futuro módulo de O.S. |
+| **Manutenção corretiva** | Conserto feito **depois** que o problema aparece | `tipo: "Corretiva"` na O.S. |
+| **Manutenção preventiva** | Revisão programada para **evitar** problemas (ex.: troca de óleo a cada 250 h) | `tipo: "Preventiva"` na O.S. |
 | **Movimentação** | Uma ida ao campo e o retorno da máquina | Tipo `Movimentacao` |
 | **MVP** | *Minimum Viable Product* (Produto Mínimo Viável): a menor versão do sistema que já resolve o problema principal | Este projeto |
-| **O.S. (Ordem de Serviço)** | Documento que registra uma manutenção: máquina, problema, peças usadas e custo | Próximo módulo |
+| **O.S. (Ordem de Serviço)** | Documento que registra uma manutenção: máquina, problema, peças usadas e custo | Módulo de Manutenção (`/ordens-servico`) |
+| **Baixa de estoque** | Retirada de peças do saldo porque foram consumidas (aqui, no fechamento da O.S.) | Movimento `saida` no kardex |
+| **Custo congelado** | O custo da peça é copiado para a O.S. no momento da baixa; compras futuras não alteram manutenções antigas | `custoUnitario` do item da O.S. |
 | **Operador** | Pessoa que conduz a máquina no campo | Campo `operador`, obrigatório na saída |
 | **PEPS / FIFO** | "Primeiro que Entra, Primeiro que Sai": cada lote comprado mantém o seu custo, e o mais antigo é consumido primeiro | Alternativa discutida na Parte E4 |
 | **Saldo de implantação** | Quantidade que já existia no estoque quando o sistema começou a ser usado | Movimento do tipo `implantacao` |
@@ -45,6 +47,10 @@ Vocabulário da gestão de frota agrícola. Entender o negócio vem **antes** de
 ---
 
 ## Termos técnicos (A–Z)
+
+### ACID / Transação
+Garantias de um banco de dados ao gravar várias alterações juntas. O **A** (*atomicidade*) é o "tudo ou nada": ou todas as alterações acontecem, ou nenhuma. Em memória, conseguimos o mesmo efeito **validando tudo antes de alterar qualquer dado**.
+📘 [Parte OS5](../README.md#parte-os5--validar-as-peças-do-fechamento-tudo-ou-nada)
 
 ### API
 *Application Programming Interface.* Um conjunto de rotas que outros programas (front-end, aplicativo, outro sistema) usam para conversar com o servidor. Aqui, uma **API REST** que troca dados em **JSON**.
@@ -94,6 +100,10 @@ Programa de linha de comando para fazer requisições HTTP. No Windows, use `cur
 Informações **calculadas** a partir de outras, em vez de armazenadas. Nunca ficam desatualizadas. Exemplos: `horasTrabalhadas` e o resumo da máquina.
 🏋️ [Exercício 7](exercicios.md#exercício-7--resumo-de-uso-da-máquina)
 
+### Desnormalização
+Guardar uma **cópia** de um dado que já existe em outro lugar, para facilitar a leitura ou preservar um valor histórico. O item da O.S. copia o `codigo` e o `custoUnitario` da peça.
+📘 [Parte OS1](../README.md#parte-os1--modelo-da-ordem-de-serviço-e-listagem)
+
 ### Desestruturação
 Sintaxe para extrair vários campos de um objeto de uma só vez.
 ```ts
@@ -103,6 +113,14 @@ const { operador, frenteTrabalho } = req.body;
 // const frenteTrabalho = req.body.frenteTrabalho;
 ```
 📘 [Parte 3](../README.md#parte-3--dados-obrigatórios-na-saída)
+
+### Documento com itens (cabeçalho + linhas)
+Estrutura de nota fiscal, pedido e O.S.: um **cabeçalho** com os dados gerais e uma **lista de itens**. Num banco de dados, vira duas tabelas numa relação **um para muitos**.
+📘 [Parte OS1](../README.md#parte-os1--modelo-da-ordem-de-serviço-e-listagem)
+
+### DRY (Don't Repeat Yourself)
+Princípio de não repetir a mesma regra em vários lugares. Quando a regra de fechar a movimentação passou a ser usada por duas rotas, ela foi **extraída** para uma função, em vez de copiada.
+📘 [Parte OS3](../README.md#parte-os3--abrir-os-com-a-máquina-em-campo)
 
 ### Endpoint / Rota
 A combinação de **método HTTP + caminho** que o servidor sabe atender, por exemplo `POST /maquinas/:id/saida`.
@@ -145,6 +163,10 @@ interface Maquina { id: number; tag: string; /* ... */ }
 ### ISO 8601
 Padrão internacional para datas e horas em texto: `2026-09-26T18:22:48.787Z`. O `Z` no final indica **UTC**. Gerado com `new Date().toISOString()`.
 📘 [Parte 5](../README.md#parte-5--histórico-de-movimentações)
+
+### Join (juntar dados)
+Montar uma resposta combinando registros relacionados: a O.S. guarda só o `maquinaId`, e a API devolve junto a `tag` e o `modelo` da máquina. É o equivalente ao `JOIN` do SQL.
+📘 [Parte OS7](../README.md#parte-os7--detalhe-da-os-e-custo-por-máquina)
 
 ### JSON
 *JavaScript Object Notation.* Formato de texto para trocar dados entre sistemas. Os nomes dos campos **sempre** vão entre aspas duplas.
@@ -192,6 +214,10 @@ Parâmetros **opcionais** no final da URL, depois do `?`, usados geralmente para
 /movimentacoes?maquinaId=1
 ```
 📘 [Parte 5](../README.md#parte-5--histórico-de-movimentações) · 🏋️ [Exercício 2](exercicios.md#exercício-2--filtrar-máquinas-por-status)
+
+### Refatoração
+Mudar a **estrutura** do código sem mudar o seu **comportamento**, por exemplo extraindo uma função. Os testes automatizados (`testes.sh`) garantem que nada quebrou.
+📘 [Parte OS3](../README.md#parte-os3--abrir-os-com-a-máquina-em-campo)
 
 ### Regra de negócio
 Regra que vem do **funcionamento real da empresa**, não da tecnologia. Exemplo: "o horímetro nunca anda para trás".
@@ -252,9 +278,20 @@ statusValidos.includes(status as StatusMaquina)
 JavaScript com **tipos**. Aponta erros enquanto você escreve o código, antes de executar. Não valida os dados que chegam pela rede: para isso, existe a validação manual.
 📘 [Parte 1](../README.md#parte-1--tipos-com-typescript)
 
+### União discriminada
+Tipo que pode ter formatos diferentes, separados por um campo comum. Depois de testar esse campo, o TypeScript sabe qual formato está em uso.
+```ts
+type Resultado = { ok: true; itens: Item[] } | { ok: false; status: number; erro: string };
+```
+📘 [Parte OS5](../README.md#parte-os5--validar-as-peças-do-fechamento-tudo-ou-nada)
+
 ### Unicidade
 Regra que impede dois registros com o mesmo valor num campo (ex.: duas máquinas com a tag `PV-03`). A violação responde **409**.
 🏋️ [Exercício 4](exercicios.md#exercício-4--cadastrar-máquina)
+
+### `unknown` × `any`
+Os dois aceitam qualquer valor, mas com `unknown` o TypeScript **obriga** a checar o tipo antes de usar. Com `any`, ele deixa passar tudo. `unknown` é o mais seguro para dados que vêm de fora.
+📘 [Parte OS5](../README.md#parte-os5--validar-as-peças-do-fechamento-tudo-ou-nada)
 
 ### URL encoding
 Codificação de caracteres especiais em URLs: espaço vira `%20`, `í` vira `%C3%AD`, `ç` vira `%C3%A7`. Navegadores e o Angular fazem isso automaticamente; no terminal, às vezes é preciso escrever à mão.
@@ -284,6 +321,7 @@ Cabeçalho que o Express envia por padrão e que revela a tecnologia do servidor
 | **404** | Not Found | O recurso ou a rota **não existe** | Máquina 99, `GET /xyz` |
 | **409** | Conflict | O pedido está certo, mas o **estado atual** impede a ação | Saída de máquina já em operação |
 | **422** | Unprocessable Entity | Alternativa ao 400 para **regras de negócio** (não usado aqui) | Ver a discussão na Parte 4 |
+| **501** | Not Implemented | O servidor **ainda não sabe** fazer aquilo | Usado de forma provisória durante a construção da O.S. (Parte OS4) |
 | **500** | Internal Server Error | Erro **inesperado** no servidor | Tratador de erros genérico |
 
 **Regra prática:** códigos **2xx** = sucesso, **4xx** = erro de quem chamou, **5xx** = erro do servidor.

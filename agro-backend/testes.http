@@ -433,3 +433,277 @@ Content-Type: application/json
 ### A4 — Correia sai da lista de reposição
 # Esperado: 200, só o filtro de ar FLT-002 (a correia NÃO aparece mais)
 GET {{baseUrl}}/pecas?abaixoDoMinimo=true
+
+
+# #####################################################################
+#  MÓDULO DE MANUTENÇÃO (ORDENS DE SERVIÇO)
+#  Estado herdado dos testes anteriores:
+#  - TR-01 disponível com horímetro 1012.3; CO-02 disponível com 510
+#  - Filtro FLT-001: saldo 15, custo 92.46 | Óleo OLE-001: saldo 220.5, custo 19.9
+# #####################################################################
+
+# =====================================================================
+#  POST /ordens-servico (abertura)
+# =====================================================================
+
+### O1 — Nenhuma O.S. no início
+# Esperado: 200, []
+GET {{baseUrl}}/ordens-servico
+
+### O2 — Abrir O.S. com a máquina disponível
+# Esperado: 201, O.S. nº 1 "Aberta" e TR-01 "Em Manutenção"
+POST {{baseUrl}}/ordens-servico
+Content-Type: application/json
+
+{
+  "maquinaId": 1,
+  "tipo": "Preventiva",
+  "descricao": "Revisão 1000 h",
+  "horimetro": 1012.3
+}
+
+### O3 — Segunda O.S. para a mesma máquina
+# Esperado: 409, "Máquina TR-01 já está em manutenção (O.S. nº 1 aberta)"
+POST {{baseUrl}}/ordens-servico
+Content-Type: application/json
+
+{
+  "maquinaId": 1,
+  "tipo": "Corretiva",
+  "descricao": "Outro problema",
+  "horimetro": 1012.3
+}
+
+### O4 — Saída de máquina em manutenção
+# Esperado: 409, "não pode sair: status atual é 'Em Manutenção'"
+POST {{baseUrl}}/maquinas/1/saida
+Content-Type: application/json
+
+{
+  "operador": "João",
+  "frenteTrabalho": "Talhão 5"
+}
+
+### O5 — maquinaId como texto
+# Esperado: 400, "Campo 'maquinaId' é obrigatório e deve ser um número inteiro"
+POST {{baseUrl}}/ordens-servico
+Content-Type: application/json
+
+{
+  "maquinaId": "2",
+  "tipo": "Corretiva",
+  "descricao": "X",
+  "horimetro": 510
+}
+
+### O6 — Máquina inexistente
+# Esperado: 404, "Máquina não encontrada"
+POST {{baseUrl}}/ordens-servico
+Content-Type: application/json
+
+{
+  "maquinaId": 99,
+  "tipo": "Corretiva",
+  "descricao": "X",
+  "horimetro": 1
+}
+
+### O7 — Tipo inválido
+# Esperado: 400, "Campo 'tipo' deve ser um destes: Preventiva, Corretiva"
+POST {{baseUrl}}/ordens-servico
+Content-Type: application/json
+
+{
+  "maquinaId": 2,
+  "tipo": "Urgente",
+  "descricao": "X",
+  "horimetro": 510
+}
+
+### O8 — Horímetro menor que o atual
+# Esperado: 400, "Horímetro informado (400) é menor que o atual (510)"
+POST {{baseUrl}}/ordens-servico
+Content-Type: application/json
+
+{
+  "maquinaId": 2,
+  "tipo": "Corretiva",
+  "descricao": "X",
+  "horimetro": 400
+}
+
+
+# =====================================================================
+#  Abertura de O.S. com a máquina em campo
+# =====================================================================
+
+### O9 — Saída da CO-02 (preparação)
+# Esperado: 200, CO-02 "Em Operação"
+POST {{baseUrl}}/maquinas/2/saida
+Content-Type: application/json
+
+{
+  "operador": "Maria",
+  "frenteTrabalho": "Talhão 8"
+}
+
+### O10 — O.S. com a máquina em campo
+# Esperado: 201, a saída é encerrada automaticamente:
+#           movimentacaoEncerrada com horasTrabalhadas 7.5 e avarias "O.S. nº 2: Correia partiu"
+POST {{baseUrl}}/ordens-servico
+Content-Type: application/json
+
+{
+  "maquinaId": 2,
+  "tipo": "Corretiva",
+  "descricao": "Correia partiu",
+  "horimetro": 517.5
+}
+
+### O11 — Retorno depois da O.S.
+# Esperado: 409, "não pode retornar: status atual é 'Em Manutenção'"
+POST {{baseUrl}}/maquinas/2/retorno
+Content-Type: application/json
+
+{
+  "horimetro": 520
+}
+
+### O12 — Histórico da CO-02
+# Esperado: 200, movimentação fechada com a avaria "O.S. nº 2: Correia partiu"
+GET {{baseUrl}}/movimentacoes?maquinaId=2
+
+
+# =====================================================================
+#  POST /ordens-servico/:id/fechamento
+# =====================================================================
+
+### F1 — O.S. inexistente
+# Esperado: 404, "Ordem de serviço não encontrada"
+POST {{baseUrl}}/ordens-servico/99/fechamento
+
+### F2 — 'pecas' não é uma lista
+# Esperado: 400, "Campo 'pecas', quando informado, deve ser uma lista"
+POST {{baseUrl}}/ordens-servico/1/fechamento
+Content-Type: application/json
+
+{
+  "pecas": { "pecaId": 1 }
+}
+
+### F3 — Peça repetida
+# Esperado: 400, "A peça FLT-001 aparece mais de uma vez: informe a quantidade total numa única linha"
+POST {{baseUrl}}/ordens-servico/1/fechamento
+Content-Type: application/json
+
+{
+  "pecas": [
+    { "pecaId": 1, "quantidade": 1 },
+    { "pecaId": 1, "quantidade": 1 }
+  ]
+}
+
+### F4 — Peça inexistente na lista
+# Esperado: 404, "Item 2: peça 99 não encontrada"
+POST {{baseUrl}}/ordens-servico/1/fechamento
+Content-Type: application/json
+
+{
+  "pecas": [
+    { "pecaId": 1, "quantidade": 1 },
+    { "pecaId": 99, "quantidade": 1 }
+  ]
+}
+
+### F5 — Estoque insuficiente (tudo ou nada)
+# Esperado: 409, "Estoque insuficiente: FLT-001 (pedido 20, saldo 15). Nenhuma baixa foi realizada."
+# O óleo TEM saldo, mas também não é baixado, porque o fechamento é recusado por inteiro.
+POST {{baseUrl}}/ordens-servico/1/fechamento
+Content-Type: application/json
+
+{
+  "pecas": [
+    { "pecaId": 2, "quantidade": 10 },
+    { "pecaId": 1, "quantidade": 20 }
+  ]
+}
+
+### F6 — Saldo do óleo intacto após o erro
+# Esperado: 200, saldo 220.5 (nada foi baixado)
+GET {{baseUrl}}/pecas/2
+
+### F7 — Fechamento com baixa de peças
+# Esperado: 200, itens com custo congelado:
+#           2 x 92.46 = 184.92 + 15.5 x 19.9 = 308.45 -> custoTotal 493.37
+POST {{baseUrl}}/ordens-servico/1/fechamento
+Content-Type: application/json
+
+{
+  "pecas": [
+    { "pecaId": 1, "quantidade": 2 },
+    { "pecaId": 2, "quantidade": 15.5 }
+  ]
+}
+
+### F8 — Kardex do filtro
+# Esperado: 200, movimento "saida" de 2 unidades com ordemServicoId 1
+GET {{baseUrl}}/pecas/1/movimentos
+
+### F9 — Saldo do filtro após a baixa
+# Esperado: 200, saldo 13 (15 - 2)
+GET {{baseUrl}}/pecas/1
+
+### F10 — Fechar O.S. já fechada
+# Esperado: 409, "O.S. nº 1 já está fechada"
+POST {{baseUrl}}/ordens-servico/1/fechamento
+
+### F11 — Fechar O.S. sem peças
+# Esperado: 200, custoTotal 0 e CO-02 volta a "Disponível"
+POST {{baseUrl}}/ordens-servico/2/fechamento
+
+### F12 — Máquinas após os fechamentos
+# Esperado: 200, TR-01 e CO-02 "Disponível" (CO-02 com horímetro 517.5)
+GET {{baseUrl}}/maquinas
+
+
+# =====================================================================
+#  Consultas de O.S. e custo congelado
+# =====================================================================
+
+### Q1 — Detalhe da O.S. com os dados da máquina
+# Esperado: 200, O.S. nº 1 com "maquina": { "tag": "TR-01", "modelo": "Trator" }
+GET {{baseUrl}}/ordens-servico/1
+
+### Q2 — O.S. inexistente
+# Esperado: 404, "Ordem de serviço não encontrada"
+GET {{baseUrl}}/ordens-servico/99
+
+### Q3 — Filtros combinados
+# Esperado: 200, só a O.S. nº 2 (CO-02, fechada)
+GET {{baseUrl}}/ordens-servico?maquinaId=2&status=Fechada
+
+### Q4 — Status inválido no filtro
+# Esperado: 400, "Parâmetro 'status' deve ser um destes: Aberta, Fechada"
+GET {{baseUrl}}/ordens-servico?status=aberta
+
+### Q5 — Custo de manutenção da TR-01
+# Esperado: 200, custoTotal 493.37 e custoPorTipo { Preventiva: 493.37, Corretiva: 0 }
+GET {{baseUrl}}/maquinas/1/manutencoes
+
+### Q6 — Manutenções de máquina inexistente
+# Esperado: 404, "Máquina não encontrada"
+GET {{baseUrl}}/maquinas/99/manutencoes
+
+### Q7 — Compra de filtros mais cara (preparação)
+# Esperado: 200, custo do filtro passa de 92.46 para 110
+POST {{baseUrl}}/pecas/1/entradas
+Content-Type: application/json
+
+{
+  "quantidade": 5,
+  "custoUnitario": 110
+}
+
+### Q8 — Custo congelado
+# Esperado: 200, a O.S. nº 1 continua com o filtro a 92.46 e custoTotal 493.37
+GET {{baseUrl}}/ordens-servico/1
