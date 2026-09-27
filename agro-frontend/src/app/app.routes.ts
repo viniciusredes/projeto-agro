@@ -18,6 +18,13 @@ export const routes: Routes = [
       import('./features/estoque/pecas-lista/pecas-lista').then(m => m.PecasLista),
   },
   {
+    // Rota com parâmetro: /estoque/1, /estoque/2... (o :id vira o input "id" do componente)
+    path: 'estoque/:id',
+    title: 'Kardex | Agro Frota',
+    loadComponent: () =>
+      import('./features/estoque/peca-kardex/peca-kardex').then(m => m.PecaKardex),
+  },
+  {
     path: 'ordens-servico',
     title: 'Ordens de Serviço | Agro Frota',
     loadComponent: () =>

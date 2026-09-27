@@ -35,14 +35,14 @@ Branch atual: `feat/front-base` · PR #2 (aberto)
 - [x] **Passo 6** — Histórico de movimentações com filtro e formatação pt-BR · `962ddc2`
 - [x] **Passo 7** — Interceptor global de erros da API · `88fc9f8`
 
-### Fase 2 — Módulo de Estoque 🚧
+### Fase 2 — Módulo de Estoque ✅
 
 - [x] **Passo 8** — Lista de peças com custo em R$, alerta e filtro de reposição · `92c5e0d`
 - [x] **Passo 8.1** *(back-end)* — Rota `POST /maquinas` (cadastro de máquina) + 6 cenários no `testes.sh` (88 no total) · `2fa529b`
 - [x] **Passo 8.2** *(front-end)* — Diálogo de cadastro de máquina + regra `NAO_VAZIO` compartilhada em `core/validacao.ts` · `4f64c77`
-- [ ] **Passo 9** — Cadastro de peça (formulário com unidade e estoque mínimo; trata o 409 de código duplicado)
-- [ ] **Passo 10** — Entrada de estoque (compra) com validador condicional (inteiro para `un`)
-- [ ] **Passo 11** — Kardex da peça (rota com parâmetro `/estoque/:id`)
+- [x] **Passo 9** — Cadastro de peça (formulário com unidade e estoque mínimo; trata o 409 de código duplicado) · `208d344`
+- [x] **Passo 10** — Entrada de estoque (compra) com validador condicional (inteiro para `un`) · `6bda400`
+- [x] **Passo 11** — Kardex da peça (rota com parâmetro `/estoque/:id`) · _hash a registrar após o commit_
 
 ### Fase 3 — Módulo de Manutenção (O.S.)
 

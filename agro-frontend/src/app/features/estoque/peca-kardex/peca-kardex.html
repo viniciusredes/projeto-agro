@@ -1,0 +1,114 @@
+<a mat-button routerLink="/estoque" class="voltar">
+  <mat-icon>arrow_back</mat-icon>
+  Voltar ao estoque
+</a>
+
+@if (carregando()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+
+@if (naoEncontrada()) {
+  <p class="aviso aviso--erro">
+    <mat-icon>search_off</mat-icon>
+    Peça não encontrada.
+  </p>
+  <a mat-flat-button routerLink="/estoque">Voltar para a lista de peças</a>
+} @else if (erro(); as mensagem) {
+  <p class="aviso aviso--erro">
+    <mat-icon>error</mat-icon>
+    {{ mensagem }}
+  </p>
+  <button mat-stroked-button (click)="carregar()">
+    <mat-icon>refresh</mat-icon>
+    Tentar novamente
+  </button>
+} @else if (peca(); as peca) {
+  <div class="cabecalho">
+    <div>
+      <h2><span class="codigo">{{ peca.codigo }}</span> · {{ peca.descricao }}</h2>
+      <p class="resumo">Kardex: histórico de entradas e saídas da peça</p>
+    </div>
+    <button mat-stroked-button (click)="carregar()" [disabled]="carregando()">
+      <mat-icon>refresh</mat-icon>
+      Atualizar
+    </button>
+  </div>
+
+  <div class="indicadores">
+    <div class="indicador">
+      <span>Saldo atual</span>
+      <strong>{{ peca.saldo | number: '1.0-2' }} {{ peca.unidade }}</strong>
+    </div>
+    <div class="indicador">
+      <span>Custo atual</span>
+      <strong>{{ peca.custoUnitario | currency }}</strong>
+    </div>
+    <div class="indicador">
+      <span>Estoque mínimo</span>
+      <strong>{{ peca.estoqueMinimo | number: '1.0-2' }} {{ peca.unidade }}</strong>
+    </div>
+  </div>
+
+  @if (movimentosRecentes().length === 0) {
+    <p class="aviso">Nenhum movimento ainda. Registre uma entrada na tela Estoque para abastecer a peça.</p>
+  } @else {
+    <table mat-table [dataSource]="movimentosRecentes()" class="tabela">
+      <ng-container matColumnDef="data">
+        <th mat-header-cell *matHeaderCellDef>Data</th>
+        <td mat-cell *matCellDef="let mov">{{ mov.data | date: 'dd/MM/yyyy HH:mm' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="tipo">
+        <th mat-header-cell *matHeaderCellDef>Tipo</th>
+        <td mat-cell *matCellDef="let mov">
+          <span class="etiqueta" [class]="tipo(mov.tipo).classe">
+            <mat-icon>{{ tipo(mov.tipo).icone }}</mat-icon>
+            {{ tipo(mov.tipo).rotulo }}
+          </span>
+        </td>
+      </ng-container>
+
+      <!-- Quantidade com sinal: + soma ao saldo, − subtrai -->
+      <ng-container matColumnDef="quantidade">
+        <th mat-header-cell *matHeaderCellDef class="numero">Quantidade</th>
+        <td mat-cell *matCellDef="let mov" class="numero">
+          {{ tipo(mov.tipo).sinal }}{{ mov.quantidade | number: '1.0-2' }} {{ peca.unidade }}
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="custo">
+        <th mat-header-cell *matHeaderCellDef class="numero">Custo unitário</th>
+        <td mat-cell *matCellDef="let mov" class="numero">{{ mov.custoUnitario | currency }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="total">
+        <th mat-header-cell *matHeaderCellDef class="numero">Valor total</th>
+        <td mat-cell *matCellDef="let mov" class="numero">{{ mov.valorTotal | currency }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="saldoApos">
+        <th mat-header-cell *matHeaderCellDef class="numero">Saldo após</th>
+        <td mat-cell *matCellDef="let mov" class="numero">
+          <strong>{{ mov.saldoApos | number: '1.0-2' }} {{ peca.unidade }}</strong>
+        </td>
+      </ng-container>
+
+      <!-- Origem: nas saídas, a O.S. que consumiu a peça (o link virá com a tela de O.S.) -->
+      <ng-container matColumnDef="origem">
+        <th mat-header-cell *matHeaderCellDef>Origem</th>
+        <td mat-cell *matCellDef="let mov">
+          @if (mov.ordemServicoId) {
+            O.S. nº {{ mov.ordemServicoId }}
+          } @else if (mov.tipo === 'entrada') {
+            Compra
+          } @else {
+            Saldo inicial
+          }
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="colunas"></tr>
+      <tr mat-row *matRowDef="let mov; columns: colunas"></tr>
+    </table>
+  }
+}

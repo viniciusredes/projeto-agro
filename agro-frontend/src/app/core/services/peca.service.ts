@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_URL } from '../api';
-import { DadosEntrada, DadosNovaPeca, Peca, PecaParaRepor, RespostaEntrada } from '../models/peca';
+import { DadosEntrada, DadosNovaPeca, MovimentoEstoque, Peca, PecaParaRepor, RespostaEntrada } from '../models/peca';
 
 
 @Injectable({ providedIn: 'root' })
@@ -13,6 +13,16 @@ export class PecaService {
   // GET /api/pecas -> todas as peças
   listar(): Observable<Peca[]> {
     return this.http.get<Peca[]>(this.url);
+  }
+
+  // GET /api/pecas/:id -> uma peça (404 se não existir, 400 se o id não for número)
+  buscar(id: number): Observable<Peca> {
+    return this.http.get<Peca>(`${this.url}/${id}`);
+  }
+
+  // GET /api/pecas/:id/movimentos -> histórico da peça (kardex), do mais antigo ao mais recente
+  listarMovimentos(id: number): Observable<MovimentoEstoque[]> {
+    return this.http.get<MovimentoEstoque[]>(`${this.url}/${id}/movimentos`);
   }
 
   // GET /api/pecas?abaixoDoMinimo=true -> só as peças que precisam de reposição

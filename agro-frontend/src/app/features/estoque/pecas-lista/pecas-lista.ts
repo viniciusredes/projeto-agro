@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DecimalPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Observable, finalize } from 'rxjs';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,7 +17,7 @@ import { EntradaDialog } from '../entrada-dialog/entrada-dialog';
 @Component({
   selector: 'app-pecas-lista',
   imports: [
-    CurrencyPipe, DecimalPipe,
+    CurrencyPipe, DecimalPipe, RouterLink,
     MatTableModule, MatButtonModule, MatIconModule, MatProgressBarModule, MatSlideToggleModule,
   ],
   templateUrl: './pecas-lista.html',

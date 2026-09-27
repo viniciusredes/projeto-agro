@@ -38,7 +38,10 @@
   <table mat-table [dataSource]="pecas()" class="tabela">
     <ng-container matColumnDef="codigo">
       <th mat-header-cell *matHeaderCellDef>Código</th>
-      <td mat-cell *matCellDef="let peca" class="codigo">{{ peca.codigo }}</td>
+      <!-- O código leva ao kardex da peça: /estoque/1, /estoque/2... -->
+      <td mat-cell *matCellDef="let peca" class="codigo">
+        <a [routerLink]="['/estoque', peca.id]" title="Ver kardex">{{ peca.codigo }}</a>
+      </td>
     </ng-container>
 
     <ng-container matColumnDef="descricao">
