@@ -22,7 +22,7 @@
     @if (maquina(); as m) {
       <span class="subtitulo">{{ m.modelo }} · horímetro {{ m.horimetro | number: '1.0-1' }} h</span>
     }
-    <span class="etiqueta" [attr.data-status]="dados.status">{{ dados.status }}</span>
+    <span class="etiqueta" [class]="etiquetaStatusMaquina(dados.status)">{{ dados.status }}</span>
   </div>
 
   <!-- ===== Indicadores (cartões de número, não gráfico) ===== -->
@@ -90,7 +90,7 @@
       <ng-container matColumnDef="tipo">
         <th mat-header-cell *matHeaderCellDef>Tipo</th>
         <td mat-cell *matCellDef="let os">
-          <span class="etiqueta" [attr.data-tipo]="os.tipo">{{ os.tipo }}</span>
+          <span class="etiqueta" [class]="etiquetaTipoOS(os.tipo)">{{ os.tipo }}</span>
         </td>
       </ng-container>
 

@@ -1,0 +1,127 @@
+// =====================================================================
+//  Estilos compartilhados por todas as telas.
+//  Antes, estas regras estavam COPIADAS em até 7 arquivos .scss de componentes.
+//  Agora existem em um lugar só: mudou aqui, muda no sistema inteiro.
+// =====================================================================
+
+// ----- Links com a cor do tema (em vez do azul sublinhado padrão do navegador) -----
+a:not(.mat-mdc-button-base):not(.mat-mdc-list-item) {
+  color: var(--mat-sys-primary);
+  font-weight: 500;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+}
+
+// ----- Cabeçalho das telas: título à esquerda, ações à direita -----
+// flex-wrap: em telas estreitas, os botões descem para a linha de baixo
+.cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+// ----- Avisos: estado vazio e estado de erro das telas -----
+.aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container);
+}
+
+.aviso--erro {
+  color: var(--mat-sys-on-error-container);
+  background: var(--mat-sys-error-container);
+}
+
+// ----- Tabelas -----
+.tabela {
+  width: 100%;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+// Números alinhados à direita facilitam a comparação entre linhas.
+// ".mat-mdc-table .numero" (2 classes) em vez de só ".numero" (1 classe): no arquivo GLOBAL a
+// regra perdia para o alinhamento das células do Material, que tem o mesmo peso. Nos componentes
+// isso não acontecia porque o Angular acrescenta um atributo (_ngcontent) que aumenta o peso.
+.mat-mdc-table .numero,
+.numero {
+  text-align: right;
+}
+
+.codigo {
+  font-family: monospace;
+  font-weight: 500;
+}
+
+// Segunda linha menor dentro de uma célula ou cartão
+.detalhe {
+  font-size: 0.85em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// ----- Formulários (diálogos) -----
+.info {
+  margin-top: 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.campo {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+// ----- Etiquetas com TONS semânticos -----
+// A tela decide QUAL tom cada valor recebe (ver core/ui/tons.ts);
+// a COR de cada tom existe só aqui.
+.etiqueta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: 500;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.etiqueta--sucesso {
+  background: #e3f4e6;
+  color: #1b6b2c;
+}
+
+.etiqueta--info {
+  background: #e0ecfb;
+  color: #1a4f8f;
+}
+
+.etiqueta--alerta {
+  background: #fdecd8;
+  color: #8a4b08;
+}
+
+.etiqueta--neutro {
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// Mesma família de cor da série "Corretiva" no gráfico de custo da máquina
+.etiqueta--corretiva {
+  background: #fde6da;
+  color: #9a3a12;
+}

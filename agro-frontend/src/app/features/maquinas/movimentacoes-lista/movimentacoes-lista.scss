@@ -1,48 +1,6 @@
-.cabecalho {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
+// .cabecalho, .tabela, .detalhe, .aviso e .etiqueta vêm de src/estilos/_comuns.scss.
+// Aqui fica só o que é específico desta tela.
 
 .filtro {
   width: 260px;
-}
-
-.tabela {
-  width: 100%;
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-// Segunda linha menor dentro da célula (horímetro)
-.detalhe {
-  font-size: 0.85em;
-  color: var(--mat-sys-on-surface-variant);
-}
-
-.em-campo {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 0.85em;
-  font-weight: 500;
-  background: #e0ecfb;
-  color: #1a4f8f;
-}
-
-.aviso {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px;
-  border-radius: 8px;
-  background: var(--mat-sys-surface-container);
-}
-
-.aviso--erro {
-  color: var(--mat-sys-on-error-container);
-  background: var(--mat-sys-error-container);
 }

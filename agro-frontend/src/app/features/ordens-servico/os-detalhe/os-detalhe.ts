@@ -19,6 +19,7 @@ import { OrdemServicoService } from '../../../core/services/ordem-servico.servic
 import { PecaService } from '../../../core/services/peca.service';
 import { Peca } from '../../../core/models/peca';
 import { PecaUsada } from '../../../core/models/ordem-servico';
+import { etiquetaStatusOS, etiquetaTipoOS } from '../../../core/ui/tons';
 
 // Uma linha do fechamento: qual peça e quanto foi usado
 type LinhaPeca = FormGroup<{
@@ -63,6 +64,10 @@ export class OsDetalhe {
   protected readonly pecas = rxResource({
     stream: () => this.pecaService.listar(),
   });
+
+  // Tons das etiquetas (regra compartilhada em core/ui/tons.ts)
+  protected readonly etiquetaTipo = etiquetaTipoOS;
+  protected readonly etiquetaStatus = etiquetaStatusOS;
 
   private readonly pecaPorId = computed(
     () => new Map((this.pecas.hasValue() ? this.pecas.value() : []).map(peca => [peca.id, peca])),

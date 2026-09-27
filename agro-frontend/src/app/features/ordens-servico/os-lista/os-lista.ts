@@ -12,7 +12,8 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { OrdemServicoService } from '../../../core/services/ordem-servico.service';
 import { MaquinaService } from '../../../core/services/maquina.service';
-import { RespostaAberturaOS, STATUS_OS, StatusOS, TipoOS } from '../../../core/models/ordem-servico';
+import { RespostaAberturaOS, STATUS_OS, StatusOS } from '../../../core/models/ordem-servico';
+import { etiquetaStatusOS, etiquetaTipoOS } from '../../../core/ui/tons';
 import { AbrirOsDialog } from '../abrir-os-dialog/abrir-os-dialog';
 import { mensagemAberturaOS } from '../mensagens';
 
@@ -78,26 +79,12 @@ export class OsLista {
     () => this.maquinaId() !== undefined || this.status() !== undefined,
   );
 
-  private readonly classesStatus: Record<StatusOS, string> = {
-    Aberta: 'etiqueta--aberta',
-    Fechada: 'etiqueta--fechada',
-  };
-
-  private readonly classesTipo: Record<TipoOS, string> = {
-    Preventiva: 'etiqueta--preventiva',
-    Corretiva: 'etiqueta--corretiva',
-  };
+  // Tons das etiquetas: regra compartilhada com o detalhe da O.S. e o detalhe da máquina
+  protected readonly etiquetaStatus = etiquetaStatusOS;
+  protected readonly etiquetaTipo = etiquetaTipoOS;
 
   protected tagDaMaquina(maquinaId: number): string {
     return this.tagPorId().get(maquinaId) ?? `#${maquinaId}`;
-  }
-
-  protected classeDoStatus(status: StatusOS): string {
-    return this.classesStatus[status];
-  }
-
-  protected classeDoTipo(tipo: TipoOS): string {
-    return this.classesTipo[tipo];
   }
 
   // Abre o diálogo sem máquina escolhida (o usuário escolhe no select do diálogo)

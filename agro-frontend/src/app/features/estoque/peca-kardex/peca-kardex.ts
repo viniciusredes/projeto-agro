@@ -51,9 +51,10 @@ export class PecaKardex implements OnInit {
 
   // Record obriga a ter a apresentação de TODOS os tipos de movimento
   private readonly tipos: Record<TipoMovimentoEstoque, ApresentacaoTipo> = {
-    implantacao: { rotulo: 'Implantação', icone: 'inventory_2', classe: 'tipo--implantacao', sinal: '+' },
-    entrada: { rotulo: 'Entrada', icone: 'south_west', classe: 'tipo--entrada', sinal: '+' },
-    saida: { rotulo: 'Saída', icone: 'north_east', classe: 'tipo--saida', sinal: '−' },
+    // "classe" usa os tons globais das etiquetas (src/estilos/_comuns.scss)
+    implantacao: { rotulo: 'Implantação', icone: 'inventory_2', classe: 'etiqueta--neutro', sinal: '+' },
+    entrada: { rotulo: 'Entrada', icone: 'south_west', classe: 'etiqueta--sucesso', sinal: '+' },
+    saida: { rotulo: 'Saída', icone: 'north_east', classe: 'etiqueta--alerta', sinal: '−' },
   };
 
   // Método tipado: no template, a variável do *matCellDef é "any" e não pode indexar o Record

@@ -9,6 +9,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MaquinaService } from '../../../core/services/maquina.service';
 import { OrdemServicoService } from '../../../core/services/ordem-servico.service';
 import { TIPOS_OS, TipoOS } from '../../../core/models/ordem-servico';
+import { etiquetaStatusMaquina, etiquetaTipoOS } from '../../../core/ui/tons';
 
 // Um pedaço da barra "custo por tipo": qual tipo, quanto custou e quanto representa do total
 interface SegmentoCusto {
@@ -75,4 +76,8 @@ export class MaquinaDetalhe {
   );
 
   protected readonly colunas = ['numero', 'tipo', 'status', 'abertura', 'custo'];
+
+  // Tons das etiquetas (regra compartilhada em core/ui/tons.ts)
+  protected readonly etiquetaStatusMaquina = etiquetaStatusMaquina;
+  protected readonly etiquetaTipoOS = etiquetaTipoOS;
 }

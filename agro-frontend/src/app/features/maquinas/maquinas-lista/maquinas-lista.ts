@@ -9,7 +9,8 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaquinaService } from '../../../core/services/maquina.service';
-import { Maquina, RespostaRetorno, RespostaSaida, StatusMaquina } from '../../../core/models/maquina';
+import { Maquina, RespostaRetorno, RespostaSaida } from '../../../core/models/maquina';
+import { etiquetaStatusMaquina } from '../../../core/ui/tons';
 import { SaidaDialog } from '../saida-dialog/saida-dialog';
 import { RetornoDialog } from '../retorno-dialog/retorno-dialog';
 import { NovaMaquinaDialog } from '../nova-maquina-dialog/nova-maquina-dialog';
@@ -36,17 +37,8 @@ export class MaquinasLista {
   // Colunas exibidas na tabela, na ordem
   protected readonly colunas = ['tag', 'modelo', 'horimetro', 'status', 'acoes'];
 
-  // Classe CSS de cada status (Record obriga a ter TODOS os status)
-  private readonly classesStatus: Record<StatusMaquina, string> = {
-    'Disponível': 'status--disponivel',
-    'Em Operação': 'status--operacao',
-    'Em Manutenção': 'status--manutencao',
-  };
-
-  // Usado no template: devolve a classe CSS do status
-  protected classeDoStatus(status: StatusMaquina): string {
-    return this.classesStatus[status];
-  }
+  // Tom da etiqueta de status: a regra é compartilhada (core/ui/tons.ts), não fica mais só aqui
+  protected readonly etiquetaStatus = etiquetaStatusMaquina;
 
   constructor() {
     this.carregar();

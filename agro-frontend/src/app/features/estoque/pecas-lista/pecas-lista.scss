@@ -1,13 +1,8 @@
-.cabecalho {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+// .cabecalho, .tabela, .numero, .codigo, .aviso, .etiqueta e a cor dos links vêm de
+// src/estilos/_comuns.scss. Aqui fica só o que é específico desta tela.
 
-  h2 {
-    margin-bottom: 4px;
-  }
+.cabecalho h2 {
+  margin-bottom: 4px;
 }
 
 .resumo {
@@ -17,33 +12,13 @@
 
 .acoes-cabecalho {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
 }
 
-.tabela {
-  width: 100%;
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-// Números alinhados à direita facilitam a comparação entre linhas
-.numero {
-  text-align: right;
-}
-
 .acoes {
   text-align: right;
-}
-
-.codigo {
-  font-family: monospace;
-  font-weight: 500;
-
-  a {
-    color: var(--mat-sys-primary);
-  }
 }
 
 .falta {
@@ -54,36 +29,4 @@
 // Fundo suave na linha inteira das peças abaixo do mínimo
 .linha-repor {
   background: #fff7ed;
-}
-
-.etiqueta {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 0.85em;
-  font-weight: 500;
-}
-
-.etiqueta--ok {
-  background: #e3f4e6;
-  color: #1b6b2c;
-}
-
-.etiqueta--repor {
-  background: #fdecd8;
-  color: #8a4b08;
-}
-
-.aviso {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px;
-  border-radius: 8px;
-  background: var(--mat-sys-surface-container);
-}
-
-.aviso--erro {
-  color: var(--mat-sys-on-error-container);
-  background: var(--mat-sys-error-container);
 }

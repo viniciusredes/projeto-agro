@@ -20,12 +20,8 @@
   <div class="cabecalho">
     <div>
       <h2>O.S. nº {{ ordem.id }}</h2>
-      <span class="etiqueta" [class]="ordem.tipo === 'Preventiva' ? 'etiqueta--preventiva' : 'etiqueta--corretiva'">
-        {{ ordem.tipo }}
-      </span>
-      <span class="etiqueta" [class]="ordem.status === 'Aberta' ? 'etiqueta--aberta' : 'etiqueta--fechada'">
-        {{ ordem.status }}
-      </span>
+      <span class="etiqueta" [class]="etiquetaTipo(ordem.tipo)">{{ ordem.tipo }}</span>
+      <span class="etiqueta" [class]="etiquetaStatus(ordem.status)">{{ ordem.status }}</span>
     </div>
   </div>
 

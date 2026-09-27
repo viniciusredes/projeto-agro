@@ -44,18 +44,21 @@ Branch atual: `feat/front-base` · PR #2 (aberto)
 - [x] **Passo 10** — Entrada de estoque (compra) com validador condicional (inteiro para `un`) · `6bda400`
 - [x] **Passo 11** — Kardex da peça (rota com parâmetro `/estoque/:id`) · `f3353c4`
 
-### Fase 3 — Módulo de Manutenção (O.S.) 🚧
+### Fase 3 — Módulo de Manutenção (O.S.) ✅
 
 > Nesta fase, o Claude implementa os passos (edições visíveis para os alunos) e o usuário faz os commits.
 
 - [x] **Passo 12** — Lista de O.S. com filtros na URL (query params → `input()`), `rxResource` e modelo/service de O.S. · `89a4611`
 - [x] **Passo 13** — Abertura de O.S. (aviso quando a máquina está em campo; horímetro mínimo dinâmico; aberta pela lista de O.S. e pela lista de Máquinas) · `818f127`
 - [x] **Passo 14** — Detalhe e fechamento da O.S. com `FormArray` (peças dinâmicas, tudo ou nada); links O.S. ↔ kardex · `04f768c`
-- [x] **Passo 15** — Custo de manutenção por máquina (`/maquinas/:id`: indicadores + barra preventiva × corretiva com paleta validada; tag e máquina viram links) · *commit: a preencher*
+- [x] **Passo 15** — Custo de manutenção por máquina (`/maquinas/:id`: indicadores + barra preventiva × corretiva com paleta validada; tag e máquina viram links) · `276ccb5`
 
 ### Fase 4 — Fechamento
 
-- [ ] **Passo 16** — Polimento: estados padronizados, confirmações, responsividade; links com a cor do tema (hoje usam o azul/sublinhado padrão do navegador); estilos repetidos (`.aviso`, `.etiqueta`, `.tabela`) centralizados
+- [ ] **Passo 16** — Polimento (dividido em 3 partes)
+  - [x] **16.1** — Estilos globais (`src/estilos/_comuns.scss`), tons semânticos das etiquetas (`core/ui/tons.ts`) e links com a cor do tema · *commit: a preencher*
+  - [ ] **16.2** — Diálogo de confirmação reutilizável (antes de fechar a O.S.)
+  - [ ] **16.3** — Responsividade (menu lateral sobreposto no celular)
 - [ ] **Passo 17** — `ng build`, README do front-end, atualização do `context.md` e PR final
 - [ ] *(Opcional)* Testes unitários de um service e de um componente
 

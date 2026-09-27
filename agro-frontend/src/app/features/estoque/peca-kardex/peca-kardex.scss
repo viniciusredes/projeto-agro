@@ -1,26 +1,17 @@
+// .cabecalho, .tabela, .numero, .codigo, .aviso e .etiqueta (com ícone e tons) vêm de
+// src/estilos/_comuns.scss. Aqui fica só o que é específico desta tela.
+
 .voltar {
   margin-bottom: 8px;
 }
 
-.cabecalho {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-
-  h2 {
-    margin-bottom: 4px;
-  }
+.cabecalho h2 {
+  margin-bottom: 4px;
 }
 
 .resumo {
   margin: 0;
   color: var(--mat-sys-on-surface-variant);
-}
-
-.codigo {
-  font-family: monospace;
 }
 
 // Cartões com os números principais da peça
@@ -48,61 +39,4 @@
   strong {
     font-size: 1.3em;
   }
-}
-
-.tabela {
-  width: 100%;
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-// Números alinhados à direita facilitam a comparação entre linhas
-.numero {
-  text-align: right;
-}
-
-.etiqueta {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 0.85em;
-  font-weight: 500;
-
-  mat-icon {
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
-  }
-}
-
-.tipo--implantacao {
-  background: var(--mat-sys-surface-container-high);
-  color: var(--mat-sys-on-surface-variant);
-}
-
-.tipo--entrada {
-  background: #e3f4e6;
-  color: #1b6b2c;
-}
-
-.tipo--saida {
-  background: #fdecd8;
-  color: #8a4b08;
-}
-
-.aviso {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px;
-  border-radius: 8px;
-  background: var(--mat-sys-surface-container);
-}
-
-.aviso--erro {
-  color: var(--mat-sys-on-error-container);
-  background: var(--mat-sys-error-container);
 }
