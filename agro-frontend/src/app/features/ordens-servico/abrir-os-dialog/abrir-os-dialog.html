@@ -1,0 +1,72 @@
+<h2 mat-dialog-title>Abrir ordem de serviço</h2>
+
+<form [formGroup]="form" (ngSubmit)="confirmar()">
+  <mat-dialog-content>
+    <mat-form-field appearance="outline" class="campo">
+      <mat-label>Máquina</mat-label>
+      <mat-select formControlName="maquinaId">
+        @if (maquinas.hasValue()) {
+          @for (maquina of maquinas.value(); track maquina.id) {
+            <!-- Máquina já em manutenção não pode receber outra O.S. -->
+            <mat-option [value]="maquina.id" [disabled]="emManutencao(maquina)">
+              {{ maquina.tag }} · {{ maquina.modelo }}
+              @if (emManutencao(maquina)) {
+                (já em manutenção)
+              }
+            </mat-option>
+          }
+        }
+      </mat-select>
+      <mat-error>Escolha a máquina</mat-error>
+    </mat-form-field>
+
+    <!-- Aviso só quando a máquina escolhida está em campo (regra da Parte OS3 do back-end) -->
+    @if (maquinaSelecionada()?.status === 'Em Operação') {
+      <p class="aviso-campo">
+        <mat-icon>warning</mat-icon>
+        <span>
+          A máquina está <strong>em campo</strong>. Ao abrir a O.S., a saída em aberto será
+          encerrada automaticamente com o horímetro informado, e a descrição será registrada
+          como avaria.
+        </span>
+      </p>
+    }
+
+    <div class="grupo-tipo">
+      <span class="rotulo">Tipo</span>
+      <mat-button-toggle-group formControlName="tipo" aria-label="Tipo da O.S.">
+        @for (tipo of tipos; track tipo) {
+          <mat-button-toggle [value]="tipo">{{ tipo }}</mat-button-toggle>
+        }
+      </mat-button-toggle-group>
+    </div>
+
+    <mat-form-field appearance="outline" class="campo">
+      <mat-label>Descrição</mat-label>
+      <textarea matInput formControlName="descricao" rows="3"
+        placeholder="Ex.: vazamento no hidráulico / revisão de 1.000 h"></textarea>
+      <mat-error>Descreva o problema ou o serviço</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="campo">
+      <mat-label>Horímetro na parada</mat-label>
+      <input matInput type="number" formControlName="horimetro" step="0.1" />
+      <span matTextSuffix>h</span>
+      @if (maquinaSelecionada(); as maquina) {
+        <mat-hint>Horímetro atual da máquina: {{ maquina.horimetro }} h</mat-hint>
+      }
+      @if (form.controls.horimetro.hasError('required')) {
+        <mat-error>Informe o horímetro</mat-error>
+      } @else if (form.controls.horimetro.hasError('min')) {
+        <mat-error>Não pode ser menor que {{ maquinaSelecionada()?.horimetro }} h</mat-error>
+      }
+    </mat-form-field>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" mat-dialog-close>Cancelar</button>
+    <button mat-flat-button type="submit" [disabled]="salvando()">
+      {{ salvando() ? 'Abrindo...' : 'Abrir O.S.' }}
+    </button>
+  </mat-dialog-actions>
+</form>

@@ -1,0 +1,18 @@
+// .cabecalho, .tabela, .aviso e .etiqueta vêm de src/estilos/_comuns.scss (globais).
+// Aqui fica só o que é específico desta tela.
+
+// Botões de ação alinhados à direita da linha
+.acoes {
+  text-align: right;
+}
+
+// Espaço entre o botão de Saída/Retorno e o de O.S.
+.botao-os {
+  margin-left: 8px;
+}
+
+// Botões do cabeçalho lado a lado
+.botoes {
+  display: flex;
+  gap: 8px;
+}

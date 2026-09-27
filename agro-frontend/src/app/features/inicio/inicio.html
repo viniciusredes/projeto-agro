@@ -1,0 +1,74 @@
+<!-- ===== Apresentação ===== -->
+<section class="apresentacao">
+  <img
+    class="apresentacao__logo"
+    [src]="tema.escuroAtivo() ? 'img/logo-agrofrota-escuro.webp' : 'img/logo-agrofrota.webp'"
+    alt="Agro Frota — Gestão inteligente de máquinas agrícolas"
+    width="900"
+    height="460"
+  />
+
+  <p class="apresentacao__texto">
+    O Agro Frota substitui cadernos, planilhas e mensagens soltas por um sistema único para a
+    fazenda: saiba <strong>onde está cada máquina</strong> e com quem, <strong>quantas horas
+    ela trabalhou</strong>, <strong>quanto custou mantê-la</strong> e <strong>o que precisa ser
+    reposto</strong> no almoxarifado.
+  </p>
+
+  <div class="apresentacao__acoes">
+    <a mat-flat-button routerLink="/maquinas">
+      <mat-icon>agriculture</mat-icon>
+      Ver a frota
+    </a>
+    <a mat-stroked-button routerLink="/ordens-servico">
+      <mat-icon>build</mat-icon>
+      Ordens de serviço
+    </a>
+  </div>
+</section>
+
+<!-- ===== A frota agora (números ao vivo, vindos da API) ===== -->
+<section class="agora" aria-labelledby="titulo-agora">
+  <h2 id="titulo-agora">A frota agora</h2>
+
+  @if (maquinas.error() || pecasParaRepor.error()) {
+    <p class="aviso aviso--erro">
+      <mat-icon>error</mat-icon>
+      Não foi possível carregar os números da frota.
+    </p>
+  } @else {
+    <div class="indicadores">
+      <a class="indicador" routerLink="/maquinas">
+        <span class="indicador__valor">{{ frota().disponiveis }}<small> de {{ frota().total }}</small></span>
+        <span class="indicador__rotulo">máquinas disponíveis</span>
+      </a>
+      <a class="indicador" routerLink="/movimentacoes">
+        <span class="indicador__valor">{{ frota().emCampo }}</span>
+        <span class="indicador__rotulo">em campo agora</span>
+      </a>
+      <a class="indicador" routerLink="/ordens-servico">
+        <span class="indicador__valor">{{ frota().emManutencao }}</span>
+        <span class="indicador__rotulo">em manutenção</span>
+      </a>
+      <a class="indicador" routerLink="/estoque">
+        <span class="indicador__valor">{{ totalParaRepor() }}</span>
+        <span class="indicador__rotulo">{{ totalParaRepor() === 1 ? 'peça para repor' : 'peças para repor' }}</span>
+      </a>
+    </div>
+  }
+</section>
+
+<!-- ===== Módulos ===== -->
+<section class="modulos" aria-label="Módulos do sistema">
+  @for (modulo of modulos; track modulo.rota) {
+    <article class="modulo">
+      <mat-icon class="modulo__icone">{{ modulo.icone }}</mat-icon>
+      <h3>{{ modulo.titulo }}</h3>
+      <p>{{ modulo.descricao }}</p>
+      <a mat-button [routerLink]="modulo.rota">
+        {{ modulo.acao }}
+        <mat-icon iconPositionEnd>arrow_forward</mat-icon>
+      </a>
+    </article>
+  }
+</section>

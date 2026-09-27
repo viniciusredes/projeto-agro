@@ -1,0 +1,168 @@
+<a mat-button routerLink="/ordens-servico" class="voltar">
+  <mat-icon>arrow_back</mat-icon>
+  Ordens de Serviço
+</a>
+
+@if (os.isLoading()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+
+<!-- Erro PRIMEIRO (regra do rxResource): O.S. inexistente ou API fora do ar -->
+@if (os.error()) {
+  <p class="aviso aviso--erro">
+    <mat-icon>error</mat-icon>
+    Não foi possível carregar a O.S. nº {{ id() }}. Ela pode não existir.
+  </p>
+} @else if (os.hasValue()) {
+  @let ordem = os.value();
+
+  <!-- ===== Cabeçalho do documento ===== -->
+  <div class="cabecalho">
+    <div>
+      <h2>O.S. nº {{ ordem.id }}</h2>
+      <span class="etiqueta" [class]="etiquetaTipo(ordem.tipo)">{{ ordem.tipo }}</span>
+      <span class="etiqueta" [class]="etiquetaStatus(ordem.status)">{{ ordem.status }}</span>
+    </div>
+  </div>
+
+  <dl class="dados">
+    <div>
+      <dt>Máquina</dt>
+      <dd>
+        <a [routerLink]="['/maquinas', ordem.maquinaId]">
+          {{ ordem.maquina ? ordem.maquina.tag + ' · ' + ordem.maquina.modelo : '#' + ordem.maquinaId }}
+        </a>
+      </dd>
+    </div>
+    <div>
+      <dt>Horímetro na parada</dt>
+      <dd>{{ ordem.horimetroParada | number: '1.0-1' }} h</dd>
+    </div>
+    <div>
+      <dt>Abertura</dt>
+      <dd>{{ ordem.dataAbertura | date: 'dd/MM/yyyy HH:mm' }}</dd>
+    </div>
+    @if (ordem.dataFechamento) {
+      <div>
+        <dt>Fechamento</dt>
+        <dd>{{ ordem.dataFechamento | date: 'dd/MM/yyyy HH:mm' }}</dd>
+      </div>
+    }
+    <div class="dados__largo">
+      <dt>Descrição</dt>
+      <dd>{{ ordem.descricao }}</dd>
+    </div>
+  </dl>
+
+  @if (ordem.status === 'Fechada') {
+    <!-- ===== O.S. fechada: itens com o custo CONGELADO no fechamento ===== -->
+    <h3>Peças utilizadas</h3>
+    @if (ordem.itens.length === 0) {
+      <p class="aviso">Fechada sem uso de peças.</p>
+    } @else {
+      <table mat-table [dataSource]="ordem.itens" class="tabela">
+        <ng-container matColumnDef="peca">
+          <th mat-header-cell *matHeaderCellDef>Peça</th>
+          <td mat-cell *matCellDef="let item">
+            <a [routerLink]="['/estoque', item.pecaId]" class="codigo">{{ item.codigo }}</a>
+            <div class="detalhe">{{ descricaoDaPeca(item.pecaId) }}</div>
+          </td>
+          <td mat-footer-cell *matFooterCellDef><strong>Total</strong></td>
+        </ng-container>
+
+        <ng-container matColumnDef="quantidade">
+          <th mat-header-cell *matHeaderCellDef class="numero">Qtd</th>
+          <td mat-cell *matCellDef="let item" class="numero">{{ item.quantidade | number: '1.0-2' }}</td>
+          <td mat-footer-cell *matFooterCellDef></td>
+        </ng-container>
+
+        <ng-container matColumnDef="custo">
+          <th mat-header-cell *matHeaderCellDef class="numero">Custo unitário</th>
+          <td mat-cell *matCellDef="let item" class="numero">{{ item.custoUnitario | currency }}</td>
+          <td mat-footer-cell *matFooterCellDef></td>
+        </ng-container>
+
+        <ng-container matColumnDef="valor">
+          <th mat-header-cell *matHeaderCellDef class="numero">Valor</th>
+          <td mat-cell *matCellDef="let item" class="numero">{{ item.valorTotal | currency }}</td>
+          <td mat-footer-cell *matFooterCellDef class="numero"><strong>{{ ordem.custoTotal | currency }}</strong></td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="['peca', 'quantidade', 'custo', 'valor']"></tr>
+        <tr mat-row *matRowDef="let linha; columns: ['peca', 'quantidade', 'custo', 'valor']"></tr>
+        <tr mat-footer-row *matFooterRowDef="['peca', 'quantidade', 'custo', 'valor']"></tr>
+      </table>
+    }
+  } @else {
+    <!-- ===== O.S. aberta: formulário de fechamento com linhas dinâmicas (FormArray) ===== -->
+    <h3>Fechamento</h3>
+    <p class="info">
+      Informe as peças usadas no reparo. Se alguma não tiver saldo suficiente, o fechamento inteiro
+      é recusado e <strong>nada</strong> é baixado do estoque.
+    </p>
+
+    @for (linha of linhas.controls; track linha; let i = $index) {
+      <div class="linha" [formGroup]="linha">
+        <mat-form-field appearance="outline" class="linha__peca">
+          <mat-label>Peça</mat-label>
+          <mat-select formControlName="pecaId">
+            @if (pecas.hasValue()) {
+              @for (peca of pecas.value(); track peca.id) {
+                <mat-option [value]="peca.id">
+                  {{ peca.codigo }} · {{ peca.descricao }} (saldo {{ peca.saldo | number: '1.0-2' }} {{ peca.unidade }})
+                </mat-option>
+              }
+            }
+          </mat-select>
+          <mat-error>Escolha a peça</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="linha__quantidade">
+          <mat-label>Quantidade</mat-label>
+          <input matInput type="number" formControlName="quantidade" min="0" />
+          @if (pecaDaLinha(i); as peca) {
+            <span matTextSuffix>{{ peca.unidade }}</span>
+          }
+          @if (linha.hasError('inteiro')) {
+            <mat-hint class="erro-linha">Peça contada em unidades: use número inteiro</mat-hint>
+          } @else if (acimaDoSaldo(i)) {
+            <mat-hint class="alerta-linha">Acima do saldo disponível</mat-hint>
+          }
+          <mat-error>Informe uma quantidade maior que zero</mat-error>
+        </mat-form-field>
+
+        <button mat-icon-button type="button" (click)="removerLinha(i)" aria-label="Remover linha">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </div>
+    }
+
+    <!-- Erro da LISTA inteira (validador do FormArray) -->
+    @if (linhas.hasError('pecaRepetida')) {
+      <p class="aviso aviso--erro">
+        <mat-icon>error</mat-icon>
+        A mesma peça aparece em mais de uma linha. Informe a quantidade total numa linha só.
+      </p>
+    }
+
+    <div class="rodape">
+      <button mat-stroked-button type="button" (click)="adicionarLinha()" [disabled]="!pecas.hasValue()">
+        <mat-icon>add</mat-icon>
+        Adicionar peça
+      </button>
+
+      <span class="estimativa">
+        @if (linhas.length > 0) {
+          Custo estimado: <strong>{{ custoEstimado() | currency }}</strong>
+        } @else {
+          Nenhuma peça: a O.S. será fechada sem custo.
+        }
+      </span>
+
+      <button mat-flat-button type="button" (click)="fechar()" [disabled]="fechando()">
+        <mat-icon>task_alt</mat-icon>
+        {{ fechando() ? 'Fechando...' : 'Fechar O.S.' }}
+      </button>
+    </div>
+  }
+}

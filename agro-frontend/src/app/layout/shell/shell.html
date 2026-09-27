@@ -1,0 +1,61 @@
+<!-- Barra superior -->
+<mat-toolbar class="barra">
+  <button mat-icon-button (click)="menu.toggle()" aria-label="Abrir ou fechar o menu">
+    <mat-icon>menu</mat-icon>
+  </button>
+
+  <!-- A logo leva à página inicial (versão compacta: sem o subtítulo, ilegível neste tamanho).
+       A versão escura tem o verde e o cinza clareados para aparecer no fundo escuro. -->
+  <a routerLink="/" class="marca" aria-label="Agro Frota — página inicial">
+    <img
+      [src]="tema.escuroAtivo() ? 'img/logo-agrofrota-compacta-escuro.webp' : 'img/logo-agrofrota-compacta.webp'"
+      alt="Agro Frota"
+      width="360"
+      height="164"
+    />
+  </a>
+
+  <span class="espaco"></span>
+
+  <!-- Tema: claro ou escuro -->
+  <button mat-icon-button [matMenuTriggerFor]="menuTema" matTooltip="Tema" aria-label="Escolher tema">
+    <mat-icon>{{ iconeTemaAtual() }}</mat-icon>
+  </button>
+  <mat-menu #menuTema="matMenu">
+    @for (opcao of opcoesTema; track opcao.valor) {
+      <button mat-menu-item (click)="tema.escolher(opcao.valor)">
+        <mat-icon>{{ opcao.icone }}</mat-icon>
+        <span>{{ opcao.rotulo }}</span>
+        @if (tema.preferencia() === opcao.valor) {
+          <mat-icon class="marcado">check</mat-icon>
+        }
+      </button>
+    }
+  </mat-menu>
+</mat-toolbar>
+
+<mat-sidenav-container class="container">
+  <!-- Menu lateral: #menu é uma referência usada pelo botão acima -->
+  <mat-sidenav #menu mode="side" opened class="menu">
+    <mat-nav-list>
+      @for (item of itensMenu; track item.rota) {
+        <a
+          mat-list-item
+          [routerLink]="item.rota"
+          routerLinkActive
+          [routerLinkActiveOptions]="{ exact: item.rota === '/' }"
+          #rla="routerLinkActive"
+          [activated]="rla.isActive"
+        >
+          <mat-icon matListItemIcon>{{ item.icone }}</mat-icon>
+          <span matListItemTitle>{{ item.titulo }}</span>
+        </a>
+      }
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <!-- Área central: aqui o roteador coloca a tela da rota atual -->
+  <mat-sidenav-content class="conteudo">
+    <router-outlet />
+  </mat-sidenav-content>
+</mat-sidenav-container>

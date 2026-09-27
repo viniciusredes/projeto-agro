@@ -1,0 +1,28 @@
+// .campo vem de src/estilos/_comuns.scss (compartilhado por todos os diálogos).
+
+// Aviso amarelo quando a máquina está em campo
+.aviso-campo {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--agro-atencao-fundo);
+  color: var(--agro-atencao-texto);
+
+  mat-icon {
+    flex-shrink: 0;
+  }
+}
+
+.grupo-tipo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.rotulo {
+  color: var(--mat-sys-on-surface-variant);
+}

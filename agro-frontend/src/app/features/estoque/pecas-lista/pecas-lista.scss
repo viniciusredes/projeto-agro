@@ -1,0 +1,32 @@
+// .cabecalho, .tabela, .numero, .codigo, .aviso, .etiqueta e a cor dos links vêm de
+// src/estilos/_comuns.scss. Aqui fica só o que é específico desta tela.
+
+.cabecalho h2 {
+  margin-bottom: 4px;
+}
+
+.resumo {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.acoes-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.acoes {
+  text-align: right;
+}
+
+.falta {
+  font-weight: 600;
+  color: var(--agro-alerta-texto);
+}
+
+// Fundo suave na linha inteira das peças abaixo do mínimo (cor nos dois temas: _comuns.scss)
+.linha-repor {
+  background: var(--agro-linha-destaque);
+}

@@ -1,0 +1,27 @@
+// .cabecalho, .tabela, .numero, .detalhe, .aviso e .etiqueta vêm de src/estilos/_comuns.scss.
+// Aqui fica só o que é específico desta tela.
+
+.cabecalho {
+  margin-bottom: 8px; // menos espaço: os filtros ficam logo abaixo
+}
+
+.botoes {
+  display: flex;
+  gap: 8px;
+}
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  mat-form-field {
+    width: 240px;
+  }
+}
+
+.numero-os {
+  font-weight: 600;
+}

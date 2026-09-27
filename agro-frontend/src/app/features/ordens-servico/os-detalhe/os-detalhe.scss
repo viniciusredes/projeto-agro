@@ -1,0 +1,82 @@
+// .cabecalho, .tabela, .numero, .codigo, .detalhe, .info, .aviso e .etiqueta vêm de
+// src/estilos/_comuns.scss. Aqui fica só o que é específico desta tela.
+
+.voltar {
+  margin-bottom: 8px;
+}
+
+.cabecalho {
+  h2 {
+    display: inline-block;
+    margin: 0 12px 0 0;
+  }
+
+  .etiqueta {
+    margin-right: 8px;
+  }
+}
+
+// Dados do cabeçalho em "cartões" lado a lado
+.dados {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 0 0 24px; // o .cabecalho global já dá o espaço de cima
+
+  div {
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--mat-sys-surface-container);
+  }
+
+  dt {
+    font-size: 0.8em;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  dd {
+    margin: 4px 0 0;
+    font-weight: 500;
+  }
+}
+
+.dados__largo {
+  grid-column: 1 / -1; // a descrição ocupa a linha inteira
+}
+
+// Uma linha do FormArray: peça (larga) + quantidade + botão remover
+.linha {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.linha__peca {
+  flex: 3;
+}
+
+.linha__quantidade {
+  flex: 1;
+}
+
+.erro-linha {
+  color: var(--mat-sys-error);
+}
+
+.alerta-linha {
+  color: var(--agro-alerta-texto);
+  font-weight: 500;
+}
+
+.rodape {
+  display: flex;
+  flex-wrap: wrap; // em telas estreitas, a estimativa e os botões quebram linha
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.estimativa {
+  flex: 1;
+  text-align: right;
+}

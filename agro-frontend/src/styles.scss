@@ -1,0 +1,85 @@
+// Tema global do Agro Frota (Angular Material 3).
+// As paletas vêm da logo e foram geradas pelo schematic oficial:
+//   ng generate @angular/material:theme-color --primary-color="#0f633e" --tertiary-color="#f38302"
+@use '@angular/material' as mat;
+@use './estilos/theme-colors' as marca; // paletas da marca (verde primário + laranja terciário)
+@use './estilos/comuns'; // estilos compartilhados por todas as telas (avisos, tabelas, etiquetas...)
+
+html {
+  height: 100%;
+
+  @include mat.theme(
+    (
+      color: (
+        primary: marca.$primary-palette,
+        tertiary: marca.$tertiary-palette,
+        // color-scheme: as cores são geradas com light-dark(), que escolhe a versão clara ou
+        // escura conforme a propriedade CSS "color-scheme" (definida logo abaixo)
+        theme-type: color-scheme,
+      ),
+      // Montserrat (títulos, parecida com a letra da logo) + Roboto (textos)
+      typography: (
+        brand-family: 'Montserrat, Roboto, sans-serif',
+        plain-family: 'Roboto, sans-serif',
+        bold-weight: 700,
+        medium-weight: 500,
+        regular-weight: 400,
+      ),
+      density: 0,
+    )
+  );
+
+  // Ajuste de componente pelo jeito oficial (tokens): menu lateral com cantos retos,
+  // porque ele encosta na barra superior e tem borda (o padrão do Material 3 é arredondado)
+  @include mat.sidenav-overrides((container-shape: 0));
+
+  // Tema escuro com as cores da logo escura (verde-menta #4cf090 + laranja #fa9400).
+  // O 1º valor de cada light-dark() é o que o tema claro já gerava (fica igual);
+  // só o 2º (escuro) muda. Botões, links, faixa da barra e números usam estes tokens.
+  @include mat.theme-overrides(
+    (
+      primary: light-dark(#1c6b45, #4cf090),
+      on-primary: light-dark(#ffffff, #00391e),
+      surface-tint: light-dark(#1c6b45, #4cf090),
+      tertiary: light-dark(#924c00, #fa9400),
+      on-tertiary: light-dark(#ffffff, #3a1d00),
+    )
+  );
+
+  // Qual tema está valendo. O TemaService troca a classe do <html>;
+  // o script no index.html aplica a escolha salva antes mesmo do Angular carregar.
+  color-scheme: light dark; // padrão: segue o sistema operacional
+
+  &.tema-claro {
+    color-scheme: light;
+  }
+
+  &.tema-escuro {
+    color-scheme: dark;
+  }
+}
+
+body {
+  // Fundo, fonte e cor do texto vêm das variáveis do tema (mudam sozinhas com o color-scheme)
+  background-color: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+  margin: 0;
+  height: 100%;
+}
+
+// Títulos com a fonte da marca
+h1,
+h2,
+h3 {
+  font-family: var(--mat-sys-headline-small-font);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+// Snackbar de erro (usado pelo interceptor de erros da API)
+.snack-erro {
+  --mat-snack-bar-container-color: var(--mat-sys-error);
+  --mat-snack-bar-supporting-text-color: var(--mat-sys-on-error);
+  --mat-snack-bar-button-color: var(--mat-sys-on-error);
+}

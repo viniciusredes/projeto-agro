@@ -69,7 +69,6 @@ npx tsc --noEmit   # verifica erros de tipo sem executar
 ```
 agro-backend/
 ├── server.ts        # toda a API: tipos, dados em memória, rotas e tratadores de erro
-├── context.md       # contexto de negócio e decisões do projeto
 ├── README.md        # este material
 ├── testes.http      # roteiro de testes para a extensão REST Client do VS Code
 ├── testes.sh        # roteiro de testes automatizado (mostra ✅/❌ em cada cenário)
@@ -92,6 +91,7 @@ Tudo fica num único `server.ts` de propósito, para facilitar o aprendizado. A 
 | Método | Rota | O que faz |
 |---|---|---|
 | `GET` | `/maquinas` | Lista as máquinas |
+| `POST` | `/maquinas` | Cadastra uma máquina (tag única, nasce `Disponível`) |
 | `POST` | `/maquinas/:id/saida` | Registra a saída da máquina para o campo |
 | `POST` | `/maquinas/:id/retorno` | Registra o retorno, o horímetro e as avarias |
 | `GET` | `/movimentacoes` | Lista o histórico (filtro opcional `?maquinaId=`) |
@@ -1644,6 +1644,8 @@ curl.exe $B/ordens-servico/1                                                    
 
 | Rota | Regra | Erro |
 |---|---|---|
+| Cadastro de máquina | `tag` e `modelo` obrigatórios; `horimetro` número ≥ 0 | 400 |
+| Cadastro de máquina | Tag única (após normalizar para maiúsculas) | 409 |
 | Saída | Máquina precisa existir | 404 |
 | Saída | Status precisa ser `Disponível` | 409 |
 | Saída | `operador` e `frenteTrabalho` obrigatórios (texto não vazio) | 400 |
@@ -1836,7 +1838,6 @@ Antes de começar um projeto do zero, resolva os [exercícios](docs/exercicios.m
 
 - **Sem persistência:** os dados se perdem a cada reinício.
 - **Sem autenticação:** todas as rotas são abertas.
-- **Sem cadastro de máquinas pela API:** a lista inicial é fixa no código.
 - **O.S. sem cancelamento e sem mão de obra:** uma O.S. aberta só termina pelo fechamento, e o custo considera apenas as peças.
 - **Sem modo offline:** o uso assume conexão (sede, pátio ou oficina).
 
@@ -1847,10 +1848,10 @@ Antes de começar um projeto do zero, resolva os [exercícios](docs/exercicios.m
 2. ✅ **Módulo de Estoque:** cadastro de peças, entradas, kardex e estoque mínimo.
 3. ✅ **Módulo de Manutenção:** abertura e fechamento de O.S., baixa automática no estoque, custo congelado e custo por máquina.
 
-**Etapa 2:** front-end em Angular consumindo esta API.
+**Etapa 2, front-end em Angular: ✅ concluída.** Veja o [README do front-end](../agro-frontend/README.md). Durante ela, a API ganhou o cadastro de máquinas (`POST /maquinas`, 6 cenários novos no `testes.sh`).
 
 **Futuro:** trocar os arrays em memória por PostgreSQL com Prisma ORM.
 
 ---
 
-Contexto de negócio e decisões do projeto: [context.md](context.md)
+Contexto de negócio e decisões do projeto: [context.md](../context.md)

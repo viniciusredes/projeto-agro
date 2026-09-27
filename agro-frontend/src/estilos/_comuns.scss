@@ -1,0 +1,146 @@
+// =====================================================================
+//  Estilos compartilhados por todas as telas.
+//  Antes, estas regras estavam COPIADAS em até 7 arquivos .scss de componentes.
+//  Agora existem em um lugar só: mudou aqui, muda no sistema inteiro.
+// =====================================================================
+
+// ----- Cores próprias do sistema (fora das cores do Material), nos DOIS temas -----
+// light-dark(claro, escuro): o navegador escolhe conforme o "color-scheme" do <html>
+// (o mesmo mecanismo que o Material usa nas cores dele). Definidas uma vez, usadas nas telas.
+:root {
+  --agro-sucesso-fundo: light-dark(#e3f4e6, #1c3a26);
+  --agro-sucesso-texto: light-dark(#1b6b2c, #9fe0b2);
+  --agro-info-fundo: light-dark(#e0ecfb, #1b3050);
+  --agro-info-texto: light-dark(#1a4f8f, #a9c9f5);
+  --agro-alerta-fundo: light-dark(#fdecd8, #45300f);
+  --agro-alerta-texto: light-dark(#8a4b08, #f6c38a);
+  --agro-corretiva-fundo: light-dark(#fde6da, #4a2413);
+  --agro-corretiva-texto: light-dark(#9a3a12, #f8b594);
+  --agro-atencao-fundo: light-dark(#fff4d6, #3d3210); // aviso amarelo (ex.: máquina em campo)
+  --agro-atencao-texto: light-dark(#6b4a00, #f3d27a);
+  --agro-linha-destaque: light-dark(#fff7ed, #2e2415); // linha de tabela em destaque (repor)
+}
+
+// ----- Links com a cor do tema (em vez do azul sublinhado padrão do navegador) -----
+// :where(...) tem peso ZERO: a regra vale para todo link comum, mas qualquer componente
+// que estilize um link (ex.: um cartão clicável) consegue sobrescrever sem brigar com ela
+a:where(:not(.mat-mdc-button-base):not(.mat-mdc-list-item)) {
+  color: var(--mat-sys-primary);
+  font-weight: 500;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+}
+
+// ----- Cabeçalho das telas: título à esquerda, ações à direita -----
+// flex-wrap: em telas estreitas, os botões descem para a linha de baixo
+.cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+// ----- Avisos: estado vazio e estado de erro das telas -----
+.aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container);
+}
+
+.aviso--erro {
+  color: var(--mat-sys-on-error-container);
+  background: var(--mat-sys-error-container);
+}
+
+// ----- Tabelas -----
+.tabela {
+  width: 100%;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+// Números alinhados à direita facilitam a comparação entre linhas.
+// ".mat-mdc-table .numero" (2 classes) em vez de só ".numero" (1 classe): no arquivo GLOBAL a
+// regra perdia para o alinhamento das células do Material, que tem o mesmo peso. Nos componentes
+// isso não acontecia porque o Angular acrescenta um atributo (_ngcontent) que aumenta o peso.
+.mat-mdc-table .numero,
+.numero {
+  text-align: right;
+}
+
+.codigo {
+  font-family: monospace;
+  font-weight: 500;
+}
+
+// Segunda linha menor dentro de uma célula ou cartão
+.detalhe {
+  font-size: 0.85em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// ----- Formulários (diálogos) -----
+.info {
+  margin-top: 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.campo {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+// ----- Etiquetas com TONS semânticos -----
+// A tela decide QUAL tom cada valor recebe (ver core/ui/tons.ts);
+// a COR de cada tom existe só aqui.
+.etiqueta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: 500;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.etiqueta--sucesso {
+  background: var(--agro-sucesso-fundo);
+  color: var(--agro-sucesso-texto);
+}
+
+.etiqueta--info {
+  background: var(--agro-info-fundo);
+  color: var(--agro-info-texto);
+}
+
+.etiqueta--alerta {
+  background: var(--agro-alerta-fundo);
+  color: var(--agro-alerta-texto);
+}
+
+.etiqueta--neutro {
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// Mesma família de cor da série "Corretiva" no gráfico de custo da máquina
+.etiqueta--corretiva {
+  background: var(--agro-corretiva-fundo);
+  color: var(--agro-corretiva-texto);
+}

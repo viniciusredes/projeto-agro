@@ -1,0 +1,88 @@
+<div class="cabecalho">
+  <h2>Máquinas</h2>
+  <div class="botoes">
+    <button mat-stroked-button (click)="carregar()" [disabled]="carregando()">
+      <mat-icon>refresh</mat-icon>
+      Atualizar
+    </button>
+    <button mat-flat-button (click)="abrirCadastro()">
+      <mat-icon>add</mat-icon>
+      Nova máquina
+    </button>
+  </div>
+</div>
+
+
+<!-- Barra de progresso enquanto a requisição está em andamento -->
+@if (carregando()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+
+<!-- Um estado de cada vez: erro, lista vazia ou tabela -->
+@if (erro(); as mensagem) {
+  <p class="aviso aviso--erro">
+    <mat-icon>error</mat-icon>
+    {{ mensagem }}
+  </p>
+} @else if (!carregando() && maquinas().length === 0) {
+  <p class="aviso">Nenhuma máquina cadastrada.</p>
+} @else if (maquinas().length > 0) {
+  <table mat-table [dataSource]="maquinas()" class="tabela">
+    <!-- Coluna: tag -->
+    <ng-container matColumnDef="tag">
+      <th mat-header-cell *matHeaderCellDef>Tag</th>
+      <td mat-cell *matCellDef="let maquina">
+        <!-- A tag leva ao detalhe da máquina, com os indicadores de manutenção -->
+        <a [routerLink]="['/maquinas', maquina.id]">{{ maquina.tag }}</a>
+      </td>
+    </ng-container>
+
+    <!-- Coluna: modelo -->
+    <ng-container matColumnDef="modelo">
+      <th mat-header-cell *matHeaderCellDef>Modelo</th>
+      <td mat-cell *matCellDef="let maquina">{{ maquina.modelo }}</td>
+    </ng-container>
+
+    <!-- Coluna: horímetro -->
+    <ng-container matColumnDef="horimetro">
+      <th mat-header-cell *matHeaderCellDef>Horímetro</th>
+      <td mat-cell *matCellDef="let maquina">{{ maquina.horimetro | number: '1.0-1' }} h</td>
+    </ng-container>
+
+    <!-- Coluna: status (com cor) -->
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef>Status</th>
+      <td mat-cell *matCellDef="let maquina">
+        <span class="etiqueta" [class]="etiquetaStatus(maquina.status)">{{ maquina.status }}</span>
+      </td>
+    </ng-container>
+    <!-- Coluna: ações (os botões dependem do status da máquina) -->
+    <ng-container matColumnDef="acoes">
+      <th mat-header-cell *matHeaderCellDef></th>
+      <td mat-cell *matCellDef="let maquina" class="acoes">
+        @if (maquina.status === 'Disponível') {
+          <button mat-stroked-button (click)="abrirSaida(maquina)">
+            <mat-icon>logout</mat-icon>
+            Saída
+          </button>
+        } @else if (maquina.status === 'Em Operação') {
+          <button mat-stroked-button (click)="abrirRetorno(maquina)">
+            <mat-icon>login</mat-icon>
+            Retorno
+          </button>
+        }
+        <!-- Abrir O.S.: disponível para qualquer máquina que ainda não esteja em manutenção -->
+        @if (maquina.status !== 'Em Manutenção') {
+          <button mat-stroked-button class="botao-os" (click)="abrirOs(maquina)">
+            <mat-icon>build</mat-icon>
+            O.S.
+          </button>
+        }
+      </td>
+    </ng-container>
+
+    <!-- Linha de cabeçalho e linhas de dados -->
+    <tr mat-header-row *matHeaderRowDef="colunas"></tr>
+    <tr mat-row *matRowDef="let linha; columns: colunas"></tr>
+  </table>
+}

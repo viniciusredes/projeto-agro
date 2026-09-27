@@ -1,0 +1,118 @@
+<a mat-button routerLink="/maquinas" class="voltar">
+  <mat-icon>arrow_back</mat-icon>
+  Máquinas
+</a>
+
+@if (resumo.isLoading()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+
+<!-- Erro PRIMEIRO (regra do rxResource) -->
+@if (resumo.error()) {
+  <p class="aviso aviso--erro">
+    <mat-icon>error</mat-icon>
+    Não foi possível carregar a máquina nº {{ id() }}. Ela pode não existir.
+  </p>
+} @else if (resumo.hasValue()) {
+  @let dados = resumo.value();
+
+  <!-- ===== Cabeçalho ===== -->
+  <div class="cabecalho">
+    <h2>{{ dados.maquina }}</h2>
+    @if (maquina(); as m) {
+      <span class="subtitulo">{{ m.modelo }} · horímetro {{ m.horimetro | number: '1.0-1' }} h</span>
+    }
+    <span class="etiqueta" [class]="etiquetaStatusMaquina(dados.status)">{{ dados.status }}</span>
+  </div>
+
+  <!-- ===== Indicadores (cartões de número, não gráfico) ===== -->
+  <div class="indicadores">
+    <div class="indicador">
+      <span class="indicador__rotulo">Custo total de manutenção</span>
+      <span class="indicador__valor indicador__valor--destaque">{{ dados.custoTotal | currency }}</span>
+      <span class="indicador__detalhe">soma das O.S. fechadas</span>
+    </div>
+    <div class="indicador">
+      <span class="indicador__rotulo">Ordens de serviço</span>
+      <span class="indicador__valor">{{ dados.totalOrdens }}</span>
+      <span class="indicador__detalhe">{{ dados.abertas }} aberta(s) · {{ dados.fechadas }} fechada(s)</span>
+    </div>
+  </div>
+
+  <!-- ===== Custo por tipo: parte do todo, barra empilhada horizontal ===== -->
+  <section class="custo-tipo">
+    <h3>Custo por tipo</h3>
+
+    @if (dados.custoTotal === 0) {
+      <p class="aviso">Ainda não há custo: nenhuma O.S. desta máquina foi fechada com peças.</p>
+    } @else {
+      <!-- A barra é visual; o aria-label e a legenda com valores trazem a mesma informação em texto -->
+      <div class="barra" role="img" [attr.aria-label]="descricaoBarra()">
+        @for (segmento of segmentos(); track segmento.tipo) {
+          @if (segmento.valor > 0) {
+            <div
+              class="barra__segmento"
+              [attr.data-tipo]="segmento.tipo"
+              [style.flex-grow]="segmento.valor"
+              [title]="segmento.tipo + ': ' + (segmento.valor | currency) + ' (' + (segmento.percentual | number: '1.0-0') + '%)'"
+            ></div>
+          }
+        }
+      </div>
+
+      <!-- Legenda com os valores: identifica a cor por texto (nunca só pela cor) -->
+      <ul class="legenda">
+        @for (segmento of segmentos(); track segmento.tipo) {
+          <li>
+            <span class="legenda__cor" [attr.data-tipo]="segmento.tipo"></span>
+            <span class="legenda__nome">{{ segmento.tipo }}</span>
+            <span class="legenda__valor">{{ segmento.valor | currency }}</span>
+            <span class="legenda__percentual">{{ segmento.percentual | number: '1.0-0' }}%</span>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  <!-- ===== O.S. da máquina ===== -->
+  <h3>Ordens de serviço</h3>
+  @if (ordens().length === 0) {
+    <p class="aviso">Nenhuma ordem de serviço para esta máquina.</p>
+  } @else {
+    <table mat-table [dataSource]="ordens()" class="tabela">
+      <ng-container matColumnDef="numero">
+        <th mat-header-cell *matHeaderCellDef>Nº</th>
+        <td mat-cell *matCellDef="let os">
+          <a [routerLink]="['/ordens-servico', os.id]">{{ os.id }}</a>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="tipo">
+        <th mat-header-cell *matHeaderCellDef>Tipo</th>
+        <td mat-cell *matCellDef="let os">
+          <span class="etiqueta" [class]="etiquetaTipoOS(os.tipo)">{{ os.tipo }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let os">{{ os.status }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="abertura">
+        <th mat-header-cell *matHeaderCellDef>Abertura</th>
+        <td mat-cell *matCellDef="let os">{{ os.dataAbertura | date: 'dd/MM/yyyy HH:mm' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="custo">
+        <th mat-header-cell *matHeaderCellDef class="numero">Custo</th>
+        <td mat-cell *matCellDef="let os" class="numero">
+          {{ os.status === 'Fechada' ? (os.custoTotal | currency) : '—' }}
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="colunas"></tr>
+      <tr mat-row *matRowDef="let linha; columns: colunas"></tr>
+    </table>
+  }
+}

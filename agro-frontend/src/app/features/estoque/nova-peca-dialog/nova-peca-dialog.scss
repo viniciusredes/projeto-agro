@@ -1,0 +1,11 @@
+// .info e .campo vêm de src/estilos/_comuns.scss (compartilhados por todos os diálogos).
+
+// Unidade e estoque mínimo lado a lado, dividindo a largura
+.linha {
+  display: flex;
+  gap: 12px;
+
+  mat-form-field {
+    flex: 1;
+  }
+}
