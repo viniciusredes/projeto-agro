@@ -35,3 +35,16 @@ export interface RespostaSaida {
   maquina: Maquina;
   movimentacao: Movimentacao;
 }
+
+// Corpo enviado em POST /maquinas/:id/retorno
+export interface DadosRetorno {
+  horimetro: number;
+  avarias?: string; // opcional
+}
+
+// Resposta de POST /maquinas/:id/retorno (status 200)
+export interface RespostaRetorno {
+  mensagem: string;
+  maquina: Maquina;
+  movimentacao: Movimentacao; // já fechada, com horasTrabalhadas
+}

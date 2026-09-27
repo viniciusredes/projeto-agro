@@ -7,8 +7,9 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaquinaService } from '../../../core/services/maquina.service';
-import { Maquina, RespostaSaida, StatusMaquina } from '../../../core/models/maquina';
+import { Maquina, RespostaRetorno, RespostaSaida, StatusMaquina } from '../../../core/models/maquina';
 import { SaidaDialog } from '../saida-dialog/saida-dialog';
+import { RetornoDialog } from '../retorno-dialog/retorno-dialog';
 
 @Component({
   selector: 'app-maquinas-lista',
@@ -73,4 +74,18 @@ export class MaquinasLista {
         }
       });
   }
+    // Abre o diálogo de retorno; se o retorno for registrado, mostra as horas e recarrega a tabela
+  protected abrirRetorno(maquina: Maquina): void {
+    this.dialog
+      .open<RetornoDialog, Maquina, RespostaRetorno>(RetornoDialog, { data: maquina, width: '440px' })
+      .afterClosed()
+      .subscribe(resposta => {
+        if (resposta) {
+          const horas = resposta.movimentacao.horasTrabalhadas;
+          this.snackBar.open(`${resposta.mensagem} Horas trabalhadas: ${horas} h`, 'OK', { duration: 5000 });
+          this.carregar();
+        }
+      });
+  }
+
 }

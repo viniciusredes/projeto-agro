@@ -50,10 +50,15 @@
     <ng-container matColumnDef="acoes">
       <th mat-header-cell *matHeaderCellDef></th>
       <td mat-cell *matCellDef="let maquina" class="acoes">
-        @if (maquina.status === 'Disponível') {
+               @if (maquina.status === 'Disponível') {
           <button mat-stroked-button (click)="abrirSaida(maquina)">
             <mat-icon>logout</mat-icon>
             Saída
+          </button>
+        } @else if (maquina.status === 'Em Operação') {
+          <button mat-stroked-button (click)="abrirRetorno(maquina)">
+            <mat-icon>login</mat-icon>
+            Retorno
           </button>
         }
       </td>
