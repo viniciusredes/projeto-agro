@@ -1,9 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_URL } from '../api';
-import { DadosRetorno, DadosSaida, Maquina, RespostaRetorno, RespostaSaida } from '../models/maquina';
-
+import {
+  DadosRetorno, DadosSaida, Maquina, Movimentacao, RespostaRetorno, RespostaSaida,
+} from '../models/maquina';
 
 @Injectable({ providedIn: 'root' }) // uma única instância para o app inteiro
 export class MaquinaService {
@@ -17,11 +18,20 @@ export class MaquinaService {
 
   // POST /api/maquinas/:id/saida -> registra a saída para o campo
   registrarSaida(id: number, dados: DadosSaida): Observable<RespostaSaida> {
-    return this.http.post<RespostaSaida>(`${this.url}/${id}/saida`, dados);    
+    return this.http.post<RespostaSaida>(`${this.url}/${id}/saida`, dados);
   }
 
   // POST /api/maquinas/:id/retorno -> registra o retorno do campo
   registrarRetorno(id: number, dados: DadosRetorno): Observable<RespostaRetorno> {
     return this.http.post<RespostaRetorno>(`${this.url}/${id}/retorno`, dados);
+  }
+
+  // GET /api/movimentacoes (filtro opcional ?maquinaId=) -> histórico de saídas e retornos
+  listarMovimentacoes(maquinaId: number | null = null): Observable<Movimentacao[]> {
+    let params = new HttpParams();
+    if (maquinaId !== null) {
+      params = params.set('maquinaId', maquinaId);
+    }
+    return this.http.get<Movimentacao[]>(`${API_URL}/movimentacoes`, { params });
   }
 }

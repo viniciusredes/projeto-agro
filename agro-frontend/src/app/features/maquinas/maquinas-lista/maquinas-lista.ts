@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
 import { finalize } from 'rxjs';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,7 +14,7 @@ import { RetornoDialog } from '../retorno-dialog/retorno-dialog';
 
 @Component({
   selector: 'app-maquinas-lista',
-  imports: [MatTableModule, MatButtonModule, MatIconModule, MatProgressBarModule],
+    imports: [DecimalPipe, MatTableModule, MatButtonModule, MatIconModule, MatProgressBarModule],
   templateUrl: './maquinas-lista.html',
   styleUrl: './maquinas-lista.scss',
 })

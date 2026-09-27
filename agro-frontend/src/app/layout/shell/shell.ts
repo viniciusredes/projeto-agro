@@ -27,6 +27,8 @@ export class Shell {
   protected readonly itensMenu: ItemMenu[] = [
     { titulo: 'Máquinas', rota: '/maquinas', icone: 'agriculture' },
     { titulo: 'Estoque', rota: '/estoque', icone: 'inventory_2' },
-    { titulo: 'Ordens de Serviço', rota: '/ordens-servico', icone: 'build' },
+    { titulo: 'Ordens de Serviço', rota: '/ordens-servico', icone: 'build' },    
+    { titulo: 'Movimentações', rota: '/movimentacoes', icone: 'history' },    
+
   ];
 }

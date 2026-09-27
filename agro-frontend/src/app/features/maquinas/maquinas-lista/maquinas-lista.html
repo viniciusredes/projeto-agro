@@ -36,7 +36,7 @@
     <!-- Coluna: horímetro -->
     <ng-container matColumnDef="horimetro">
       <th mat-header-cell *matHeaderCellDef>Horímetro</th>
-      <td mat-cell *matCellDef="let maquina">{{ maquina.horimetro }} h</td>
+      <td mat-cell *matCellDef="let maquina">{{ maquina.horimetro | number: '1.0-1' }} h</td>
     </ng-container>
 
     <!-- Coluna: status (com cor) -->

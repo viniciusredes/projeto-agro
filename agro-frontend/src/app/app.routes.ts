@@ -23,6 +23,13 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/ordens-servico/os-lista/os-lista').then(m => m.OsLista),
   },
+    {
+    path: 'movimentacoes',
+    title: 'Movimentações | Agro Frota',
+    loadComponent: () =>
+      import('./features/maquinas/movimentacoes-lista/movimentacoes-lista').then(m => m.MovimentacoesLista),
+  },
+
 
   // Qualquer URL desconhecida volta para a tela inicial (SEMPRE a última rota)
   { path: '**', redirectTo: 'maquinas' },
