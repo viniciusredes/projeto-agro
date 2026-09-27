@@ -1,0 +1,56 @@
+<h2 mat-dialog-title>Entrada de estoque · {{ peca.codigo }}</h2>
+
+<form [formGroup]="form" (ngSubmit)="confirmar()">
+  <mat-dialog-content>
+    <p class="info">
+      {{ peca.descricao }} · saldo atual: <strong>{{ peca.saldo | number: '1.0-2' }} {{ peca.unidade }}</strong>
+      · custo atual: {{ peca.custoUnitario | currency }}
+    </p>
+
+    <mat-form-field appearance="outline" class="campo">
+      <mat-label>Quantidade comprada</mat-label>
+      <input matInput type="number" formControlName="quantidade" min="0" [step]="exigeInteiro ? 1 : 0.01" />
+      <span matTextSuffix>{{ peca.unidade }}</span>
+      <!-- Uma mensagem para cada validador que pode falhar -->
+      @if (form.controls.quantidade.hasError('required')) {
+        <mat-error>Informe a quantidade</mat-error>
+      } @else if (form.controls.quantidade.hasError('min')) {
+        <mat-error>Deve ser maior que zero</mat-error>
+      } @else if (form.controls.quantidade.hasError('inteiro')) {
+        <mat-error>Peça contada em unidades: use um número inteiro</mat-error>
+      }
+      @if (exigeInteiro) {
+        <mat-hint>Só números inteiros (peça contada em unidades)</mat-hint>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="campo">
+      <mat-label>Custo unitário desta compra</mat-label>
+      <span matTextPrefix>R$&nbsp;</span>
+      <input matInput type="number" formControlName="custoUnitario" min="0" step="0.01" />
+      @if (form.controls.custoUnitario.hasError('required')) {
+        <mat-error>Informe o custo unitário</mat-error>
+      } @else if (form.controls.custoUnitario.hasError('min')) {
+        <mat-error>Deve ser maior que zero</mat-error>
+      }
+      <mat-hint>Passa a ser o custo atual da peça</mat-hint>
+    </mat-form-field>
+
+    <!-- Prévia calculada no front (computed): muda a cada tecla digitada -->
+    @if (previa(); as p) {
+      <div class="previa">
+        <span>Saldo após a compra:</span>
+        <strong>{{ peca.saldo | number: '1.0-2' }} → {{ p.saldoApos | number: '1.0-2' }} {{ peca.unidade }}</strong>
+        <span>Valor da compra:</span>
+        <strong>{{ p.valorTotal | currency }}</strong>
+      </div>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" mat-dialog-close>Cancelar</button>
+    <button mat-flat-button type="submit" [disabled]="salvando()">
+      {{ salvando() ? 'Registrando...' : 'Registrar entrada' }}
+    </button>
+  </mat-dialog-actions>
+</form>

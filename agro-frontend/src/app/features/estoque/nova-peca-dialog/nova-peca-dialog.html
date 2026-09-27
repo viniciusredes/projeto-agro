@@ -32,7 +32,13 @@
         <input matInput type="number" formControlName="estoqueMinimo" min="0" />
         <span matTextSuffix>{{ form.controls.unidade.value }}</span>
         <mat-hint>0 = sem alerta de reposição</mat-hint>
-        <mat-error>Não pode ser negativo</mat-error>
+        @if (form.controls.estoqueMinimo.hasError('required')) {
+          <mat-error>Informe o estoque mínimo</mat-error>
+        } @else if (form.controls.estoqueMinimo.hasError('min')) {
+          <mat-error>Não pode ser negativo</mat-error>
+        } @else if (form.controls.estoqueMinimo.hasError('inteiro')) {
+          <mat-error>Para peças em unidade, use um número inteiro</mat-error>
+        }
       </mat-form-field>
     </div>
   </mat-dialog-content>

@@ -31,3 +31,33 @@ export interface DadosNovaPeca {
   unidade: UnidadeMedida;
   estoqueMinimo: number;
 }
+
+// Corpo enviado em POST /pecas/:id/entradas (compra de peças)
+export interface DadosEntrada {
+  quantidade: number;
+  custoUnitario: number;   // R$ por unidade/litro desta compra
+}
+
+// Tipos de movimento do kardex: implantação (saldo inicial), entrada (compra) e saída (consumo em O.S.)
+export type TipoMovimentoEstoque = 'implantacao' | 'entrada' | 'saida';
+
+// Uma linha do histórico de movimentos da peça (kardex)
+export interface MovimentoEstoque {
+  id: number;
+  pecaId: number;
+  tipo: TipoMovimentoEstoque;
+  quantidade: number;      // sempre positiva; o tipo diz se soma ou subtrai
+  custoUnitario: number;   // custo NESTE movimento (fica congelado)
+  valorTotal: number;      // quantidade x custoUnitario
+  saldoApos: number;       // saldo da peça logo depois deste movimento
+  data: string;            // data ISO (ex.: '2026-09-27T13:15:00.000Z')
+  ordemServicoId?: number; // só nas saídas: a O.S. que consumiu a peça
+}
+
+// Resposta de POST /pecas/:id/entradas
+export interface RespostaEntrada {
+  mensagem: string;
+  peca: Peca;              // a peça já com o saldo e o custo novos
+  custoAnterior: number;   // custo antes da compra (para mostrar "de → para")
+  movimento: MovimentoEstoque;
+}

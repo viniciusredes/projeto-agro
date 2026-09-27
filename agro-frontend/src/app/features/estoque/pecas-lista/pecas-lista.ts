@@ -9,8 +9,9 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { PecaService } from '../../../core/services/peca.service';
-import { Peca, PecaParaRepor } from '../../../core/models/peca';
+import { Peca, PecaParaRepor, RespostaEntrada } from '../../../core/models/peca';
 import { NovaPecaDialog } from '../nova-peca-dialog/nova-peca-dialog';
+import { EntradaDialog } from '../entrada-dialog/entrada-dialog';
 
 @Component({
   selector: 'app-pecas-lista',
@@ -39,7 +40,7 @@ export class PecasLista {
   protected readonly colunas = computed(() => [
     'codigo', 'descricao', 'saldo', 'minimo', 'custo',
     ...(this.somenteReposicao() ? ['falta'] : []),
-    'situacao',
+    'situacao', 'acoes',
   ]);
 
   // Valor total do que está na prateleira: soma de saldo x custo (dado derivado)
@@ -68,6 +69,24 @@ export class PecasLista {
   }
 
 
+
+  // Formata valores em reais fora do template (o pipe currency só funciona no HTML)
+  private readonly reais = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  // Abre o diálogo de entrada (compra); se registrada, mostra a mudança de custo e recarrega a tabela
+  protected abrirEntrada(peca: Peca): void {
+    this.dialog
+      .open<EntradaDialog, Peca, RespostaEntrada>(EntradaDialog, { data: peca, width: '480px' })
+      .afterClosed()
+      .subscribe(resposta => {
+        if (resposta) {
+          const de = this.reais.format(resposta.custoAnterior);
+          const para = this.reais.format(resposta.peca.custoUnitario);
+          this.snackBar.open(`${resposta.mensagem} Custo: ${de} → ${para}`, 'OK', { duration: 5000 });
+          this.carregar();
+        }
+      });
+  }
 
   // Chamado pelo slide-toggle
   protected alternarReposicao(ativo: boolean): void {
