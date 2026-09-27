@@ -1,0 +1,22 @@
+// A casca ocupa a tela inteira: barra em cima, o resto para o menu + conteúdo
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.barra {
+  gap: 8px;
+}
+
+.container {
+  flex: 1; // ocupa toda a altura que sobra abaixo da barra
+}
+
+.menu {
+  width: 240px;
+}
+
+.conteudo {
+  padding: 24px;
+}

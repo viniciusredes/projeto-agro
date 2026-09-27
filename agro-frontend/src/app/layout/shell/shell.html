@@ -1,0 +1,33 @@
+<!-- Barra superior -->
+<mat-toolbar class="barra">
+  <button mat-icon-button (click)="menu.toggle()" aria-label="Abrir ou fechar o menu">
+    <mat-icon>menu</mat-icon>
+  </button>
+  <span>Agro Frota</span>
+</mat-toolbar>
+
+<mat-sidenav-container class="container">
+  <!-- Menu lateral: #menu é uma referência usada pelo botão acima -->
+  <mat-sidenav #menu mode="side" opened class="menu">
+    <mat-nav-list>
+      @for (item of itensMenu; track item.rota) {
+        <a
+          mat-list-item
+          [routerLink]="item.rota"
+          routerLinkActive
+          #rla="routerLinkActive"
+          [activated]="rla.isActive"
+        >
+          <mat-icon matListItemIcon>{{ item.icone }}</mat-icon>
+          <span matListItemTitle>{{ item.titulo }}</span>
+        </a>
+      }
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <!-- Área central: aqui o roteador coloca a tela da rota atual -->
+  <mat-sidenav-content class="conteudo">
+    <router-outlet />
+  </mat-sidenav-content>
+</mat-sidenav-container>
+
