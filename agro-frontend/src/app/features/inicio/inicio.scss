@@ -1,0 +1,129 @@
+// Página inicial: conteúdo centralizado, com largura máxima confortável para leitura
+:host {
+  display: block;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+// ===== Apresentação =====
+.apresentacao {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px 32px;
+  text-align: center;
+}
+
+.apresentacao__logo {
+  width: min(560px, 100%);
+  height: auto;
+}
+
+.apresentacao__texto {
+  max-width: 680px;
+  margin: 0;
+  font-size: 1.1em;
+  line-height: 1.6;
+  color: var(--mat-sys-on-surface-variant);
+
+  strong {
+    color: var(--mat-sys-on-surface);
+  }
+}
+
+.apresentacao__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+// ===== A frota agora =====
+.agora {
+  margin-bottom: 32px;
+
+  h2 {
+    margin: 0 0 12px;
+  }
+}
+
+.indicadores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+// Cartão clicável: é um link, mas com a aparência de cartão
+.indicador {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: var(--mat-sys-surface-container);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 150ms ease;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--mat-sys-surface-container-high);
+    text-decoration: none;
+  }
+}
+
+.indicador__valor {
+  font-size: 2em;
+  font-weight: 700;
+  color: var(--mat-sys-primary);
+
+  small {
+    font-size: 0.5em;
+    font-weight: 500;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.indicador__rotulo {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// ===== Módulos =====
+.modulos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.modulo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 20px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 16px;
+  background: var(--mat-sys-surface);
+
+  h3 {
+    margin: 12px 0 4px;
+  }
+
+  p {
+    flex: 1; // empurra o botão para o rodapé do cartão (cartões com a mesma altura)
+    margin: 0 0 12px;
+    color: var(--mat-sys-on-surface-variant);
+    line-height: 1.5;
+  }
+}
+
+// Ícone num círculo com a cor secundária da marca
+.modulo__icone {
+  width: 48px;
+  height: 48px;
+  padding: 12px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+}

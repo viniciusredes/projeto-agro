@@ -53,6 +53,15 @@ Branch atual: `feat/front-base` · PR #2 (aberto)
 - [x] **Passo 14** — Detalhe e fechamento da O.S. com `FormArray` (peças dinâmicas, tudo ou nada); links O.S. ↔ kardex · `04f768c`
 - [x] **Passo 15** — Custo de manutenção por máquina (`/maquinas/:id`: indicadores + barra preventiva × corretiva com paleta validada; tag e máquina viram links) · `276ccb5`
 
+### Refinamentos (identidade visual) 🚧
+
+> Solicitados depois da Fase 3, a partir da logo do produto (verde `#0f633e` + laranja `#f38302`).
+
+- [x] **R1** — Logo tratada (fundo removido, versões clara/escura/compacta), página inicial com a logo e o descritivo do produto, logo no lugar do texto "Agro Frota" no menu · *commit: a preencher*
+- [ ] **R2** — Paleta da logo em todo o site (tema do Angular Material gerado a partir das cores da marca) e estilo mais comercial, mantendo o visual limpo
+- [ ] **R3** — Tema escuro (segue o sistema operacional + botão para alternar), com as cores fixas adaptadas aos dois temas
+- [ ] **R4** — Conferência visual de todas as telas nos temas claro e escuro
+
 ### Fase 4 — Fechamento
 
 - [ ] **Passo 16** — Polimento (dividido em 3 partes)

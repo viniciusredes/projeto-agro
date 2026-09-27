@@ -1,8 +1,13 @@
 import { Routes } from '@angular/router';
 
 export const routes: Routes = [
-  // Tela inicial: redireciona para a lista de máquinas
-  { path: '', redirectTo: 'maquinas', pathMatch: 'full' },
+  // Página inicial: apresentação do produto + números da frota
+  {
+    path: '',
+    pathMatch: 'full',
+    title: 'Agro Frota | Gestão inteligente de máquinas agrícolas',
+    loadComponent: () => import('./features/inicio/inicio').then(m => m.Inicio),
+  },
 
   // Cada tela só é baixada quando o usuário entra nela (lazy loading)
   {
@@ -53,5 +58,5 @@ export const routes: Routes = [
 
 
   // Qualquer URL desconhecida volta para a tela inicial (SEMPRE a última rota)
-  { path: '**', redirectTo: 'maquinas' },
+  { path: '**', redirectTo: '' },
 ];

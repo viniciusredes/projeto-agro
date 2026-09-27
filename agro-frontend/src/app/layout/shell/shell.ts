@@ -25,10 +25,10 @@ interface ItemMenu {
 export class Shell {
   // Os itens do menu ficam numa lista: para acrescentar uma tela, basta uma linha aqui
   protected readonly itensMenu: ItemMenu[] = [
+    { titulo: 'Início', rota: '/', icone: 'home' },
     { titulo: 'Máquinas', rota: '/maquinas', icone: 'agriculture' },
     { titulo: 'Estoque', rota: '/estoque', icone: 'inventory_2' },
-    { titulo: 'Ordens de Serviço', rota: '/ordens-servico', icone: 'build' },    
-    { titulo: 'Movimentações', rota: '/movimentacoes', icone: 'history' },    
-
+    { titulo: 'Ordens de Serviço', rota: '/ordens-servico', icone: 'build' },
+    { titulo: 'Movimentações', rota: '/movimentacoes', icone: 'history' },
   ];
 }

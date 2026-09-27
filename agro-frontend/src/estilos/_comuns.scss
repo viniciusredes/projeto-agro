@@ -5,7 +5,9 @@
 // =====================================================================
 
 // ----- Links com a cor do tema (em vez do azul sublinhado padrão do navegador) -----
-a:not(.mat-mdc-button-base):not(.mat-mdc-list-item) {
+// :where(...) tem peso ZERO: a regra vale para todo link comum, mas qualquer componente
+// que estilize um link (ex.: um cartão clicável) consegue sobrescrever sem brigar com ela
+a:where(:not(.mat-mdc-button-base):not(.mat-mdc-list-item)) {
   color: var(--mat-sys-primary);
   font-weight: 500;
   text-decoration: none;
