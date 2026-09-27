@@ -1,3 +1,7 @@
+# Contexto do Projeto Agro Frota
+
+> Contexto de negócio, decisões e histórico do projeto (back-end e front-end). Para executar, veja o [README](README.md).
+
 ## 1. Objetivo do Projeto e Problema de Negócio
 
 O objetivo principal deste projeto é desenvolver um Produto Mínimo Viável (MVP) para a gestão de frota, manutenção e estoque de maquinários agrícolas. O problema de negócio central reside na necessidade de substituir controles informais, descentralizados e manuais (como cadernos de anotação, planilhas avulsas e mensagens de WhatsApp) por uma plataforma digital unificada e rastreável.
@@ -30,6 +34,17 @@ O escopo do MVP foi intencionalmente reduzido para focar em três pilares essenc
 
 - **Motor de Execução (Substituição de ts-node por tsx):** Durante o setup com o Node.js v24, a ferramenta clássica `ts-node` apresentou erros de compatibilidade de módulos e leitura de arquivos internos (`TypeError: Cannot read properties of undefined (reading 'fileExists')`). A decisão técnica foi migrar para o **`tsx`** (`npm install -D tsx`), um executor mais moderno e resiliente para ambientes de desenvolvimento TypeScript.
 - **Configuração do TypeScript (`tsconfig.json`):** O projeto foi configurado para utilizar `"module": "commonjs"` e `"target": "es2022"`. Essa decisão foi tomada para contornar erros iniciais de importação (ES Modules vs CommonJS) no Express, garantindo uma configuração enxuta e funcional para a fase em memória.
+
+**Decisões da Etapa 2 (front-end):**
+- **Angular 22 + Angular Material (Material 3):** componentes prontos e acessíveis (tabelas, diálogos, formulários), para o treinamento focar no Angular e não em CSS de componentes.
+- **Proxy do `ng serve` em vez de CORS:** o front chama `/api/...` e o proxy repassa para `http://localhost:3000`. O back-end não precisou mudar.
+- **Angular moderno:** componentes standalone, `inject()`, signals e `rxResource` para o estado, control flow `@if`/`@for`, formulários reativos tipados, lazy loading por tela e app *zoneless* (padrão do Angular 22).
+- **Models copiados do back-end:** as interfaces de `server.ts` foram copiadas para `core/models` (contrato explícito). Um pacote compartilhado ficou para o futuro.
+- **Tratamento de erros global:** um interceptor HTTP mostra a mensagem `{ erro }` da API num snackbar; as telas só decidem o que fazer depois.
+- **Validação duplicada de propósito:** o front valida para ajudar o usuário (mesmas regras da API), e a API continua sendo a autoridade (ex.: o 409 "tudo ou nada" do fechamento da O.S.).
+- **Filtros da lista de O.S. na URL** (query params), para permitir links compartilháveis e o botão Voltar.
+- **Identidade visual:** paleta gerada a partir das cores da logo (verde `#0f633e` + laranja `#f38302`) pelo schematic `theme-color`, e tema escuro com `color-scheme` + `light-dark()` e escolha Claro/Escuro salva no navegador.
+- **Dinâmica do treinamento:** nas Fases 0 a 2, o usuário escreveu o código com orientação; da Fase 3 em diante, o Claude implementou com edições visíveis para os alunos, e o usuário fez os commits. Um commit por passo, com o acompanhamento no `CHECKLIST.md`.
 
 ## 4. O Que Já Foi Implementado
 
@@ -72,22 +87,34 @@ O ambiente do Back-end foi completamente configurado e o servidor já está oper
 - `GET /maquinas/:id/manutencoes`: total de O.S., abertas/fechadas, custo total e custo por tipo (só O.S. fechadas).
 - Material atualizado: README (Partes OS1–OS7), `testes.sh` e `testes.http` (82 cenários), glossário e desafios extras.
 
+### Atualização: cadastro de máquinas (descoberto durante o front-end)
+
+- `POST /maquinas`: `tag` e `modelo` obrigatórios, `horimetro` ≥ 0, tag única normalizada em maiúsculas (409); a máquina nasce `Disponível` (201).
+- `testes.sh` com 6 cenários novos (88 no total).
+
+### Atualização: Etapa 2 (front-end Angular) concluída
+
+Projeto `agro-frontend/` (detalhes, conceitos e testes no [README do front-end](agro-frontend/README.md)):
+
+- **Base (Fase 0):** Angular 22 + Material, casca com barra e menu lateral, rotas com lazy loading, proxy `/api`, models e services por recurso.
+- **Máquinas (Fase 1):** lista com estados (carregando, erro, vazio), cadastro, diálogos de saída e de retorno (horímetro mínimo e horas previstas), histórico de movimentações com filtro e formatação pt-BR, interceptor global de erros.
+- **Estoque (Fase 2):** lista de peças com custo em R$, alerta e filtro de reposição, cadastro com validação condicional pela unidade, entrada (compra) com prévia e mudança de custo, kardex em `/estoque/:id`.
+- **Manutenção (Fase 3):** lista de O.S. com filtros na URL e `rxResource`, abertura (pela lista de O.S. ou de máquinas) com aviso de máquina em campo, detalhe e fechamento com `FormArray` (peças dinâmicas, validação por linha e por lista, tudo ou nada da API), detalhe da máquina com indicadores e barra de custo preventiva × corretiva.
+- **Polimento e identidade visual:** estilos globais e tons semânticos das etiquetas, página inicial com a logo e os números da frota, paleta da marca, tipografia Montserrat e tema escuro.
+- `ng build` sem erros nem avisos.
+
 ## 5. O Que Ficou Pendente / Próximos Passos Combinados
 
-> **Status:** a **Etapa 1 (back-end em memória) está concluída**: Módulo de Uso, Módulo de Estoque e Módulo de Manutenção. O próximo passo é a **Etapa 2 (front-end em Angular)**.
+> **Status:** a **Etapa 1 (back-end em memória)** e a **Etapa 2 (front-end Angular)** estão concluídas. O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
 
-- **Finalizar a Etapa 1 (Back-end em Memória):**
-- Criar os arrays em memória `ordensServico` e `itensEstoque`.
-- Desenvolver os endpoints de CRUD para o almoxarifado (cadastrar peças, visualizar estoque).
-- Desenvolver os endpoints para abertura e fechamento de Ordens de Serviço.
-- Implementar a lógica no controlador de fechamento de O.S. que itera sobre as peças consumidas, localiza o item no array de estoque e decrementa a propriedade `quantidade_saldo`.
-
-- **Iniciar a Etapa 2 (Front-end):**
-- Gerar o projeto com `@angular/cli` (`ng new agro-frontend`).
-- Criar os serviços do Angular (`HttpClient`) para consumir a API local na porta 3000.
-- Desenvolver as interfaces de listagem de frota e os formulários de check-in/check-out.
-
-- **Evolução Futura:** Substituir as variáveis em memória por um banco de dados relacional (provavelmente PostgreSQL utilizando Prisma ORM) após a validação completa do fluxo entre Front e Back.
+- **Pendências do front-end (Passo 16, não implementadas):**
+  - Diálogo de confirmação reutilizável antes do fechamento da O.S.
+  - Responsividade: menu lateral sobreposto em telas de celular.
+  - Conferência visual das telas restantes nos temas claro e escuro.
+- **Testes unitários do front:** os `.spec.ts` gerados pelo CLI precisam receber os providers (`HttpClient`, `ActivatedRoute`, `MAT_DIALOG_DATA`). Hoje 7 passam e 14 falham.
+- **Material do back-end:** trocar o exercício 4 (que virou "resposta pronta" com o `POST /maquinas`) por outro desafio, com gabarito, e incluir o cadastro no `testes.http`.
+- **Tamanho do pacote inicial:** cerca de 675 kB, perto do alerta de 700 kB configurado no `angular.json`.
+- **Evolução Futura:** Substituir as variáveis em memória por um banco de dados relacional (provavelmente PostgreSQL utilizando Prisma ORM), autenticação com perfis e publicação (build do front servido na mesma origem da API).
 
 ## 6. Ideias Descartadas e Por Quê
 
@@ -110,6 +137,8 @@ O ambiente do Back-end foi completamente configurado e o servidor já está oper
 - **Uma O.S. aberta por máquina:** não é permitido abrir uma segunda O.S. para uma máquina que já tem O.S. aberta (409).
 - **Peça repetida no fechamento:** recusada com 400; cada peça deve aparecer uma única vez, com a quantidade total.
 - **Persistência:** o banco de dados (PostgreSQL + Prisma) não será implementado neste momento; os dados seguem em memória.
+- **Cadastro de máquinas:** entra no sistema (rota `POST /maquinas` + diálogo no front), decidido durante a Etapa 2.
+- **Tema:** apenas Claro e Escuro no seletor; na primeira visita, o sistema segue o tema do sistema operacional.
 
 **Perguntas originais:**
 

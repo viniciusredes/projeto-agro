@@ -17,9 +17,9 @@ Concluída e mergeada na `main` (PR #1). Detalhes em [agro-backend/README.md](ag
 
 ---
 
-## Etapa 2 — Front-end (Angular 22 + Angular Material) 🚧
+## Etapa 2 — Front-end (Angular 22 + Angular Material) ✅
 
-Branch atual: `feat/front-base` · PR #2 (aberto)
+Branch: `feat/front-base` · PR #2 (PR final da Etapa 2)
 
 ### Fase 0 — Preparação ✅
 
@@ -53,22 +53,22 @@ Branch atual: `feat/front-base` · PR #2 (aberto)
 - [x] **Passo 14** — Detalhe e fechamento da O.S. com `FormArray` (peças dinâmicas, tudo ou nada); links O.S. ↔ kardex · `04f768c`
 - [x] **Passo 15** — Custo de manutenção por máquina (`/maquinas/:id`: indicadores + barra preventiva × corretiva com paleta validada; tag e máquina viram links) · `276ccb5`
 
-### Refinamentos (identidade visual) 🚧
+### Refinamentos (identidade visual) ✅
 
 > Solicitados depois da Fase 3, a partir da logo do produto (verde `#0f633e` + laranja `#f38302`).
 
 - [x] **R1** — Logo tratada (fundo removido, versões clara/escura/compacta), página inicial com a logo e o descritivo do produto, logo no lugar do texto "Agro Frota" no menu · `8a86129`
-- [x] **R2** — Paleta da logo em todo o site (`_theme-colors.scss` gerado pelo schematic `theme-color`), títulos em Montserrat, barra com faixa verde→laranja, menu lateral em superfície própria · *commit: a preencher (junto com o R3)*
-- [x] **R3** — Tema escuro (menu Claro/Escuro na barra, salvo no navegador; na 1ª visita segue o sistema), `light-dark()` nas cores próprias, logo escura própria (fundo removido por *color-to-alpha*, preservando o brilho), botões e destaques do escuro em verde-menta/laranja da logo (`mat.theme-overrides`), gráfico com par escuro validado; correção do rodapé cortado (`box-sizing` na área de conteúdo) · *commit: a preencher (junto com o R2)*
-- [ ] **R4** — Conferência visual de todas as telas nos temas claro e escuro (já conferidas: início, detalhe da máquina, estoque, detalhe da O.S.; faltam diálogos, kardex, listas de máquinas/O.S./movimentações)
+- [x] **R2** — Paleta da logo em todo o site (`_theme-colors.scss` gerado pelo schematic `theme-color`), títulos em Montserrat, barra com faixa verde→laranja, menu lateral em superfície própria · `234b243`
+- [x] **R3** — Tema escuro (menu Claro/Escuro na barra, salvo no navegador; na 1ª visita segue o sistema), `light-dark()` nas cores próprias, logo escura própria (fundo removido por *color-to-alpha*, preservando o brilho), botões e destaques do escuro em verde-menta/laranja da logo (`mat.theme-overrides`), gráfico com par escuro validado; correção do rodapé cortado (`box-sizing` na área de conteúdo) · `234b243`
+- [ ] *(Adiado)* **R4** — Conferência visual de todas as telas nos temas claro e escuro (já conferidas: início, detalhe da máquina, estoque, detalhe da O.S.; faltam diálogos, kardex, listas de máquinas/O.S./movimentações)
 
-### Fase 4 — Fechamento
+### Fase 4 — Fechamento ✅
 
-- [ ] **Passo 16** — Polimento (dividido em 3 partes)
+- [x] **Passo 16** — Polimento (a aula terminou após o 16.1 e os refinamentos; 16.2 e 16.3 ficaram como próximos passos)
   - [x] **16.1** — Estilos globais (`src/estilos/_comuns.scss`), tons semânticos das etiquetas (`core/ui/tons.ts`) e links com a cor do tema · `e337049`
-  - [ ] **16.2** — Diálogo de confirmação reutilizável (antes de fechar a O.S.)
-  - [ ] **16.3** — Responsividade (menu lateral sobreposto no celular)
-- [ ] **Passo 17** — `ng build`, README do front-end, atualização do `context.md` e PR final
+  - [ ] *(Adiado)* **16.2** — Diálogo de confirmação reutilizável (antes de fechar a O.S.)
+  - [ ] *(Adiado)* **16.3** — Responsividade (menu lateral sobreposto no celular)
+- [x] **Passo 17** — `ng build` sem erros, README do front-end, `context.md` atualizado e movido para a raiz, README da raiz (escopo, clonagem e execução) e PR final · último commit do PR #2
 - [ ] *(Opcional)* Testes unitários de um service e de um componente
 
 ---
@@ -76,8 +76,8 @@ Branch atual: `feat/front-base` · PR #2 (aberto)
 ## Pendências e decisões em aberto
 
 - [x] **Cadastro de máquinas** — decidido: **entra no sistema** (Passos 8.1 e 8.2).
-- [ ] **Material do back-end após o cadastro de máquinas** — atualizar o README do back-end (nova rota), o `testes.http` e trocar o exercício 4 (que passa a ser "resposta pronta") por outro desafio, com gabarito.
-- [ ] **Branch/PR do front-end** — o Passo 8 foi commitado na `feat/front-base` (PR #2). Decidir: manter tudo no PR #2 (e ajustar o título no fim) ou separar a Fase 2 numa branch própria.
-- [ ] **Budget do pacote inicial** — 675 kB após o tema escuro (menu e tooltip do Material na barra); alerta configurado em 700 kB. Avaliar na Fase 4.
+- [ ] **Material do back-end após o cadastro de máquinas** — README do back-end já atualizado no Passo 17 (rota, regras e limitações). Falta: o `testes.http` e trocar o exercício 4 (que passa a ser "resposta pronta") por outro desafio, com gabarito.
+- [x] **Branch/PR do front-end** — decidido: tudo no PR #2 (título e descrição atualizados no Passo 17).
+- [ ] **Budget do pacote inicial** — 675 kB após o tema escuro (menu e tooltip do Material na barra); alerta configurado em 700 kB. Avaliar numa próxima etapa.
 - [ ] *(Opcional)* **Migrar services para `@Service()`** — decorador novo do Angular 22 (gerado pelo CLI), equivalente a `@Injectable({ providedIn: 'root' })`. Hoje os 3 services usam `@Injectable` por consistência; migrar os três juntos.
-- [ ] **Testes unitários** — os `.spec.ts` gerados pelo CLI ainda não foram ajustados (planejado para a Fase 4).
+- [ ] **Testes unitários** — os `.spec.ts` gerados pelo CLI ainda não foram ajustados: `npm test` dá 7 passando e 14 falhando (faltam os providers `HttpClient`, `ActivatedRoute`, `MAT_DIALOG_DATA`).
