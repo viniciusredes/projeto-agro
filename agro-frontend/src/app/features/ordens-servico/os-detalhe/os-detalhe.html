@@ -117,7 +117,8 @@
           <mat-error>Escolha a peça</mat-error>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="linha__quantidade">
+        <!-- dynamic: mensagens longas quebram linha e empurram a linha de baixo, em vez de invadi-la -->
+        <mat-form-field appearance="outline" class="linha__quantidade" subscriptSizing="dynamic">
           <mat-label>Quantidade</mat-label>
           <input matInput type="number" formControlName="quantidade" min="0" />
           @if (pecaDaLinha(i); as peca) {

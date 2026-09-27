@@ -53,12 +53,12 @@
       <input matInput type="number" formControlName="horimetro" step="0.1" />
       <span matTextSuffix>h</span>
       @if (maquinaSelecionada(); as maquina) {
-        <mat-hint>Horímetro atual da máquina: {{ maquina.horimetro }} h</mat-hint>
+        <mat-hint>Horímetro atual da máquina: {{ maquina.horimetro | number: '1.0-1' }} h</mat-hint>
       }
       @if (form.controls.horimetro.hasError('required')) {
         <mat-error>Informe o horímetro</mat-error>
       } @else if (form.controls.horimetro.hasError('min')) {
-        <mat-error>Não pode ser menor que {{ maquinaSelecionada()?.horimetro }} h</mat-error>
+        <mat-error>Não pode ser menor que {{ maquinaSelecionada()?.horimetro | number: '1.0-1' }} h</mat-error>
       }
     </mat-form-field>
   </mat-dialog-content>

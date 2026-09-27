@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -12,7 +13,7 @@ import { NAO_VAZIO } from '../../../core/validacao';
 @Component({
   selector: 'app-saida-dialog',
   imports: [
-    ReactiveFormsModule,
+    DecimalPipe, ReactiveFormsModule,
     MatDialogModule, MatFormFieldModule, MatInputModule, MatButtonModule,
   ],
   templateUrl: './saida-dialog.html',

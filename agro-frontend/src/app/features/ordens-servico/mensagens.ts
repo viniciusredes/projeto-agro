@@ -6,6 +6,6 @@ export function mensagemAberturaOS(resposta: RespostaAberturaOS): string {
   const numero = `O.S. nº ${resposta.ordemServico.id} aberta para ${resposta.maquina.tag}.`;
   const saida = resposta.movimentacaoEncerrada;
   return saida
-    ? `${numero} Saída encerrada automaticamente (${saida.horasTrabalhadas} h trabalhadas).`
+    ? `${numero} Saída encerrada automaticamente (${saida.horasTrabalhadas?.toLocaleString('pt-BR')} h trabalhadas).`
     : numero;
 }

@@ -2,7 +2,7 @@
 
 <form [formGroup]="form" (ngSubmit)="confirmar()">
   <mat-dialog-content>
-    <p class="info">{{ maquina.modelo }} · horímetro na saída: {{ maquina.horimetro }} h</p>
+    <p class="info">{{ maquina.modelo }} · horímetro na saída: {{ maquina.horimetro | number: '1.0-1' }} h</p>
 
     <mat-form-field appearance="outline" class="campo">
       <mat-label>Horímetro no retorno</mat-label>
@@ -11,10 +11,10 @@
       @if (form.controls.horimetro.hasError('required')) {
         <mat-error>Informe o horímetro</mat-error>
       } @else if (form.controls.horimetro.hasError('min')) {
-        <mat-error>Não pode ser menor que {{ maquina.horimetro }} h</mat-error>
+        <mat-error>Não pode ser menor que {{ maquina.horimetro | number: '1.0-1' }} h</mat-error>
       }
       @if (horasPrevistas() !== null) {
-        <mat-hint>Horas trabalhadas: {{ horasPrevistas() }} h</mat-hint>
+        <mat-hint>Horas trabalhadas: {{ horasPrevistas() | number: '1.0-1' }} h</mat-hint>
       }
     </mat-form-field>
 

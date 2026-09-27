@@ -110,7 +110,6 @@ Projeto `agro-frontend/` (detalhes, conceitos e testes no [README do front-end](
 - **Pendências do front-end (Passo 16, não implementadas):**
   - Diálogo de confirmação reutilizável antes do fechamento da O.S.
   - Responsividade: menu lateral sobreposto em telas de celular.
-  - Conferência visual das telas restantes nos temas claro e escuro.
 - **Testes unitários do front:** os `.spec.ts` gerados pelo CLI precisam receber os providers (`HttpClient`, `ActivatedRoute`, `MAT_DIALOG_DATA`). Hoje 7 passam e 14 falham.
 - **Material do back-end:** trocar o exercício 4 (que virou "resposta pronta" com o `POST /maquinas`) por outro desafio, com gabarito, e incluir o cadastro no `testes.http`.
 - **Tamanho do pacote inicial:** cerca de 675 kB, perto do alerta de 700 kB configurado no `angular.json`.

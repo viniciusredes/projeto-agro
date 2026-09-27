@@ -173,7 +173,7 @@ O front foi construído em **passos pequenos**. Cada passo traz: 🎯 o **objeti
 | **1. Máquinas** | [Passo 3](#passo-3--lista-de-máquinas) a [Passo 7](#passo-7--interceptor-global-de-erros) |
 | **2. Estoque** | [Passo 8](#passo-8--lista-de-peças-com-custo-e-reposição) a [Passo 11](#passo-11--kardex-rota-com-parâmetro) |
 | **3. Manutenção** | [Passo 12](#passo-12--lista-de-os-com-filtros-na-url) a [Passo 15](#passo-15--custo-de-manutenção-por-máquina) |
-| **4. Polimento** | [Passo 16.1](#passo-161--estilos-globais-e-tons-semânticos) e [Refinamentos R1 a R3](#refinamentos-r1-a-r3--identidade-visual-e-tema-escuro) |
+| **4. Polimento** | [Passo 16.1](#passo-161--estilos-globais-e-tons-semânticos), [Refinamentos R1 a R3](#refinamentos-r1-a-r3--identidade-visual-e-tema-escuro) e [R4](#refinamento-r4--conferência-visual-e-correções) |
 
 > **Dica para os alunos:** o histórico do Git tem **um commit por passo** (`git log --oneline`). Para ver exatamente o que mudou num passo, use `git show <hash>`. O [CHECKLIST.md](../CHECKLIST.md) lista os hashes.
 
@@ -1154,6 +1154,53 @@ No `index.html`, um script de poucas linhas aplica o tema salvo **antes** do Ang
 
 ---
 
+### Refinamento R4 — Conferência visual e correções
+
+🎯 Percorrer **todas** as telas e diálogos nos dois temas, com dados reais, e corrigir o que aparecer.
+
+A conferência cobriu 18 cenários (listas, diálogos abertos, erros de validação, snackbars, kardex inexistente, O.S. aberta e fechada) × 2 temas. As cores passaram; os defeitos foram de **formatação** e **layout**:
+
+| Defeito | Correção |
+|---|---|
+| "horímetro atual: 1012.5 h" e "11.5 h" nos diálogos | Pipe `number: '1.0-1'` no template; `toLocaleString('pt-BR')` nos textos montados no TypeScript (snackbars) |
+| Mensagem de erro cortada no estoque mínimo e invadindo a linha de baixo no fechamento da O.S. | `subscriptSizing="dynamic"` no `mat-form-field` |
+| Kardex de peça inexistente com o aviso **duas vezes** (tela + snackbar) | `HttpContextToken` que marca a requisição como "erro tratado na tela" |
+
+🧩 `core/api.ts` + interceptor + service:
+
+```ts
+export const ERRO_TRATADO_NA_TELA = new HttpContextToken<boolean>(() => false);
+
+export function erroTratadoNaTela(): HttpContext {
+  return new HttpContext().set(ERRO_TRATADO_NA_TELA, true);
+}
+
+// interceptor
+if (!req.context.get(ERRO_TRATADO_NA_TELA)) {
+  snackBar.open(mensagemDeErro(erro), 'Fechar', { ... });
+}
+
+// PecaService
+buscar(id: number): Observable<Peca> {
+  return this.http.get<Peca>(`${this.url}/${id}`, { context: erroTratadoNaTela() });
+}
+```
+
+📚 **Conceitos**
+- **Todo número exibido passa por formatação:** o pipe cuida do template, mas texto montado em TypeScript (`` `${horas} h` ``) usa o formato do JavaScript (ponto decimal). Revise os dois lugares.
+- **`subscriptSizing`:** por padrão, o `mat-form-field` reserva **uma linha fixa** para dica/erro (para o layout não "pular"). Mensagens longas precisam de `dynamic`, ou de um texto mais curto.
+- **`HttpContext`:** metadados que viajam **junto com a requisição**, sem ir para o servidor. É o jeito oficial de uma chamada pedir um comportamento diferente a um interceptor (pular o aviso, pular o token de login, marcar para cache...).
+- **Regra geral com exceção explícita:** o aviso global continua valendo para todo o sistema; só as chamadas que a tela explica sozinha são marcadas.
+- **Conferir com dados reais:** a maioria desses defeitos só aparece com números decimais, erros de validação e registros inexistentes. Uma tela "vazia" parece sempre perfeita.
+
+🧪 **Testes**
+1. Dê saída no TR-01 (horímetro 1.000) e retorno com 1012,5: o diálogo e o snackbar mostram vírgula.
+2. Nova peça em `un` com mínimo 2,5: a mensagem aparece inteira, em duas linhas.
+3. Na O.S. aberta, adicione duas linhas vazias e clique em **Fechar O.S.**: as mensagens não se sobrepõem.
+4. Acesse `/estoque/99`: só o aviso da tela, sem snackbar. Acesse `/ordens-servico/99`: o snackbar continua aparecendo (lá a tela mostra um texto genérico e o snackbar traz o motivo da API).
+
+---
+
 ## 6. Roteiro de testes no navegador
 
 Roteiro completo para uma demonstração, com a API recém-iniciada. Siga na ordem.
@@ -1327,6 +1374,7 @@ O padrão deste projeto (**lista com estados + diálogos que devolvem a resposta
 | Código colado no `.spec.ts` em vez do `.ts` | Os dois arquivos têm nomes parecidos | Confira o nome da aba no editor antes de colar |
 | Item repetido no menu | Linhas de contexto de um trecho foram coladas junto | Cole só as linhas novas; revise com `git diff` antes do commit |
 | Aviso de *budget* no `ng build` | O pacote inicial passou do limite do `angular.json` | Veja o que entrou no pacote inicial (componentes do Material na casca pesam) |
+| Você salva o arquivo e a tela não muda (nem com F5) | O `ng serve` parou de observar os arquivos (acontece depois de trocar de branch ou de muitas alterações de uma vez) | Pare o `ng serve` (Ctrl+C) e rode `npm start` de novo |
 | Os dados da demonstração sumiram | A API reiniciou (dados em memória) | Comportamento esperado; refaça o roteiro |
 | O `localhost:4200` abre, mas sem estilo nem ícones | Sem internet: as fontes vêm do Google Fonts | Conecte-se, ou baixe as fontes para `public/` |
 
@@ -1350,7 +1398,6 @@ O padrão deste projeto (**lista com estados + diálogos que devolvem a resposta
 1. **Diálogo de confirmação reutilizável** (`ConfirmacaoDialog`) antes de fechar a O.S.
 2. **Responsividade:** `BreakpointObserver` para o menu virar sobreposto (`mode="over"`) no celular.
 3. **Testes unitários** de um service (`HttpTestingController`) e de um componente.
-4. **Conferência visual** de todas as telas nos dois temas.
 
 **Futuro:** login e perfis, banco de dados (PostgreSQL + Prisma) no back-end e publicação (build + servidor web).
 

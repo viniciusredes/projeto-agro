@@ -105,7 +105,8 @@ export class MaquinasLista {
       .afterClosed()
       .subscribe(resposta => {
         if (resposta) {
-          const horas = resposta.movimentacao.horasTrabalhadas;
+          // Fora do template não há pipe: toLocaleString formata no padrão brasileiro (11,5)
+          const horas = resposta.movimentacao.horasTrabalhadas?.toLocaleString('pt-BR');
           this.snackBar.open(`${resposta.mensagem} Horas trabalhadas: ${horas} h`, 'OK', { duration: 5000 });
           this.carregar();
         }

@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { API_URL } from '../api';
+import { API_URL, erroTratadoNaTela } from '../api';
 import { DadosEntrada, DadosNovaPeca, MovimentoEstoque, Peca, PecaParaRepor, RespostaEntrada } from '../models/peca';
 
 
@@ -15,14 +15,15 @@ export class PecaService {
     return this.http.get<Peca[]>(this.url);
   }
 
-  // GET /api/pecas/:id -> uma peça (404 se não existir, 400 se o id não for número)
+  // GET /api/pecas/:id -> uma peça (404 se não existir, 400 se o id não for número).
+  // O kardex mostra "Peça não encontrada" por conta própria: sem snackbar do interceptor.
   buscar(id: number): Observable<Peca> {
-    return this.http.get<Peca>(`${this.url}/${id}`);
+    return this.http.get<Peca>(`${this.url}/${id}`, { context: erroTratadoNaTela() });
   }
 
   // GET /api/pecas/:id/movimentos -> histórico da peça (kardex), do mais antigo ao mais recente
   listarMovimentos(id: number): Observable<MovimentoEstoque[]> {
-    return this.http.get<MovimentoEstoque[]>(`${this.url}/${id}/movimentos`);
+    return this.http.get<MovimentoEstoque[]>(`${this.url}/${id}/movimentos`, { context: erroTratadoNaTela() });
   }
 
   // GET /api/pecas?abaixoDoMinimo=true -> só as peças que precisam de reposição

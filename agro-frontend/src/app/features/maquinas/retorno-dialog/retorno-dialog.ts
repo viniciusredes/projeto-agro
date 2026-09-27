@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
@@ -12,7 +13,7 @@ import { Maquina, RespostaRetorno } from '../../../core/models/maquina';
 @Component({
   selector: 'app-retorno-dialog',
   imports: [
-    ReactiveFormsModule,
+    DecimalPipe, ReactiveFormsModule,
     MatDialogModule, MatFormFieldModule, MatInputModule, MatButtonModule,
   ],
   templateUrl: './retorno-dialog.html',
