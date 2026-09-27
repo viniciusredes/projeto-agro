@@ -387,6 +387,31 @@ testar Q7 "Compra de filtros mais cara (preparação)" 200 '"custoUnitario":110'
 testar Q8 "Custo congelado: a O.S. não muda" 200 '"custoUnitario":92.46' \
   "$BASE/ordens-servico/1"
 
+# =====================================================================
+#  CADASTRO DE MÁQUINAS (fica no fim para não alterar o estado dos testes acima)
+# =====================================================================
+
+# ---------------------------------------------------------------------
+secao "POST /maquinas (cadastro)"
+# ---------------------------------------------------------------------
+testar N1 "Cadastro válido (tag normalizada, status Disponível)" 201 '"tag":"PV-03"' \
+  -X POST "$BASE/maquinas" -H "$JSON" -d '{"tag":" pv-03 ","modelo":"Pulverizador","horimetro":250}'
+
+testar N2 "Tag repetida" 409 "Já existe uma máquina com a tag PV-03" \
+  -X POST "$BASE/maquinas" -H "$JSON" -d '{"tag":"PV-03","modelo":"Outro","horimetro":0}'
+
+testar N3 "Horímetro negativo" 400 "'horimetro' deve ser um número maior ou igual a zero" \
+  -X POST "$BASE/maquinas" -H "$JSON" -d '{"tag":"X-01","modelo":"Trator","horimetro":-5}'
+
+testar N4 "Sem tag" 400 "'tag' é obrigatório" \
+  -X POST "$BASE/maquinas" -H "$JSON" -d '{"modelo":"Trator","horimetro":10}'
+
+testar N5 "Sem modelo" 400 "'modelo' é obrigatório" \
+  -X POST "$BASE/maquinas" -H "$JSON" -d '{"tag":"X-01","horimetro":10}'
+
+testar N6 "Máquina nova aparece na lista e já pode sair" 200 '"status":"Em Operação"' \
+  -X POST "$BASE/maquinas/3/saida" -H "$JSON" -d '{"operador":"Ana","frenteTrabalho":"Talhao 2"}'
+
 # ---------------------------------------------------------------------
 # Resumo
 # ---------------------------------------------------------------------

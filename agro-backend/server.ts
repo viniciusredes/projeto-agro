@@ -21,6 +21,7 @@ let maquinas: Maquina[] = [
   { id: 1, tag: 'TR-01', modelo: 'Trator', horimetro: 1000, status: 'Disponível' },
   { id: 2, tag: 'CO-02', modelo: 'Colheitadeira', horimetro: 500, status: 'Disponível' }
 ];
+let proximoIdMaquina = 3; // as 2 máquinas iniciais usam os ids 1 e 2
 
 // Formato de uma movimentação (uma ida ao campo + o retorno)
 // Campos com "?" são opcionais: só são preenchidos quando a máquina retorna.
@@ -236,6 +237,40 @@ function validarPecasDoFechamento(pecasInformadas: unknown): ResultadoValidacaoP
 // 1. Caminho para VER as máquinas (Listagem)
 app.get('/maquinas', (req, res) => {
   res.json(maquinas);
+});
+
+// 1.1 Caminho para CADASTRAR uma máquina
+app.post('/maquinas', (req, res) => {
+  const { tag, modelo, horimetro } = req.body ?? {};
+
+  // Validação 1 (formato): campos obrigatórios
+  if (typeof tag !== 'string' || tag.trim() === '') {
+    return res.status(400).json({ erro: "Campo 'tag' é obrigatório" });
+  }
+  if (typeof modelo !== 'string' || modelo.trim() === '') {
+    return res.status(400).json({ erro: "Campo 'modelo' é obrigatório" });
+  }
+  if (typeof horimetro !== 'number' || !Number.isFinite(horimetro) || horimetro < 0) {
+    return res.status(400).json({ erro: "Campo 'horimetro' deve ser um número maior ou igual a zero" });
+  }
+
+  // Validação 2 (regra de negócio): tag única (comparando já normalizada)
+  const tagNormalizada = tag.trim().toUpperCase();
+  if (maquinas.some(m => m.tag === tagNormalizada)) {
+    return res.status(409).json({ erro: `Já existe uma máquina com a tag ${tagNormalizada}` });
+  }
+
+  // Tudo certo: toda máquina nova começa disponível no pátio
+  const novaMaquina: Maquina = {
+    id: proximoIdMaquina++,
+    tag: tagNormalizada,
+    modelo: modelo.trim(),
+    horimetro,
+    status: 'Disponível'
+  };
+  maquinas.push(novaMaquina);
+
+  res.status(201).json(novaMaquina);
 });
 
 // 2. Caminho para registrar a SAÍDA da máquina (Ida para o campo)
