@@ -75,8 +75,8 @@ Branch: `feat/front-base` · PR #2 (PR final da Etapa 2)
 
 > A partir do canvas de design "Agro Frota — Redesign" (painel de operação, lista com ação principal, fechamento de O.S. com resumo e telas para celular), aprovado pelo usuário. Branch `feat/redesign`.
 
-- [x] **R5.1** — Identidade do redesign: menu lateral verde-escuro com seções (Operação/Histórico) via `mat.list-overrides`, contador de O.S. abertas (recarregado a cada navegação, silencioso em caso de erro) no menu e na navegação inferior, fonte de texto Source Sans 3, fundo tonalizado e novas cores `--agro-*` · *commit: a preencher*
-- [ ] **R5.2** — Página inicial vira o Painel: indicadores com contexto e bloco "Precisa de atenção" com ações diretas
+- [x] **R5.1** — Identidade do redesign: menu lateral verde-escuro com seções (Operação/Histórico) via `mat.list-overrides`, contador de O.S. abertas (recarregado a cada navegação, silencioso em caso de erro) no menu e na navegação inferior, fonte de texto Source Sans 3, fundo tonalizado e novas cores `--agro-*` · `bc717ae`
+- [x] **R5.2** — Página inicial vira o Painel: indicadores com as máquinas de cada situação, "Precisa de atenção" (O.S. abertas, máquinas em campo, peças abaixo do mínimo) com ações diretas, custo de manutenção por tipo e valor em estoque; cores das séries extraídas para `--agro-serie-*` · *commit: a preencher*
 - [ ] **R5.3** — Máquinas: filtros rápidos por situação, uma ação principal por máquina, cartões no celular
 - [ ] **R5.4** — O.S. em fechamento: etapas, subtotal por peça, aviso de saldo na linha e resumo lateral
 

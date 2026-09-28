@@ -60,7 +60,7 @@ npm install      # só na primeira vez
 npm start        # = ng serve -> http://localhost:4200
 ```
 
-Abra **http://localhost:4200**. A página inicial deve mostrar "2 de 2 máquinas disponíveis".
+Abra **http://localhost:4200**. O Painel deve mostrar "Disponíveis no pátio: 2 de 2" e a COR-001 em "Precisa de atenção".
 
 Outros comandos úteis:
 
@@ -112,7 +112,7 @@ Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.
 
 | Rota | Tela | Chamadas à API |
 |---|---|---|
-| `/` | Início: logo, descritivo e "A frota agora" | `GET /maquinas`, `GET /pecas?abaixoDoMinimo=true` |
+| `/` | Painel: indicadores da frota, "Precisa de atenção" com ações diretas e custo de manutenção | `GET /maquinas`, `GET /pecas`, `GET /ordens-servico`, `GET /movimentacoes` |
 | `/maquinas` | Lista de máquinas + diálogos Nova máquina, Saída, Retorno e O.S. | `GET /maquinas`, `POST /maquinas`, `POST /maquinas/:id/saida`, `POST /maquinas/:id/retorno` |
 | `/maquinas/:id` | Detalhe da máquina: indicadores e custo por tipo de O.S. | `GET /maquinas/:id/manutencoes` |
 | `/movimentacoes` | Histórico de saídas e retornos, com filtro por máquina | `GET /movimentacoes?maquinaId=` |
@@ -1385,6 +1385,57 @@ Template: seções e `@let`:
 3. Feche a O.S. e troque de tela: o contador some.
 4. Pare a API e navegue: nenhum snackbar extra por causa do contador.
 
+#### R5.2 — Painel: "o que precisa de mim agora?"
+
+🎯 Transformar a página inicial (que apresentava o produto) num **painel de operação**: indicadores com contexto, pendências com a ação que as resolve e o custo de manutenção.
+
+🧩 `features/inicio/inicio.ts`: **4 chamadas**, todo o resto é derivado:
+
+```ts
+protected readonly maquinas = rxResource({ stream: () => this.maquinaService.listar() });
+protected readonly pecas = rxResource({ stream: () => this.pecaService.listar() });
+protected readonly ordens = rxResource({ stream: () => this.osService.listar() });
+protected readonly movimentacoes = rxResource({ stream: () => this.maquinaService.listarMovimentacoes() });
+```
+
+Pendências como **união discriminada** (cada tipo carrega o dado da sua ação):
+
+```ts
+type Pendencia =
+  | { tipo: 'os'; titulo: string; detalhe: string; os: OrdemServico }
+  | { tipo: 'campo'; titulo: string; detalhe: string; maquina: Maquina }
+  | { tipo: 'repor'; titulo: string; detalhe: string; peca: Peca };
+```
+
+```html
+@switch (pendencia.tipo) {
+  @case ('os') { <a mat-flat-button [routerLink]="['/ordens-servico', pendencia.os.id]">Fechar O.S.</a> }
+  @case ('campo') { <button mat-stroked-button (click)="registrarRetorno(pendencia.maquina)">Registrar retorno</button> }
+  @case ('repor') { <button mat-stroked-button (click)="registrarEntrada(pendencia.peca)">Registrar entrada</button> }
+}
+```
+
+Quem está com a máquina em campo vem da movimentação **sem retorno**:
+
+```ts
+.filter(mov => !mov.dataRetorno)   // Carlos · Talhão 8 · saiu 27/09 às 16:40 com 320 h
+```
+
+📚 **Conceitos**
+- **Tela orientada a tarefa:** um número ("1 em campo") não diz o que fazer; "PU-03 com Carlos no Talhão 8 · Registrar retorno" diz. Cada pendência traz o botão da ação.
+- **União discriminada + `@switch`:** o campo `tipo` diz qual formato o objeto tem. Dentro de `@case ('os')`, o TypeScript sabe que `pendencia.os` existe (*type narrowing*), também no template.
+- **Poucas chamadas, muitos derivados:** indicadores, pendências, custo por tipo e valor do estoque são `computed` sobre as mesmas 4 listas. Depois de uma ação, `recarregar()` refaz as 4 e tudo se atualiza.
+- **Reaproveitar diálogos:** Abrir O.S., Retorno e Entrada são os mesmos componentes das outras telas; o Painel só decide quando abri-los.
+- **Extrair na segunda vez:** as cores do gráfico preventiva × corretiva saíram do detalhe da máquina para `--agro-serie-*` em `_comuns.scss`, porque agora duas telas usam.
+- **`formatDate`:** a versão em TypeScript do pipe `date`, para montar textos fora do template ("desde 27/09 às 16:40").
+- **Estado vazio positivo:** sem pendências, o painel diz "Tudo em ordem", em vez de uma área em branco.
+
+🧪 **Testes**
+1. Com uma O.S. aberta, uma máquina em campo e uma peça abaixo do mínimo, as três aparecem em "Precisa de atenção", cada uma com seu botão.
+2. **Registrar retorno** no Painel: a pendência some e o indicador "Em campo" diminui.
+3. **Fechar O.S.** leva ao detalhe da O.S.; depois de fechar, volte ao Painel: a pendência sumiu e o custo aumentou.
+4. No celular, os indicadores ficam em 2 × 2 e as pendências logo abaixo.
+
 ---
 
 ## 6. Roteiro de testes no navegador
@@ -1393,7 +1444,7 @@ Roteiro completo para uma demonstração, com a API recém-iniciada. Siga na ord
 
 | # | Onde | Ação | Resultado esperado |
 |---|---|---|---|
-| 1 | Início | Abrir `http://localhost:4200` | Logo, "2 de 2 máquinas disponíveis", "1 peça para repor" |
+| 1 | Painel | Abrir `http://localhost:4200` | "Disponíveis no pátio: 2 de 2"; COR-001 abaixo do mínimo em "Precisa de atenção", com o botão **Registrar entrada** |
 | 2 | Máquinas | **Nova máquina** `PU-03`, Pulverizador, 0 h | Snackbar de sucesso, 3 máquinas na lista |
 | 3 | Máquinas | **Nova máquina** `PU-03` de novo | Snackbar vermelho com o 409 da API, diálogo continua aberto |
 | 4 | Máquinas | **Saída** do TR-01 sem preencher | Campos em vermelho, nenhuma requisição na aba Network |

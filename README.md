@@ -60,7 +60,7 @@ npm install
 npm start
 ```
 
-Abra **http://localhost:4200**. A página inicial deve mostrar a logo e "2 de 2 máquinas disponíveis".
+Abra **http://localhost:4200**. O Painel da frota deve mostrar "Disponíveis no pátio: 2 de 2" e a peça COR-001 em "Precisa de atenção".
 
 > O `npm install` só é necessário na primeira vez (e quando as dependências mudarem).
 >

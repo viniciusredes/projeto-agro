@@ -31,6 +31,11 @@
   --agro-menu-suave: light-dark(#a9c4b6, #8fa197); // títulos das seções e contadores
   --agro-menu-ativo: light-dark(#17513a, #18291f);
 
+  // Séries do gráfico preventiva × corretiva: par validado para daltonismo e contraste nos
+  // dois temas. Usadas no detalhe da máquina e no Painel (a cor segue o TIPO, nunca a posição).
+  --agro-serie-preventiva: light-dark(#2a78d6, #3987e5);
+  --agro-serie-corretiva: light-dark(#eb6834, #d95926);
+
   // Laranja da marca como SINAL: item ativo, contador de pendências, avisos
   --agro-sinal: #f38302;
   --agro-sinal-texto: #2b1600; // texto sobre o laranja (contraste 8:1)
