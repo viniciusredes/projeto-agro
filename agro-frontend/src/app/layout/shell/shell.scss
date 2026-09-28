@@ -3,6 +3,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; // no celular, 100vh inclui a barra de endereço do navegador; dvh é a altura VISÍVEL
 }
 
 // Barra superior: superfície clara/escura do tema, com uma borda sutil embaixo
@@ -62,4 +63,62 @@
   box-sizing: border-box;
   padding: 24px;
   background: var(--mat-sys-surface);
+}
+
+// ===== Celular =====
+// A mesma media query do CELULAR no shell.ts: o TS decide o que EXISTE, o CSS ajusta a aparência
+@media (max-width: 767.98px) {
+  .conteudo {
+    padding: 16px;
+  }
+
+  .marca img {
+    height: 36px;
+  }
+}
+
+// Navegação inferior: quatro áreas lado a lado, cada uma com área de toque de 64px de altura
+.nav-inferior {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 4px 8px calc(8px + env(safe-area-inset-bottom)); // respeita a barra de gestos do iPhone
+  background: var(--mat-sys-surface-container-lowest);
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.nav-inferior__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 56px;
+  justify-content: center;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-medium);
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: none;
+  }
+}
+
+// O ícone fica numa "pílula", que ganha cor no item ativo (padrão de navegação do Material 3)
+.nav-inferior__icone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 30px;
+  border-radius: 15px;
+}
+
+.nav-inferior__item--ativo {
+  color: var(--mat-sys-on-surface);
+  font-weight: 700;
+
+  .nav-inferior__icone {
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+  }
 }

@@ -173,7 +173,7 @@ O front foi construído em **passos pequenos**. Cada passo traz: 🎯 o **objeti
 | **1. Máquinas** | [Passo 3](#passo-3--lista-de-máquinas) a [Passo 7](#passo-7--interceptor-global-de-erros) |
 | **2. Estoque** | [Passo 8](#passo-8--lista-de-peças-com-custo-e-reposição) a [Passo 11](#passo-11--kardex-rota-com-parâmetro) |
 | **3. Manutenção** | [Passo 12](#passo-12--lista-de-os-com-filtros-na-url) a [Passo 15](#passo-15--custo-de-manutenção-por-máquina) |
-| **4. Polimento** | [Passo 16.1](#passo-161--estilos-globais-e-tons-semânticos), [Refinamentos R1 a R3](#refinamentos-r1-a-r3--identidade-visual-e-tema-escuro) e [R4](#refinamento-r4--conferência-visual-e-correções) |
+| **4. Polimento** | [Passo 16.1](#passo-161--estilos-globais-e-tons-semânticos) a [16.3](#passo-163--responsividade-celular), [Refinamentos R1 a R3](#refinamentos-r1-a-r3--identidade-visual-e-tema-escuro) e [R4](#refinamento-r4--conferência-visual-e-correções) |
 
 > **Dica para os alunos:** o histórico do Git tem **um commit por passo** (`git log --oneline`). Para ver exatamente o que mudou num passo, use `git show <hash>`. O [CHECKLIST.md](../CHECKLIST.md) lista os hashes.
 
@@ -1117,6 +1117,69 @@ this.dialog
 
 ---
 
+### Passo 16.3 — Responsividade (celular)
+
+🎯 Usar o sistema no celular, no pátio ou na oficina: sem o menu lateral ocupando metade da tela e com as áreas principais ao alcance do polegar.
+
+🧩 `layout/shell/shell.ts`:
+
+```ts
+const CELULAR = '(max-width: 767.98px)';
+
+// true quando a tela é de celular; muda sozinho ao girar o aparelho ou redimensionar a janela
+protected readonly celular = toSignal(
+  inject(BreakpointObserver).observe(CELULAR).pipe(map(estado => estado.matches)),
+  { initialValue: false },
+);
+
+// Navegação inferior: só os itens com rótulo curto
+protected readonly itensInferiores = this.itensMenu.filter(item => item.curto);
+```
+
+`shell.html`:
+
+```html
+<!-- Desktop: menu fixo ao lado. Celular: gaveta por cima do conteúdo, fechada. -->
+<mat-sidenav #menu [mode]="celular() ? 'over' : 'side'" [opened]="!celular()">
+  ... <a mat-list-item ... (click)="aoNavegar(menu)"> ...
+</mat-sidenav>
+
+@if (celular()) {
+  <nav class="nav-inferior" aria-label="Navegação principal">
+    @for (item of itensInferiores; track item.rota) {
+      <a [routerLink]="item.rota" routerLinkActive="nav-inferior__item--ativo" ariaCurrentWhenActive="page">
+        <span class="nav-inferior__icone"><mat-icon>{{ item.icone }}</mat-icon></span>
+        {{ item.curto }}
+      </a>
+    }
+  </nav>
+}
+```
+
+Tabelas (`_comuns.scss`): no celular, a tabela rola na horizontal em vez de sair da tela:
+
+```scss
+@media (max-width: 767.98px) {
+  .mat-mdc-table.tabela { display: block; overflow-x: auto; white-space: nowrap; }
+}
+```
+
+📚 **Conceitos**
+- **`BreakpointObserver` (Angular CDK):** observa uma *media query* e emite a cada mudança. Com `toSignal`, vira um signal que o template usa em `@if` e em bindings.
+- **TS decide o que existe, CSS ajusta a aparência:** a navegação inferior só **existe** no celular (`@if`), enquanto margens e tamanhos mudam por `@media` no SCSS. As duas usam a **mesma** largura de corte (767,98px).
+- **`mat-sidenav` com `mode`:** `side` empurra o conteúdo (desktop); `over` abre por cima, com fundo escurecido (celular). A gaveta fecha ao escolher uma tela.
+- **Navegação inferior:** as 4 áreas mais usadas ficam ao alcance do polegar; o restante (Movimentações) continua no menu ☰. Cada item tem 56px de altura (área de toque confortável) e `aria-current="page"` no ativo.
+- **`100dvh` e `safe-area-inset-bottom`:** no celular, `100vh` inclui a barra de endereço (a página ficaria maior que a tela); `dvh` é a altura **visível**. O `env(safe-area-inset-bottom)` afasta a navegação da barra de gestos do iPhone.
+- **Layout que quebra linha:** no fechamento da O.S., a peça ocupa a largura inteira e a quantidade desce para a linha de baixo (`flex-wrap` + `flex-basis: 100%`).
+
+🧪 **Testes** (DevTools → *Toggle device toolbar*, Ctrl+Shift+M, com um celular de ~390px)
+1. A navegação inferior aparece; o menu lateral some.
+2. Toque em ☰: o menu abre por cima; escolha **Movimentações**: ele fecha sozinho.
+3. Em **Máquinas**, a tabela rola para o lado, sem quebrar "TR-01".
+4. Aumente a largura para mais de 768px: volta o menu lateral fixo e a navegação inferior some, sem recarregar.
+
+---
+
 ### Refinamentos R1 a R3 — Identidade visual e tema escuro
 
 🎯 Dar ao sistema a cara do produto: página inicial com a logo, paleta da marca e tema escuro.
@@ -1438,7 +1501,6 @@ O padrão deste projeto (**lista com estados + diálogos que devolvem a resposta
 
 - **Sem login:** qualquer pessoa com acesso à URL usa tudo (mesma decisão do back-end).
 - **Dados em memória:** herdado da API; reiniciar o back-end zera tudo.
-- **Menu lateral fixo:** em telas de celular ele ocupa espaço demais (Passo 16.3, responsividade, não implementado).
 - **Testes unitários:** os `.spec.ts` são os gerados pelo CLI e ainda não foram adaptados. Hoje o `npm test` mostra **7 passando e 14 falhando**: as telas dependem de `HttpClient`, `ActivatedRoute` e `MAT_DIALOG_DATA`, e os testes gerados não fornecem esses providers (erro `NG0201: No provider found`). Adaptá-los é um ótimo exercício.
 - **Proxy só no desenvolvimento:** em produção, o front e a API precisam ser servidos na mesma origem (ou a API precisa liberar CORS).
 
@@ -1446,7 +1508,7 @@ O padrão deste projeto (**lista com estados + diálogos que devolvem a resposta
 
 **Etapa 2, front-end: ✅ concluída** (Fases 0 a 3, polimento de estilos e identidade visual).
 
-1. **Responsividade:** `BreakpointObserver` para o menu virar sobreposto (`mode="over"`) no celular.
+1. **Redesign (Fase 5 do CHECKLIST):** painel de operação, lista de máquinas com ação principal e cartões no celular, fechamento de O.S. com resumo lateral.
 2. **Testes unitários** de um service (`HttpTestingController`) e de um componente.
 
 **Futuro:** login e perfis, banco de dados (PostgreSQL + Prisma) no back-end e publicação (build + servidor web).

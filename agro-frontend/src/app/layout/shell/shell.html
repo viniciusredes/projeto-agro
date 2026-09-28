@@ -35,8 +35,9 @@
 </mat-toolbar>
 
 <mat-sidenav-container class="container">
-  <!-- Menu lateral: #menu é uma referência usada pelo botão acima -->
-  <mat-sidenav #menu mode="side" opened class="menu">
+  <!-- Menu lateral: #menu é uma referência usada pelo botão acima.
+       Desktop: fixo ao lado do conteúdo ("side"). Celular: gaveta por cima do conteúdo ("over"), fechada. -->
+  <mat-sidenav #menu [mode]="celular() ? 'over' : 'side'" [opened]="!celular()" class="menu">
     <mat-nav-list>
       @for (item of itensMenu; track item.rota) {
         <a
@@ -46,6 +47,7 @@
           [routerLinkActiveOptions]="{ exact: item.rota === '/' }"
           #rla="routerLinkActive"
           [activated]="rla.isActive"
+          (click)="aoNavegar(menu)"
         >
           <mat-icon matListItemIcon>{{ item.icone }}</mat-icon>
           <span matListItemTitle>{{ item.titulo }}</span>
@@ -59,3 +61,21 @@
     <router-outlet />
   </mat-sidenav-content>
 </mat-sidenav-container>
+
+<!-- Celular: navegação inferior com as áreas principais, ao alcance do polegar -->
+@if (celular()) {
+  <nav class="nav-inferior" aria-label="Navegação principal">
+    @for (item of itensInferiores; track item.rota) {
+      <a
+        class="nav-inferior__item"
+        [routerLink]="item.rota"
+        routerLinkActive="nav-inferior__item--ativo"
+        [routerLinkActiveOptions]="{ exact: item.rota === '/' }"
+        ariaCurrentWhenActive="page"
+      >
+        <span class="nav-inferior__icone"><mat-icon>{{ item.icone }}</mat-icon></span>
+        {{ item.curto }}
+      </a>
+    }
+  </nav>
+}

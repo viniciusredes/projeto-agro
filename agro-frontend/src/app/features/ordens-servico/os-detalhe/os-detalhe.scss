@@ -59,6 +59,21 @@
   flex: 1;
 }
 
+// Celular: a peça ocupa a linha inteira; quantidade e lixeira descem para a linha de baixo
+@media (max-width: 767.98px) {
+  .linha {
+    flex-wrap: wrap;
+    column-gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    margin-bottom: 12px;
+  }
+
+  .linha__peca {
+    flex-basis: 100%;
+  }
+}
+
 .erro-linha {
   color: var(--mat-sys-error);
 }

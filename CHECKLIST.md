@@ -64,10 +64,10 @@ Branch: `feat/front-base` · PR #2 (PR final da Etapa 2)
 
 ### Fase 4 — Fechamento ✅
 
-- [ ] 🚧 **Passo 16** — Polimento (16.2 e 16.3 retomados depois da aula, junto com o redesign)
+- [x] **Passo 16** — Polimento (16.2 e 16.3 retomados depois da aula, junto com o redesign)
   - [x] **16.1** — Estilos globais (`src/estilos/_comuns.scss`), tons semânticos das etiquetas (`core/ui/tons.ts`) e links com a cor do tema · `e337049`
-  - [x] **16.2** — Diálogo de confirmação reutilizável (`shared/confirmacao-dialog`), usado antes de fechar a O.S. com a lista das peças e o custo estimado · *commit: a preencher*
-  - [ ] **16.3** — Responsividade: menu lateral no desktop e navegação inferior no celular (base das telas mobile do redesign)
+  - [x] **16.2** — Diálogo de confirmação reutilizável (`shared/confirmacao-dialog`), usado antes de fechar a O.S. com a lista das peças e o custo estimado · `566cb45`
+  - [x] **16.3** — Responsividade: `BreakpointObserver` → signal `celular()`; menu lateral fixo no desktop e em gaveta no celular, navegação inferior com 4 áreas, tabelas com rolagem horizontal, `100dvh`, linha de peças da O.S. quebrando no celular · *commit: a preencher*
 - [x] **Passo 17** — `ng build` sem erros, README do front-end, `context.md` atualizado e movido para a raiz, README da raiz (escopo, clonagem e execução) e PR final · último commit do PR #2
 - [ ] *(Opcional)* Testes unitários de um service e de um componente
 

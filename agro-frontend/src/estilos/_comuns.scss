@@ -69,6 +69,16 @@ a:where(:not(.mat-mdc-button-base):not(.mat-mdc-list-item)) {
   overflow: hidden;
 }
 
+// Celular: a tabela não cabe na largura, então ROLA na horizontal (em vez de espremer o texto
+// ou sair da tela). display: block transforma a <table> numa caixa com rolagem própria.
+@media (max-width: 767.98px) {
+  .mat-mdc-table.tabela {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap; // "TR-01" numa linha só
+  }
+}
+
 // Números alinhados à direita facilitam a comparação entre linhas.
 // ".mat-mdc-table .numero" (2 classes) em vez de só ".numero" (1 classe): no arquivo GLOBAL a
 // regra perdia para o alinhamento das células do Material, que tem o mesmo peso. Nos componentes
