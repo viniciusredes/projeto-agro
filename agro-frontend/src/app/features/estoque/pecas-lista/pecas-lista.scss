@@ -1,32 +1,179 @@
-// .cabecalho, .tabela, .numero, .codigo, .aviso, .etiqueta e a cor dos links vêm de
+// .cabecalho, .subtitulo, .botoes, os filtros (.busca, .chip), .numero, .codigo e .aviso vêm de
 // src/estilos/_comuns.scss. Aqui fica só o que é específico desta tela.
 
 .cabecalho h2 {
-  margin-bottom: 4px;
+  margin: 0;
 }
 
-.resumo {
-  margin: 0;
+.subtitulo strong {
+  color: var(--mat-sys-on-surface);
+}
+
+// ===== Lista: o mesmo padrão de Máquinas (linha no desktop, cartão no celular) =====
+.colunas,
+.peca {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.colunas {
+  padding: 0 18px 8px;
+  font-weight: 600;
+  font-size: 0.9em;
   color: var(--mat-sys-on-surface-variant);
 }
 
-.acoes-cabecalho {
+.lista {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.peca {
+  padding: 14px 18px;
+  border: 1px solid var(--agro-borda);
+  border-radius: 14px;
+  background: var(--agro-cartao);
+}
+
+// Peça abaixo do mínimo: fundo âmbar suave e borda laranja (o SINAL de pendência)
+.peca--repor {
+  border-color: var(--agro-sinal);
+  background: var(--agro-linha-destaque);
+
+  .icone {
+    background: var(--agro-cartao);
+    color: var(--agro-alerta-texto);
+  }
+}
+
+.peca__nome {
+  display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+
+  div {
+    display: flex;
+    flex-direction: column;
+  }
 }
 
-.acoes {
-  text-align: right;
+.icone {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
 }
 
-.falta {
+.peca__descricao {
   font-weight: 600;
+}
+
+// ===== Saldo + barra de nível =====
+.peca__saldo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.saldo__texto {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+
+  strong {
+    font-size: 1.1em;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.saldo__falta {
+  font-weight: 700;
   color: var(--agro-alerta-texto);
 }
 
-// Fundo suave na linha inteira das peças abaixo do mínimo (cor nos dois temas: _comuns.scss)
-.linha-repor {
-  background: var(--agro-linha-destaque);
+.saldo__minimo {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// A barra vai até o dobro do mínimo: a marca do mínimo fica sempre no meio
+.nivel {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--mat-sys-surface-container);
+}
+
+.nivel__barra {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--agro-sucesso-texto);
+
+  .peca--repor & {
+    background: var(--agro-sinal);
+  }
+}
+
+.nivel__minimo {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 2px;
+  height: 14px;
+  background: var(--mat-sys-on-surface);
+}
+
+.peca__custo {
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+
+  span {
+    display: block;
+    font-weight: 400;
+    font-size: 0.9em;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.peca__acoes {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+// Celular: a mesma linha vira um CARTÃO (nome e custo em cima, saldo no meio, ações embaixo)
+@media (max-width: 767.98px) {
+  .colunas {
+    display: none;
+  }
+
+  .peca {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'nome custo'
+      'saldo saldo'
+      'acoes acoes';
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .peca__nome { grid-area: nome; }
+  .peca__custo { grid-area: custo; }
+  .peca__saldo { grid-area: saldo; }
+
+  .peca__acoes {
+    grid-area: acoes;
+
+    > :first-child {
+      flex: 1; // ação principal na largura toda: alvo grande para o polegar
+    }
+  }
 }

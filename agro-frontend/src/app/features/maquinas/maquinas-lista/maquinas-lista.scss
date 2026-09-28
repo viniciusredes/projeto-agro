@@ -1,83 +1,12 @@
-// .cabecalho, .aviso, .etiqueta e .numero vêm de src/estilos/_comuns.scss (globais).
+// .cabecalho, .aviso, .etiqueta, .numero e os filtros vêm de src/estilos/_comuns.scss (globais).
 // Aqui fica só o que é específico desta tela.
 
 .cabecalho h2 {
   margin: 0;
 }
 
-.subtitulo {
-  margin: 2px 0 0;
-  color: var(--mat-sys-on-surface-variant);
-}
-
-.botoes {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-// ===== Busca + filtros =====
-.filtros {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.busca {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 0 1 300px;
-  height: 44px;
-  padding: 0 14px;
-  box-sizing: border-box;
-  border: 1px solid var(--agro-borda);
-  border-radius: 12px;
-  background: var(--agro-cartao);
-  color: var(--mat-sys-on-surface-variant);
-
-  &:focus-within {
-    border-color: var(--mat-sys-primary);
-  }
-
-  input {
-    flex: 1;
-    min-width: 0;
-    border: 0;
-    outline: 0;
-    background: transparent;
-    color: var(--mat-sys-on-surface);
-    font: inherit;
-  }
-}
-
-.chips {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto; // no celular, os filtros rolam para o lado
-}
-
-.chip {
-  flex-shrink: 0;
-  height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--agro-borda);
-  border-radius: 20px;
-  background: var(--agro-cartao);
-  color: var(--mat-sys-on-surface);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-// Filtro ativo: invertido (texto claro sobre fundo escuro) para destacar sem usar mais uma cor
-.chip--ativo {
-  border-color: var(--mat-sys-on-surface);
-  background: var(--mat-sys-on-surface);
-  color: var(--mat-sys-surface);
-}
+// .subtitulo, .botoes, .filtros, .busca, .chips e .chip: src/estilos/_comuns.scss
+// (compartilhados com o Estoque e a lista de O.S.)
 
 // ===== Lista: UM markup, dois layouts =====
 // Desktop: cada máquina é uma "linha" com 4 colunas (a mesma grade do cabeçalho .colunas)

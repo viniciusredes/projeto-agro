@@ -34,16 +34,28 @@ html {
   // porque ele encosta na barra superior e tem borda (o padrão do Material 3 é arredondado)
   @include mat.sidenav-overrides((container-shape: 0));
 
-  // Tema escuro com as cores da logo escura (verde-menta #4cf090 + laranja #fa9400).
-  // O 1º valor de cada light-dark() é o que o tema claro já gerava (fica igual);
-  // só o 2º (escuro) muda. Botões, links, faixa da barra e números usam estes tokens.
+  // Tema escuro (R6.1, "noite no campo"): verde-menta mais calmo que o neon da logo, superfícies
+  // em camadas com um fundo esverdeado e bordas visíveis. Todos os pares de texto >= 4,5:1.
+  // O 1º valor de cada light-dark() é o que o tema claro já gerava (fica igual); só o 2º muda.
   @include mat.theme-overrides(
     (
-      primary: light-dark(#1c6b45, #4cf090),
-      on-primary: light-dark(#ffffff, #00391e),
-      surface-tint: light-dark(#1c6b45, #4cf090),
-      tertiary: light-dark(#924c00, #fa9400),
-      on-tertiary: light-dark(#ffffff, #3a1d00),
+      primary: light-dark(#1c6b45, #5cd69a),
+      on-primary: light-dark(#ffffff, #062d1a),
+      surface-tint: light-dark(#1c6b45, #5cd69a),
+      primary-container: light-dark(#a6f3c3, #1b4432),
+      on-primary-container: light-dark(#005231, #9fe6bf),
+      tertiary: light-dark(#924c00, #f5a142),
+      on-tertiary: light-dark(#ffffff, #2b1600),
+      // Camadas: fundo < cartão < cartão elevado (cada uma um passo mais clara)
+      surface: light-dark(#f7faf5, #111a15),
+      surface-container-lowest: light-dark(#ffffff, #0d1410),
+      surface-container-low: light-dark(#f1f5ef, #151f19),
+      surface-container: light-dark(#ebefe9, #212e27),
+      surface-container-high: light-dark(#e6e9e3, #28362e),
+      surface-container-highest: light-dark(#e0e3de, #304037),
+      on-surface: light-dark(#181d19, #e6ede8),
+      on-surface-variant: light-dark(#3f4942, #a7b5ac),
+      outline-variant: light-dark(#bfc9bf, #2d3b33),
     )
   );
 

@@ -1,107 +1,119 @@
 <div class="cabecalho">
   <div>
     <h2>Estoque</h2>
-    @if (!somenteReposicao() && pecas().length > 0) {
-      <p class="resumo">Valor em estoque: <strong>{{ valorEmEstoque() | currency }}</strong></p>
+    @if (pecas.hasValue()) {
+      <p class="subtitulo">
+        {{ totais().todas }} {{ totais().todas === 1 ? 'peça' : 'peças' }} ·
+        <strong>{{ valorEmEstoque() | currency }}</strong> em peças e fluidos
+      </p>
     }
   </div>
-
-  <div class="acoes-cabecalho">
-    <mat-slide-toggle [checked]="somenteReposicao()" (change)="alternarReposicao($event.checked)">
-      Só reposição
-    </mat-slide-toggle>
-    <button mat-stroked-button (click)="carregar()" [disabled]="carregando()">
+  <div class="botoes">
+    <button mat-icon-button type="button" (click)="carregar()" [disabled]="pecas.isLoading()" matTooltip="Atualizar" aria-label="Atualizar">
       <mat-icon>refresh</mat-icon>
-      Atualizar
     </button>
-    <button mat-flat-button (click)="abrirCadastro()">
+    <button mat-flat-button type="button" (click)="abrirCadastro()">
       <mat-icon>add</mat-icon>
       Nova peça
     </button>
   </div>
 </div>
 
-@if (carregando()) {
+<!-- ===== Busca + filtro "para repor" (vai para a URL: ?filtro=repor) ===== -->
+<div class="filtros">
+  <label class="busca">
+    <mat-icon>search</mat-icon>
+    <input type="search" placeholder="Buscar por código ou descrição" aria-label="Buscar peça" [value]="busca()" (input)="buscar($event)" />
+  </label>
+  <div class="chips" role="group" aria-label="Filtrar peças">
+    <button type="button" class="chip" [class.chip--ativo]="!filtro()" [attr.aria-pressed]="!filtro()" (click)="filtrar(undefined)">
+      Todas · {{ totais().todas }}
+    </button>
+    <button type="button" class="chip" [class.chip--ativo]="filtro() === 'repor'" [attr.aria-pressed]="filtro() === 'repor'" (click)="filtrar('repor')">
+      <span class="chip__ponto" aria-hidden="true"></span>
+      Para repor · {{ totais().repor }}
+    </button>
+  </div>
+</div>
+
+@if (pecas.isLoading()) {
   <mat-progress-bar mode="indeterminate" />
 }
 
-@if (erro(); as mensagem) {
+@if (pecas.error()) {
   <p class="aviso aviso--erro">
     <mat-icon>error</mat-icon>
-    {{ mensagem }}
+    Não foi possível carregar as peças. Verifique se a API está rodando.
   </p>
-} @else if (!carregando() && pecas().length === 0) {
-  <p class="aviso">
-    {{ somenteReposicao() ? 'Nenhuma peça precisa de reposição. 👍' : 'Nenhuma peça cadastrada.' }}
-  </p>
-} @else if (pecas().length > 0) {
-  <table mat-table [dataSource]="pecas()" class="tabela">
-    <ng-container matColumnDef="codigo">
-      <th mat-header-cell *matHeaderCellDef>Código</th>
-      <!-- O código leva ao kardex da peça: /estoque/1, /estoque/2... -->
-      <td mat-cell *matCellDef="let peca" class="codigo">
-        <a [routerLink]="['/estoque', peca.id]" title="Ver kardex">{{ peca.codigo }}</a>
-      </td>
-    </ng-container>
+} @else if (pecas.hasValue() && totais().todas === 0) {
+  <p class="aviso">Nenhuma peça cadastrada.</p>
+} @else if (pecas.hasValue()) {
+  <!-- Cabeçalho das colunas: só no desktop (no celular, cada peça é um cartão) -->
+  <div class="colunas" aria-hidden="true">
+    <span>Peça</span>
+    <span>Saldo</span>
+    <span class="numero">Custo</span>
+    <span class="numero">Ação</span>
+  </div>
 
-    <ng-container matColumnDef="descricao">
-      <th mat-header-cell *matHeaderCellDef>Descrição</th>
-      <td mat-cell *matCellDef="let peca">{{ peca.descricao }}</td>
-    </ng-container>
+  <div class="lista">
+    @for (linha of visiveis(); track linha.peca.id) {
+      @let peca = linha.peca;
+      <article class="peca" [class.peca--repor]="linha.repor">
+        <div class="peca__nome">
+          <span class="icone" aria-hidden="true">
+            <mat-icon>{{ peca.unidade === 'L' ? 'water_drop' : 'inventory_2' }}</mat-icon>
+          </span>
+          <div>
+            <!-- O código leva ao kardex da peça -->
+            <a class="codigo" [routerLink]="['/estoque', peca.id]">{{ peca.codigo }}</a>
+            <span class="peca__descricao">{{ peca.descricao }}</span>
+          </div>
+        </div>
 
-    <!-- Saldo com a unidade: "10 un" ou "220,5 L" -->
-    <ng-container matColumnDef="saldo">
-      <th mat-header-cell *matHeaderCellDef class="numero">Saldo</th>
-      <td mat-cell *matCellDef="let peca" class="numero">
-        {{ peca.saldo | number: '1.0-2' }} {{ peca.unidade }}
-      </td>
-    </ng-container>
+        <!-- Saldo + barra de nível: a marca vertical é o estoque mínimo -->
+        <div class="peca__saldo">
+          <div class="saldo__texto">
+            <strong>{{ peca.saldo | number: '1.0-2' }} {{ peca.unidade }}</strong>
+            @if (linha.repor) {
+              <span class="saldo__falta">faltam {{ linha.falta | number: '1.0-2' }} para o mínimo</span>
+            } @else if (peca.estoqueMinimo > 0) {
+              <span class="saldo__minimo">mínimo {{ peca.estoqueMinimo | number: '1.0-2' }}</span>
+            }
+          </div>
+          <div
+            class="nivel"
+            role="img"
+            [attr.aria-label]="'Saldo ' + peca.saldo + ' ' + peca.unidade + (peca.estoqueMinimo > 0 ? ', mínimo ' + peca.estoqueMinimo : '')"
+          >
+            <div class="nivel__barra" [style.width.%]="linha.nivel"></div>
+            @if (peca.estoqueMinimo > 0) {
+              <span class="nivel__minimo"></span>
+            }
+          </div>
+        </div>
 
-    <ng-container matColumnDef="minimo">
-      <th mat-header-cell *matHeaderCellDef class="numero">Mínimo</th>
-      <td mat-cell *matCellDef="let peca" class="numero">
-        {{ peca.estoqueMinimo | number: '1.0-2' }} {{ peca.unidade }}
-      </td>
-    </ng-container>
+        <div class="peca__custo">
+          {{ peca.custoUnitario | currency }}
+          <span>por {{ peca.unidade }}</span>
+        </div>
 
-    <!-- currency usa a moeda padrão configurada (BRL) e o locale pt-BR: "R$ 85,90" -->
-    <ng-container matColumnDef="custo">
-      <th mat-header-cell *matHeaderCellDef class="numero">Custo unitário</th>
-      <td mat-cell *matCellDef="let peca" class="numero">{{ peca.custoUnitario | currency }}</td>
-    </ng-container>
-
-    <!-- Só existe no modo reposição (campo calculado pela API) -->
-    <ng-container matColumnDef="falta">
-      <th mat-header-cell *matHeaderCellDef class="numero">Falta</th>
-      <td mat-cell *matCellDef="let peca" class="numero falta">
-        {{ peca.faltaParaMinimo | number: '1.0-2' }} {{ peca.unidade }}
-      </td>
-    </ng-container>
-
-    <ng-container matColumnDef="situacao">
-      <th mat-header-cell *matHeaderCellDef>Situação</th>
-      <td mat-cell *matCellDef="let peca">
-        @if (precisaRepor(peca)) {
-          <span class="etiqueta etiqueta--alerta">Repor</span>
-        } @else {
-          <span class="etiqueta etiqueta--sucesso">OK</span>
-        }
-      </td>
-    </ng-container>
-
-    <!-- Coluna: ações da peça -->
-    <ng-container matColumnDef="acoes">
-      <th mat-header-cell *matHeaderCellDef></th>
-      <td mat-cell *matCellDef="let peca" class="acoes">
-        <button mat-stroked-button (click)="abrirEntrada(peca)">
-          <mat-icon>add_shopping_cart</mat-icon>
-          Entrada
-        </button>
-      </td>
-    </ng-container>
-
-    <tr mat-header-row *matHeaderRowDef="colunas()"></tr>
-    <!-- Linha inteira destacada quando a peça precisa de reposição -->
-    <tr mat-row *matRowDef="let peca; columns: colunas()" [class.linha-repor]="precisaRepor(peca)"></tr>
-  </table>
+        <!-- Ação principal: cheia só quando a peça precisa de reposição -->
+        <div class="peca__acoes">
+          @if (linha.repor) {
+            <button mat-flat-button type="button" (click)="abrirEntrada(peca)">Registrar entrada</button>
+          } @else {
+            <button mat-stroked-button type="button" (click)="abrirEntrada(peca)">Registrar entrada</button>
+          }
+          <a mat-icon-button [routerLink]="['/estoque', peca.id]" matTooltip="Ver kardex" [attr.aria-label]="'Ver kardex da ' + peca.codigo">
+            <mat-icon>chevron_right</mat-icon>
+          </a>
+        </div>
+      </article>
+    } @empty {
+      <p class="aviso">
+        {{ filtro() === 'repor' ? 'Nenhuma peça precisa de reposição.' : 'Nenhuma peça encontrada com essa busca.' }}
+      </p>
+    }
+  </div>
 }

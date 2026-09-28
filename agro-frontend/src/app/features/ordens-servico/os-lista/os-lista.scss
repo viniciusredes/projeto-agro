@@ -1,27 +1,164 @@
-// .cabecalho, .tabela, .numero, .detalhe, .aviso e .etiqueta vêm de src/estilos/_comuns.scss.
-// Aqui fica só o que é específico desta tela.
+// .cabecalho, .subtitulo, .botoes, os filtros (.chip), .numero, .aviso e .etiqueta vêm de
+// src/estilos/_comuns.scss. Aqui fica só o que é específico desta tela.
 
-.cabecalho {
-  margin-bottom: 8px; // menos espaço: os filtros ficam logo abaixo
+.cabecalho h2 {
+  margin: 0;
 }
 
-.botoes {
-  display: flex;
-  gap: 8px;
+.filtro-maquina {
+  width: 240px;
 }
 
-.filtros {
+.secao {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.secao__titulo {
+  margin: 0;
+  font-size: 15px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// ===== Abertas: cartões lado a lado (um por linha em telas estreitas) =====
+.abertas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 12px;
-  margin-bottom: 16px;
+}
 
-  mat-form-field {
-    width: 240px;
+// O cartão INTEIRO é um <a>: área de clique grande, e o realce mostra que é clicável
+.os-cartao,
+.os-linha {
+  border: 1px solid var(--agro-borda);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--mat-sys-primary);
+    box-shadow: 0 2px 10px rgb(0 0 0 / 8%);
+    text-decoration: none;
   }
 }
 
-.numero-os {
-  font-weight: 600;
+.os-cartao {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--agro-linha-destaque);
+}
+
+.os-cartao__topo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.os-cartao__numero {
+  font-family: var(--mat-sys-headline-small-font);
+  font-size: 18px;
+}
+
+.os-cartao__data {
+  margin-left: auto;
+}
+
+.os-cartao__data,
+.os-cartao__descricao {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.os-cartao__maquina {
+  font-weight: 700;
+  font-size: 1.05em;
+}
+
+.os-cartao__rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+// "Cara" de botão da ação do cartão (o clique é do cartão todo)
+.os-cartao__acao {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 8px 0 16px;
+  border-radius: 20px;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  font-weight: 700;
+}
+
+// ===== Fechadas: uma linha por O.S., com a seta de "abrir" no fim =====
+.lista-fechadas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.os-linha {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1.3fr) 110px minmax(0, 2fr) 120px 110px 24px;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: var(--agro-cartao);
+}
+
+.os-linha__descricao,
+.os-linha__data,
+.os-linha__seta {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.os-linha__data {
+  font-size: 0.9em;
+}
+
+// Celular: a linha das fechadas vira um bloco de duas linhas (O.S. + máquina, data + custo)
+@media (max-width: 767.98px) {
+  .filtro-maquina {
+    width: 100%;
+  }
+
+  .abertas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .os-cartao__acao {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .os-linha {
+    grid-template-columns: minmax(0, 1fr) auto 24px;
+    grid-template-areas:
+      'numero custo seta'
+      'maquina data seta';
+    gap: 2px 12px;
+    padding: 12px 14px;
+
+    > strong:first-child { grid-area: numero; }
+    .os-linha__maquina { grid-area: maquina; }
+    .numero { grid-area: custo; }
+    .os-linha__data { grid-area: data; }
+    .os-linha__seta { grid-area: seta; }
+
+    // No celular, tipo e descrição ficam só no detalhe
+    > span:nth-child(3),
+    .os-linha__descricao {
+      display: none;
+    }
+  }
 }
