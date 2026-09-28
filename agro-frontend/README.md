@@ -1508,6 +1508,66 @@ Uma ação principal, decidida pela situação:
 3. Cada máquina mostra uma ação: **Registrar saída**, **Registrar retorno** ou **Ver O.S.**; a ferramenta abre a O.S.
 4. No celular, as máquinas viram cartões com a ação ocupando a largura.
 
+#### R5.4 — O.S. em fechamento: etapas, subtotais e resumo
+
+🎯 Fechar a O.S. sabendo **antes do clique** o que vai acontecer: onde a O.S. está no ciclo de vida, quanto custa cada linha e quais peças vão travar o fechamento.
+
+🧩 `os-detalhe.ts`: dados derivados para a tela:
+
+```ts
+// Etapas do ciclo de vida (Aberta -> Fechamento -> Fechada)
+protected readonly etapas = computed<Etapa[]>(() => { ... });
+
+// Quanto a quantidade PASSA do saldo (0 = cabe)
+protected excessoDoSaldo(indice: number): number {
+  const peca = this.pecaDaLinha(indice);
+  const quantidade = this.linhas.at(indice).controls.quantidade.value;
+  return peca && quantidade !== null ? Math.max(0, quantidade - peca.saldo) : 0;
+}
+
+// As peças que vão travar o fechamento (tudo ou nada), para o resumo
+protected readonly pecasSemSaldo = computed(() =>
+  this.valoresLinhas().flatMap(linha => {
+    const peca = linha.pecaId != null ? this.pecaPorId().get(linha.pecaId) : undefined;
+    return peca && linha.quantidade != null && linha.quantidade > peca.saldo ? [peca.codigo] : [];
+  }),
+);
+```
+
+Template: etapas como **lista ordenada** e a etapa atual com `aria-current="step"`:
+
+```html
+<ol class="etapas" aria-label="Andamento da O.S.">
+  @for (etapa of etapas(); track etapa.rotulo) {
+    <li [class]="'etapa--' + etapa.estado" [attr.aria-current]="etapa.estado === 'atual' ? 'step' : null">...</li>
+  }
+</ol>
+```
+
+Resumo lateral com o aviso de tudo ou nada **citando as peças**:
+
+```html
+@if (pecasSemSaldo().length > 0) {
+  <p class="resumo__alerta" role="alert">
+    <strong>Tudo ou nada.</strong> {{ pecasSemSaldo().join(', ') }} não tem saldo suficiente: ...
+  </p>
+}
+<button mat-flat-button (click)="fechar()">Revisar e fechar O.S.</button>
+```
+
+📚 **Conceitos**
+- **Etapas (stepper) só de leitura:** mostram o ciclo de vida do documento (Aberta → Fechamento → Fechada). `<ol>` anuncia a sequência para leitores de tela, e `aria-current="step"` marca onde a O.S. está.
+- **Aviso específico:** "Acima do saldo" obriga o usuário a descobrir quanto; "COR-001: 41 un a mais que o saldo de 9 un" já diz o que corrigir.
+- **Prevenir em vez de remediar:** o 409 "tudo ou nada" da API continua existindo (ela é a autoridade), mas o resumo avisa **antes** do clique, citando quais peças travam.
+- **Layout de decisão:** o formulário à esquerda, o resumo e o botão à direita (em telas estreitas, o resumo desce). O botão "Revisar e fechar" leva à confirmação do Passo 16.2.
+- **Dica do campo × aviso da linha:** o aviso de saldo não cabia no campo estreito de quantidade (quebrava em três linhas); saiu do `mat-hint` e virou uma faixa abaixo da linha inteira.
+
+🧪 **Testes**
+1. Numa O.S. aberta, as etapas mostram **Aberta** (com data) e **Fechamento** como atual; numa O.S. fechada, as três ficam concluídas.
+2. Escolha uma peça: saldo e preço aparecem abaixo dela; digite a quantidade: o subtotal aparece e o custo estimado do resumo muda.
+3. Passe do saldo: a faixa "X a mais que o saldo" aparece na linha e o resumo cita a peça no aviso de tudo ou nada.
+4. **Revisar e fechar O.S.** abre a confirmação com a lista das peças.
+
 ---
 
 ## 6. Roteiro de testes no navegador
@@ -1700,10 +1760,9 @@ O padrão deste projeto (**lista com estados + diálogos que devolvem a resposta
 
 ### Próximos passos
 
-**Etapa 2, front-end: ✅ concluída** (Fases 0 a 3, polimento de estilos e identidade visual).
+**Etapa 2, front-end: ✅ concluída** (Fases 0 a 3, polimento, identidade visual e redesign R5).
 
-1. **Redesign (Fase 5 do CHECKLIST):** painel de operação, lista de máquinas com ação principal e cartões no celular, fechamento de O.S. com resumo lateral.
-2. **Testes unitários** de um service (`HttpTestingController`) e de um componente.
+1. **Testes unitários** de um service (`HttpTestingController`) e de um componente.
 
 **Futuro:** login e perfis, banco de dados (PostgreSQL + Prisma) no back-end e publicação (build + servidor web).
 

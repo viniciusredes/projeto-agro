@@ -107,7 +107,7 @@ Projeto `agro-frontend/` (detalhes, conceitos e testes no [README do front-end](
 
 > **Status:** a **Etapa 1 (back-end em memória)** e a **Etapa 2 (front-end Angular)** estão concluídas. O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
 
-- **Redesign do front-end (em andamento, branch `feat/redesign`):** o Passo 16 foi concluído (16.2 confirmação antes de fechar a O.S.; 16.3 responsividade com navegação inferior no celular). Seguem os passos R5.1 a R5.4 do CHECKLIST, a partir do canvas de design aprovado.
+- **Redesign do front-end (concluído na branch `feat/redesign`, a mergear):** Passo 16 (16.2 confirmação antes de fechar a O.S.; 16.3 responsividade com navegação inferior no celular) e R5.1 a R5.4 (identidade com menu verde-escuro e contador de O.S., Painel com pendências e ações diretas, Máquinas com filtros e cartões, fechamento de O.S. com etapas e resumo), a partir do canvas de design aprovado.
 - **Testes unitários do front:** os `.spec.ts` gerados pelo CLI precisam receber os providers (`HttpClient`, `ActivatedRoute`, `MAT_DIALOG_DATA`). Hoje 7 passam e 14 falham.
 - **Material do back-end:** trocar o exercício 4 (que virou "resposta pronta" com o `POST /maquinas`) por outro desafio, com gabarito, e incluir o cadastro no `testes.http`.
 - **Tamanho do pacote inicial:** cerca de 675 kB, perto do alerta de 700 kB configurado no `angular.json`.

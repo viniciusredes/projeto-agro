@@ -1,5 +1,5 @@
 import { Component, computed, inject, input, numberAttribute, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, DecimalPipe, formatDate } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import {
@@ -28,6 +28,12 @@ type LinhaPeca = FormGroup<{
   pecaId: FormControl<number | null>;
   quantidade: FormControl<number | null>;
 }>;
+
+// Uma etapa do ciclo de vida da O.S. (Aberta -> Fechamento -> Fechada)
+interface Etapa {
+  rotulo: string;
+  estado: 'feita' | 'atual' | 'pendente';
+}
 
 // Validador da LISTA (FormArray): a mesma peça não pode aparecer em duas linhas
 // (a API também recusa com 400; aqui o usuário é avisado antes de enviar)
@@ -66,6 +72,21 @@ export class OsDetalhe {
   // Peças do estoque: opções das linhas e saldo disponível de cada uma
   protected readonly pecas = rxResource({
     stream: () => this.pecaService.listar(),
+  });
+
+  // Etapas do topo: onde esta O.S. está no ciclo de vida
+  protected readonly etapas = computed<Etapa[]>(() => {
+    if (!this.os.hasValue()) {
+      return [];
+    }
+    const { status, dataAbertura, dataFechamento } = this.os.value();
+    const quando = (data: string) => formatDate(data, "dd/MM 'às' HH:mm", 'pt-BR');
+    const fechada = status === 'Fechada';
+    return [
+      { rotulo: `Aberta ${quando(dataAbertura)}`, estado: 'feita' },
+      { rotulo: 'Fechamento', estado: fechada ? 'feita' : 'atual' },
+      { rotulo: fechada && dataFechamento ? `Fechada ${quando(dataFechamento)}` : 'Fechada', estado: fechada ? 'feita' : 'pendente' },
+    ];
   });
 
   // Tons das etiquetas (regra compartilhada em core/ui/tons.ts)
@@ -125,12 +146,28 @@ export class OsDetalhe {
     return pecaId !== null ? this.pecaPorId().get(pecaId) : undefined;
   }
 
-  // Aviso visual (não bloqueia): a API é quem decide e recusa o fechamento inteiro com 409
-  protected acimaDoSaldo(indice: number): boolean {
+  // Subtotal da linha (quantidade x custo atual da peça); null enquanto a linha está incompleta
+  protected subtotal(indice: number): number | null {
     const peca = this.pecaDaLinha(indice);
     const quantidade = this.linhas.at(indice).controls.quantidade.value;
-    return !!peca && quantidade !== null && quantidade > peca.saldo;
+    return peca && quantidade ? quantidade * peca.custoUnitario : null;
   }
+
+  // Quanto a quantidade PASSA do saldo (0 = cabe). Aviso visual, não bloqueia:
+  // a API é quem decide e recusa o fechamento inteiro com 409
+  protected excessoDoSaldo(indice: number): number {
+    const peca = this.pecaDaLinha(indice);
+    const quantidade = this.linhas.at(indice).controls.quantidade.value;
+    return peca && quantidade !== null ? Math.max(0, quantidade - peca.saldo) : 0;
+  }
+
+  // Resumo lateral: as peças que vão travar o fechamento (tudo ou nada), avisadas ANTES do clique
+  protected readonly pecasSemSaldo = computed(() =>
+    this.valoresLinhas().flatMap(linha => {
+      const peca = linha.pecaId != null ? this.pecaPorId().get(linha.pecaId) : undefined;
+      return peca && linha.quantidade != null && linha.quantidade > peca.saldo ? [peca.codigo] : [];
+    }),
+  );
 
   protected descricaoDaPeca(pecaId: number): string {
     return this.pecaPorId().get(pecaId)?.descricao ?? '';
