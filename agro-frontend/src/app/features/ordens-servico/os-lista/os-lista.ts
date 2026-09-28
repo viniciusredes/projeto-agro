@@ -1,8 +1,8 @@
 import { Component, computed, inject, input } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { MatTableModule } from '@angular/material/table';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
@@ -31,9 +31,8 @@ function paraStatus(valor: string | undefined): StatusOS | undefined {
 @Component({
   selector: 'app-os-lista',
   imports: [
-    CurrencyPipe, DatePipe, RouterLink,
-    MatTableModule, MatFormFieldModule, MatSelectModule, MatButtonModule, MatIconModule,
-    MatProgressBarModule,
+    CurrencyPipe, DatePipe, DecimalPipe, RouterLink,
+    MatFormFieldModule, MatSelectModule, MatButtonModule, MatIconModule, MatProgressBarModule, MatTooltipModule,
   ],
   templateUrl: './os-lista.html',
   styleUrl: './os-lista.scss',
@@ -50,29 +49,42 @@ export class OsLista {
   readonly maquinaId = input<number | undefined, string | undefined>(undefined, { transform: paraMaquinaId });
   readonly status = input<StatusOS | undefined, string | undefined>(undefined, { transform: paraStatus });
 
-  protected readonly opcoesStatus = STATUS_OS;
-  protected readonly colunas = ['numero', 'maquina', 'tipo', 'descricao', 'abertura', 'status', 'custo'];
-
-  // Recurso reativo: sempre que um filtro (signal) muda, a lista é buscada de novo.
-  // Se chegar um filtro novo antes da resposta anterior, a requisição antiga é cancelada.
+  // Recurso reativo: sempre que a máquina do filtro muda, a lista é buscada de novo.
+  // O STATUS não vai para a API (R6.3): com todas as O.S. da máquina em mãos, a tela conta
+  // abertas e fechadas para os botões de filtro ("Abertas · 2") sem uma chamada a mais.
   protected readonly ordens = rxResource({
-    params: () => ({ maquinaId: this.maquinaId(), status: this.status() }),
+    params: () => ({ maquinaId: this.maquinaId() }),
     stream: ({ params }) => this.osService.listar(params),
   });
 
-  // Máquinas: usadas no filtro e para mostrar a tag em cada linha (sem params = carrega uma vez)
+  // Máquinas: usadas no filtro e para mostrar tag e modelo em cada O.S. (carrega uma vez)
   protected readonly maquinas = rxResource({
     stream: () => this.maquinaService.listar(),
   });
 
   // Mais recentes primeiro. hasValue() evita ler value() quando o recurso está em erro
-  protected readonly ordensOrdenadas = computed(() =>
+  private readonly ordensOrdenadas = computed(() =>
     this.ordens.hasValue() ? [...this.ordens.value()].sort((a, b) => b.id - a.id) : [],
   );
 
-  // "Join" no front: id da máquina -> tag
-  private readonly tagPorId = computed(
-    () => new Map((this.maquinas.hasValue() ? this.maquinas.value() : []).map(m => [m.id, m.tag])),
+  // Contagens para os botões de filtro
+  protected readonly totais = computed(() => {
+    const todas = this.ordensOrdenadas();
+    const abertas = todas.filter(os => os.status === 'Aberta').length;
+    return { todas: todas.length, abertas, fechadas: todas.length - abertas };
+  });
+
+  // As duas seções da tela, já respeitando o filtro de status da URL
+  protected readonly abertas = computed(() =>
+    this.status() === 'Fechada' ? [] : this.ordensOrdenadas().filter(os => os.status === 'Aberta'),
+  );
+  protected readonly fechadas = computed(() =>
+    this.status() === 'Aberta' ? [] : this.ordensOrdenadas().filter(os => os.status === 'Fechada'),
+  );
+
+  // "Join" no front: id da máquina -> "TR-01 · Trator"
+  private readonly nomePorId = computed(
+    () => new Map((this.maquinas.hasValue() ? this.maquinas.value() : []).map(m => [m.id, `${m.tag} · ${m.modelo}`])),
   );
 
   protected readonly temFiltro = computed(
@@ -83,8 +95,8 @@ export class OsLista {
   protected readonly etiquetaStatus = etiquetaStatusOS;
   protected readonly etiquetaTipo = etiquetaTipoOS;
 
-  protected tagDaMaquina(maquinaId: number): string {
-    return this.tagPorId().get(maquinaId) ?? `#${maquinaId}`;
+  protected nomeDaMaquina(maquinaId: number): string {
+    return this.nomePorId().get(maquinaId) ?? `Máquina #${maquinaId}`;
   }
 
   // Abre o diálogo sem máquina escolhida (o usuário escolhe no select do diálogo)

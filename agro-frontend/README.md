@@ -116,9 +116,9 @@ Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.
 | `/maquinas` | Lista de máquinas com busca, filtros por situação (`?situacao=`) e uma ação principal por máquina + diálogos Nova máquina, Saída, Retorno e O.S. | `GET /maquinas`, `GET /movimentacoes`, `GET /ordens-servico?status=Aberta`, `POST /maquinas`, `POST /maquinas/:id/saida`, `POST /maquinas/:id/retorno` |
 | `/maquinas/:id` | Detalhe da máquina: indicadores e custo por tipo de O.S. | `GET /maquinas/:id/manutencoes` |
 | `/movimentacoes` | Histórico de saídas e retornos, com filtro por máquina | `GET /movimentacoes?maquinaId=` |
-| `/estoque` | Lista de peças + diálogos Nova peça e Entrada | `GET /pecas`, `POST /pecas`, `POST /pecas/:id/entradas` |
+| `/estoque` | Lista de peças com busca, filtro "para repor" (`?filtro=repor`), barra de nível do saldo e ação principal + diálogos Nova peça e Entrada | `GET /pecas`, `POST /pecas`, `POST /pecas/:id/entradas` |
 | `/estoque/:id` | Kardex da peça | `GET /pecas/:id`, `GET /pecas/:id/movimentos` |
-| `/ordens-servico` | Lista de O.S. com filtros na URL + diálogo de abertura | `GET /ordens-servico?maquinaId=&status=`, `POST /ordens-servico` |
+| `/ordens-servico` | Abertas em cartões e fechadas em lista (cada O.S. inteira é um link), filtros de máquina e status na URL + diálogo de abertura | `GET /ordens-servico?maquinaId=`, `POST /ordens-servico` |
 | `/ordens-servico/:id` | Detalhe e fechamento da O.S. | `GET /ordens-servico/:id`, `POST /ordens-servico/:id/fechamento` |
 | qualquer outra | Volta para o início | — |
 
@@ -174,7 +174,7 @@ O front foi construído em **passos pequenos**. Cada passo traz: 🎯 o **objeti
 | **2. Estoque** | [Passo 8](#passo-8--lista-de-peças-com-custo-e-reposição) a [Passo 11](#passo-11--kardex-rota-com-parâmetro) |
 | **3. Manutenção** | [Passo 12](#passo-12--lista-de-os-com-filtros-na-url) a [Passo 15](#passo-15--custo-de-manutenção-por-máquina) |
 | **4. Polimento** | [Passo 16.1](#passo-161--estilos-globais-e-tons-semânticos) a [16.3](#passo-163--responsividade-celular), [Refinamentos R1 a R3](#refinamentos-r1-a-r3--identidade-visual-e-tema-escuro) e [R4](#refinamento-r4--conferência-visual-e-correções) |
-| **5. Redesign** | [R5.1](#r51--identidade-menu-verde-escuro-contador-de-os-e-fundo-tonalizado) a [R5.4](#r54--os-em-fechamento-etapas-subtotais-e-resumo) |
+| **5. Redesign** | [R5.1](#r51--identidade-menu-verde-escuro-contador-de-os-e-fundo-tonalizado) a [R5.4](#r54--os-em-fechamento-etapas-subtotais-e-resumo) e [R6.1 a R6.3](#redesign-r6--tema-escuro-estoque-e-lista-de-os) |
 
 > **Dica para os alunos:** o histórico do Git tem **um commit por passo** (`git log --oneline`). Para ver exatamente o que mudou num passo, use `git show <hash>`. O [CHECKLIST.md](../CHECKLIST.md) lista os hashes.
 
@@ -642,7 +642,7 @@ Template: `{{ peca.custoUnitario | currency }}` → `R$ 45,90`. A linha recebe `
 - **Tipo união `(Peca | PecaParaRepor)[]`:** a lista pode ter peças com ou sem o campo extra.
 - **`mat-slide-toggle`:** um liga/desliga que chama `alternarReposicao($event.checked)`.
 
-🧪 **Testes:** a COR-001 aparece destacada (saldo abaixo do mínimo). Ligue **Só reposição**: só ela aparece, com a coluna "Falta".
+🧪 **Testes:** a COR-001 aparece destacada (saldo abaixo do mínimo). Ligue **Só reposição**: só ela aparece, com a coluna "Falta". *(No R6.2, o toggle virou o filtro **Para repor · 1**, com a URL `?filtro=repor`.)*
 
 ---
 
@@ -1571,6 +1571,106 @@ Resumo lateral com o aviso de tudo ou nada **citando as peças**:
 
 ---
 
+### Redesign R6 — Tema escuro, Estoque e lista de O.S.
+
+Segunda rodada de redesign, também desenhada antes num canvas: uma paleta escura melhor e as duas telas que ainda estavam no visual antigo. Os três passos foram implementados juntos, num commit só.
+
+#### R6.1 — Paleta escura "noite no campo"
+
+🎯 Corrigir três problemas do tema escuro: camadas quase iguais (o menu tinha contraste **1,04** com o fundo e "sumia"), verde neon nos botões competindo com o laranja, e fundos de alerta "barrentos".
+
+🧩 Só a **metade escura** de cada `light-dark()` muda; o tema claro fica igual. No `styles.scss` (tokens do Material):
+
+```scss
+@include mat.theme-overrides((
+  primary: light-dark(#1c6b45, #5cd69a),            // verde-menta mais calmo que o neon #4cf090
+  surface: light-dark(#f7faf5, #111a15),            // fundo esverdeado
+  surface-container: light-dark(#ebefe9, #212e27),  // cada camada um passo mais clara
+  outline-variant: light-dark(#bfc9bf, #2d3b33),    // bordas visíveis
+  ...
+));
+```
+
+No `_comuns.scss` (cores próprias):
+
+```scss
+--agro-menu-fundo: light-dark(#0c3a26, #0f2b1e);    // verde-floresta: o menu volta a ter identidade
+--agro-cartao: light-dark(#ffffff, #19241e);
+--agro-link: light-dark(#1c6b45, #7ee2b0);          // link mais claro que o botão
+--agro-linha-destaque: light-dark(#fff7ed, #2e2517); // âmbar suave: O.S. aberta, peça a repor
+```
+
+📚 **Conceitos**
+- **Tema escuro não é "tudo preto":** as camadas (fundo < cartão < cartão elevado) precisam de passos de luminosidade, e a cor da marca pode (e deve) continuar presente, como no menu verde-floresta.
+- **Saturação no escuro:** cores muito saturadas "vibram" sobre fundo escuro. O verde do botão ficou menos saturado; o dos links, mais claro (texto pequeno precisa de mais contraste que um botão cheio).
+- **Medir em vez de olhar:** todos os pares de texto foram calculados (mínimo 4,5:1; a maioria acima de 7:1), e o par de cores do gráfico foi revalidado sobre o novo cartão, inclusive para daltonismo.
+- **Tokens pagam a conta:** como as telas usam `var(--mat-sys-*)` e `var(--agro-*)`, a paleta nova chegou a **todas** as telas mudando só dois arquivos.
+
+#### R6.2 — Estoque no padrão do redesign
+
+🎯 Dar ao Estoque o mesmo padrão de Máquinas e mostrar o saldo de um jeito que se lê num relance.
+
+🧩 `pecas-lista.ts`: filtro na URL e o **nível** de cada peça:
+
+```ts
+readonly filtro = input<FiltroEstoque | undefined, string | undefined>(undefined, { transform: paraFiltro }); // ?filtro=repor
+
+// A barra vai até o DOBRO do mínimo: a marca do mínimo fica sempre no meio (50%)
+const nivel = peca.estoqueMinimo > 0 ? Math.min(100, (peca.saldo / (peca.estoqueMinimo * 2)) * 100) : 100;
+```
+
+```html
+<div class="nivel" role="img" [attr.aria-label]="'Saldo ' + peca.saldo + ...">
+  <div class="nivel__barra" [style.width.%]="linha.nivel"></div>
+  <span class="nivel__minimo"></span>
+</div>
+```
+
+📚 **Conceitos**
+- **Barra de nível:** "3 un" sozinho não diz se é pouco; a barra com a marca do mínimo mostra a situação antes de ler o número. `role="img"` + `aria-label` dizem o mesmo para leitores de tela.
+- **Ordenar pela urgência:** peças a repor vêm primeiro, com fundo âmbar e borda laranja; só nelas o "Registrar entrada" é botão cheio.
+- **Uma chamada, filtro na tela:** o filtro "para repor" usa a mesma lista (antes era outra chamada, `?abaixoDoMinimo=true`). O método `listarParaRepor()` continua no service como exemplo da rota da API.
+- **Extrair na terceira vez:** busca e botões de filtro estavam em Máquinas; com Estoque e O.S. usando igual, foram para `_comuns.scss` (`.busca`, `.chip`, `.chip__ponto`...).
+
+#### R6.3 — Lista de O.S.: o detalhe a um clique de qualquer ponto
+
+🎯 Tornar óbvio como abrir uma O.S.: antes, só o **número** era link.
+
+🧩 A O.S. **inteira** é o link:
+
+```html
+<a class="os-cartao" [routerLink]="['/ordens-servico', os.id]">
+  ...
+  <span class="os-cartao__acao">Fechar O.S. <mat-icon>chevron_right</mat-icon></span>
+</a>
+```
+
+O status saiu da chamada à API e virou filtro na tela, para contar abertas e fechadas com a mesma resposta:
+
+```ts
+protected readonly ordens = rxResource({
+  params: () => ({ maquinaId: this.maquinaId() }),     // o status NÃO vai para a API
+  stream: ({ params }) => this.osService.listar(params),
+});
+protected readonly abertas = computed(() =>
+  this.status() === 'Fechada' ? [] : this.ordensOrdenadas().filter(os => os.status === 'Aberta'),
+);
+```
+
+📚 **Conceitos**
+- **Área de clique = o item inteiro:** um cartão ou linha que é todo um `<a>` é mais fácil de acertar (principalmente no celular) e dispensa adivinhar onde clicar. O realce da borda no *hover*/foco e a seta `›` confirmam que é clicável.
+- **Link com "cara" de botão:** "Fechar O.S. ›" é um `<span>` dentro do link, não um `<button>`: botão dentro de link é HTML inválido e confunde teclado e leitores de tela.
+- **Separar por situação:** abertas (que pedem ação) em cartões de destaque; fechadas (histórico) numa lista compacta com data e custo.
+- **Filtro no servidor × no cliente:** a máquina continua indo para a API; o status é filtrado na tela, porque os contadores ("Abertas · 2") precisam das duas situações.
+
+🧪 **Testes**
+1. No tema escuro: menu verde-floresta, cartões destacados do fundo, botões verde-menta suaves.
+2. Estoque: a COR-001 vem primeiro, com a barra laranja abaixo da marca do mínimo; **Para repor · 1** filtra e muda a URL.
+3. O.S.: clique em qualquer ponto de um cartão aberto ou de uma linha fechada: abre o detalhe. **Abertas · 2** e **Fechadas · 2** filtram pela URL.
+4. No celular, as três telas viram cartões com a ação ocupando a largura.
+
+---
+
 ## 6. Roteiro de testes no navegador
 
 Roteiro completo para uma demonstração, com a API recém-iniciada. Siga na ordem.
@@ -1585,12 +1685,12 @@ Roteiro completo para uma demonstração, com a API recém-iniciada. Siga na ord
 | 6 | Máquinas | **Registrar retorno** do TR-01 com horímetro menor | Erro no campo |
 | 7 | Máquinas | **Registrar retorno** com 1010 e uma avaria | "10 h trabalhadas", TR-01 "Disponível" |
 | 8 | Movimentações | Filtrar por TR-01 | Uma linha, com datas em pt-BR e a avaria |
-| 9 | Estoque | Ligar **Só reposição** | Só a COR-001, com a coluna "Falta" |
+| 9 | Estoque | Clicar em **Para repor · 1** | Só a COR-001, com "faltam 2 para o mínimo"; a URL ganha `?filtro=repor` |
 | 10 | Estoque | **Nova peça** em `un` com mínimo 2,5 | Erro "inteiro"; trocando para `L`, o erro some |
-| 11 | Estoque | **Entrada** de 10 un na COR-001 | Prévia do saldo, mensagem "Custo: de → para" |
+| 11 | Estoque | **Registrar entrada** de 10 un na COR-001 | Prévia do saldo, mensagem "Custo: de → para" |
 | 12 | Estoque | Clicar no código da COR-001 | Kardex com implantação e entrada |
 | 13 | Máquinas | **Registrar saída** do CO-02 e depois o botão de ferramenta (Abrir O.S.) nele | Aviso "máquina em campo"; snackbar com as horas trabalhadas; a ação vira **Ver O.S.** |
-| 14 | Ordens de Serviço | Filtrar por status "Aberta"; copiar a URL numa aba nova | O filtro vem aplicado pela URL |
+| 14 | Ordens de Serviço | Clicar em **Abertas**; copiar a URL numa aba nova; clicar em qualquer ponto de um cartão | O filtro vem aplicado pela URL; o cartão inteiro abre o detalhe da O.S. |
 | 15 | O.S. aberta | Adicionar a mesma peça em duas linhas | Erro "peça repetida" |
 | 16 | O.S. aberta | Quantidade acima do saldo e **Fechar** | Aviso amarelo; 409 da API; kardex sem baixa |
 | 17 | O.S. aberta | Quantidades válidas e **Fechar** | O.S. fechada, itens com custo, total no rodapé |

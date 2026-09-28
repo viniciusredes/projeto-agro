@@ -82,6 +82,14 @@ Mergeada na `main` em dois PRs:
 - [x] **R5.3** — Máquinas: busca por tag/modelo, filtros rápidos por situação com contagem (`?situacao=` na URL), contexto de cada máquina (operador · frente ou O.S. aberta), uma ação principal por situação + "Abrir O.S." como ícone, lista em CSS grid que vira cartões no celular (`grid-template-areas`) · `6c9fef0`
 - [x] **R5.4** — O.S. em fechamento: etapas do ciclo de vida (`<ol>` + `aria-current="step"`), saldo e preço da peça escolhida, subtotal por linha, aviso específico de saldo abaixo da linha ("41 un a mais que o saldo de 9 un"), resumo lateral com o tudo ou nada citando as peças e botão "Revisar e fechar O.S." · `2e4c32e`
 
+### Fase 6 — Redesign 2: tema escuro, Estoque e lista de O.S. ✅
+
+> A partir do canvas "Agro Frota — Estoque, O.S. e tema escuro", aprovado pelo usuário. Branch `feat/redesign-2`; os três passos foram implementados juntos, num commit só.
+
+- [x] **R6.1** — Paleta escura "noite no campo": menu verde-floresta, camadas com passos de luminosidade, verde-menta mais calmo nos botões e link mais claro, âmbar suave nas pendências, etiquetas mais vivas (todos os pares de texto ≥ 4,5:1; par do gráfico revalidado) · *commit: a preencher*
+- [x] **R6.2** — Estoque no padrão do redesign: busca, filtro `?filtro=repor`, peças a repor primeiro, barra de nível com a marca do mínimo, ação principal e cartões no celular; busca e filtros extraídos para `_comuns.scss` · *commit: a preencher*
+- [x] **R6.3** — Lista de O.S.: abertas em cartões e fechadas em lista, cada O.S. inteira como link, contadores por status (status filtrado na tela) · *commit: a preencher*
+
 ---
 
 ## Pendências e decisões em aberto
