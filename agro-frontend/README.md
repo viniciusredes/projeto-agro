@@ -1065,6 +1065,58 @@ export function etiquetaStatusMaquina(status: StatusMaquina): string {
 
 ---
 
+### Passo 16.2 — Diálogo de confirmação reutilizável
+
+🎯 Pedir confirmação antes de uma ação **irreversível** (fechar a O.S.), dizendo **o que vai acontecer**.
+
+🧩 `shared/confirmacao-dialog/confirmacao-dialog.ts`:
+
+```ts
+export interface DadosConfirmacao {
+  titulo: string;
+  mensagem: string;
+  detalhes?: string[];     // o que será afetado
+  confirmar: string;       // o VERBO da ação, nunca só "OK"
+  cancelar?: string;
+  irreversivel?: boolean;
+}
+
+export class ConfirmacaoDialog {
+  protected readonly dados = inject<DadosConfirmacao>(MAT_DIALOG_DATA);
+}
+```
+
+Template: os botões devolvem a resposta sem nenhum código:
+
+```html
+<button mat-button [mat-dialog-close]="false">{{ dados.cancelar ?? 'Cancelar' }}</button>
+<button mat-flat-button [mat-dialog-close]="true" cdkFocusInitial>{{ dados.confirmar }}</button>
+```
+
+No detalhe da O.S., o `fechar()` virou **perguntar** + **enviar**:
+
+```ts
+this.dialog
+  .open<ConfirmacaoDialog, DadosConfirmacao, boolean>(ConfirmacaoDialog, { data: dados, width: '480px' })
+  .afterClosed()
+  .pipe(filter(confirmou => confirmou === true)) // cancelar, Esc ou clique fora: nada acontece
+  .subscribe(() => this.enviarFechamento(pecas));
+```
+
+📚 **Conceitos**
+- **`core/` × `shared/`:** `core` guarda o que existe **uma vez** no app (services, interceptor, tema). `shared` guarda **componentes reutilizáveis** por várias telas. O diálogo não sabe nada de O.S.: recebe textos e devolve `true`/`false`.
+- **`[mat-dialog-close]="valor"`:** fecha o diálogo e entrega o valor ao `afterClosed()`. Esc e clique fora devolvem `undefined`, por isso o filtro compara com `=== true`.
+- **Confirmação que informa:** "Tem certeza?" não ajuda ninguém a decidir. O diálogo lista as peças que vão sair do estoque, o custo estimado e as consequências; o botão repete o verbo ("Fechar O.S.").
+- **Só para o irreversível:** confirmar tudo treina o usuário a clicar sem ler. Saída, retorno e entrada de estoque não pedem confirmação.
+
+🧪 **Testes**
+1. Numa O.S. aberta, adicione uma peça e clique em **Fechar O.S.**: o diálogo lista a peça e o custo estimado.
+2. **Cancelar**, Esc ou clique fora: nada é enviado (confira a aba Network) e o formulário continua preenchido.
+3. **Fechar O.S.** no diálogo: a O.S. fecha como antes.
+4. Sem nenhuma linha: o diálogo avisa que a O.S. será fechada sem custo.
+
+---
+
 ### Refinamentos R1 a R3 — Identidade visual e tema escuro
 
 🎯 Dar ao sistema a cara do produto: página inicial com a logo, paleta da marca e tema escuro.
@@ -1386,7 +1438,6 @@ O padrão deste projeto (**lista com estados + diálogos que devolvem a resposta
 
 - **Sem login:** qualquer pessoa com acesso à URL usa tudo (mesma decisão do back-end).
 - **Dados em memória:** herdado da API; reiniciar o back-end zera tudo.
-- **Sem confirmação** antes de ações irreversíveis, como o fechamento da O.S. (Passo 16.2 não implementado).
 - **Menu lateral fixo:** em telas de celular ele ocupa espaço demais (Passo 16.3, responsividade, não implementado).
 - **Testes unitários:** os `.spec.ts` são os gerados pelo CLI e ainda não foram adaptados. Hoje o `npm test` mostra **7 passando e 14 falhando**: as telas dependem de `HttpClient`, `ActivatedRoute` e `MAT_DIALOG_DATA`, e os testes gerados não fornecem esses providers (erro `NG0201: No provider found`). Adaptá-los é um ótimo exercício.
 - **Proxy só no desenvolvimento:** em produção, o front e a API precisam ser servidos na mesma origem (ou a API precisa liberar CORS).
@@ -1395,9 +1446,8 @@ O padrão deste projeto (**lista com estados + diálogos que devolvem a resposta
 
 **Etapa 2, front-end: ✅ concluída** (Fases 0 a 3, polimento de estilos e identidade visual).
 
-1. **Diálogo de confirmação reutilizável** (`ConfirmacaoDialog`) antes de fechar a O.S.
-2. **Responsividade:** `BreakpointObserver` para o menu virar sobreposto (`mode="over"`) no celular.
-3. **Testes unitários** de um service (`HttpTestingController`) e de um componente.
+1. **Responsividade:** `BreakpointObserver` para o menu virar sobreposto (`mode="over"`) no celular.
+2. **Testes unitários** de um service (`HttpTestingController`) e de um componente.
 
 **Futuro:** login e perfis, banco de dados (PostgreSQL + Prisma) no back-end e publicação (build + servidor web).
 

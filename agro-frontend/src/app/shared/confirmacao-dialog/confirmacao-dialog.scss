@@ -1,0 +1,24 @@
+.mensagem {
+  margin: 0 0 12px;
+}
+
+// Lista do que será afetado (ex.: as peças que saem do estoque)
+.detalhes {
+  margin: 0 0 12px;
+  padding: 12px 12px 12px 32px;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container);
+
+  li + li {
+    margin-top: 4px;
+  }
+}
+
+.irreversivel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--agro-alerta-texto);
+  font-weight: 500;
+}

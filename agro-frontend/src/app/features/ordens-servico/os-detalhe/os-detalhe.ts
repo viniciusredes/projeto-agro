@@ -6,7 +6,8 @@ import {
   AbstractControl, FormArray, FormControl, FormGroup, ReactiveFormsModule, ValidationErrors,
   ValidatorFn, Validators,
 } from '@angular/forms';
-import { finalize } from 'rxjs';
+import { filter, finalize } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
 import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -20,6 +21,7 @@ import { PecaService } from '../../../core/services/peca.service';
 import { Peca } from '../../../core/models/peca';
 import { PecaUsada } from '../../../core/models/ordem-servico';
 import { etiquetaStatusOS, etiquetaTipoOS } from '../../../core/ui/tons';
+import { ConfirmacaoDialog, DadosConfirmacao } from '../../../shared/confirmacao-dialog/confirmacao-dialog';
 
 // Uma linha do fechamento: qual peça e quanto foi usado
 type LinhaPeca = FormGroup<{
@@ -50,6 +52,7 @@ export class OsDetalhe {
   private readonly osService = inject(OrdemServicoService);
   private readonly pecaService = inject(PecaService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
 
   // /ordens-servico/:id -> o :id chega como input (withComponentInputBinding), já convertido em número
   readonly id = input.required({ transform: numberAttribute });
@@ -144,6 +147,30 @@ export class OsDetalhe {
       pecaId !== null && quantidade !== null ? [{ pecaId, quantidade }] : [],
     );
 
+    // Ação irreversível: antes de enviar, mostra o que vai acontecer e pede confirmação
+    const reais = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+    const dados: DadosConfirmacao = {
+      titulo: `Fechar a O.S. nº ${this.id()}?`,
+      mensagem: pecas.length
+        ? `Estas peças serão baixadas do estoque (custo estimado: ${reais.format(this.custoEstimado())}), e a máquina volta a ficar disponível.`
+        : 'A O.S. será fechada sem peças (custo zero), e a máquina volta a ficar disponível.',
+      detalhes: pecas.map(({ pecaId, quantidade }) => {
+        const peca = this.pecaPorId().get(pecaId);
+        return `${peca?.codigo} · ${peca?.descricao}: ${quantidade.toLocaleString('pt-BR')} ${peca?.unidade}`;
+      }),
+      confirmar: 'Fechar O.S.',
+      irreversivel: true,
+    };
+
+    this.dialog
+      .open<ConfirmacaoDialog, DadosConfirmacao, boolean>(ConfirmacaoDialog, { data: dados, width: '480px' })
+      .afterClosed()
+      .pipe(filter(confirmou => confirmou === true)) // cancelar, Esc ou clique fora: nada acontece
+      .subscribe(() => this.enviarFechamento(pecas));
+  }
+
+  // Só chega aqui depois do "Fechar O.S." no diálogo de confirmação
+  private enviarFechamento(pecas: PecaUsada[]): void {
     this.fechando.set(true);
 
     this.osService
