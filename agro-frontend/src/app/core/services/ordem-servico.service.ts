@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { API_URL } from '../api';
+import { Observable, map } from 'rxjs';
+import { API_URL, erroTratadoNaTela } from '../api';
 import {
   DadosAberturaOS, DadosFechamentoOS, FiltrosOS, ManutencoesMaquina, OrdemServico,
   OrdemServicoDetalhe, RespostaAberturaOS, RespostaFechamentoOS,
@@ -22,6 +22,15 @@ export class OrdemServicoService {
       params = params.set('status', filtros.status);
     }
     return this.http.get<OrdemServico[]>(this.url, { params });
+  }
+
+  // Quantas O.S. estão abertas (contador do menu). Silencioso: é chamado a cada navegação,
+  // então um erro aqui não deve abrir snackbar (o contador só some)
+  contarAbertas(): Observable<number> {
+    const params = new HttpParams().set('status', 'Aberta');
+    return this.http
+      .get<OrdemServico[]>(this.url, { params, context: erroTratadoNaTela() })
+      .pipe(map(ordens => ordens.length));
   }
 
   // GET /api/ordens-servico/:id -> detalhe com a tag e o modelo da máquina

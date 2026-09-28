@@ -60,7 +60,7 @@ npm install      # só na primeira vez
 npm start        # = ng serve -> http://localhost:4200
 ```
 
-Abra **http://localhost:4200**. A página inicial deve mostrar "2 de 2 máquinas disponíveis".
+Abra **http://localhost:4200**. O Painel deve mostrar "Disponíveis no pátio: 2 de 2" e a COR-001 em "Precisa de atenção".
 
 Outros comandos úteis:
 
@@ -112,8 +112,8 @@ Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.
 
 | Rota | Tela | Chamadas à API |
 |---|---|---|
-| `/` | Início: logo, descritivo e "A frota agora" | `GET /maquinas`, `GET /pecas?abaixoDoMinimo=true` |
-| `/maquinas` | Lista de máquinas + diálogos Nova máquina, Saída, Retorno e O.S. | `GET /maquinas`, `POST /maquinas`, `POST /maquinas/:id/saida`, `POST /maquinas/:id/retorno` |
+| `/` | Painel: indicadores da frota, "Precisa de atenção" com ações diretas e custo de manutenção | `GET /maquinas`, `GET /pecas`, `GET /ordens-servico`, `GET /movimentacoes` |
+| `/maquinas` | Lista de máquinas com busca, filtros por situação (`?situacao=`) e uma ação principal por máquina + diálogos Nova máquina, Saída, Retorno e O.S. | `GET /maquinas`, `GET /movimentacoes`, `GET /ordens-servico?status=Aberta`, `POST /maquinas`, `POST /maquinas/:id/saida`, `POST /maquinas/:id/retorno` |
 | `/maquinas/:id` | Detalhe da máquina: indicadores e custo por tipo de O.S. | `GET /maquinas/:id/manutencoes` |
 | `/movimentacoes` | Histórico de saídas e retornos, com filtro por máquina | `GET /movimentacoes?maquinaId=` |
 | `/estoque` | Lista de peças + diálogos Nova peça e Entrada | `GET /pecas`, `POST /pecas`, `POST /pecas/:id/entradas` |
@@ -173,7 +173,7 @@ O front foi construído em **passos pequenos**. Cada passo traz: 🎯 o **objeti
 | **1. Máquinas** | [Passo 3](#passo-3--lista-de-máquinas) a [Passo 7](#passo-7--interceptor-global-de-erros) |
 | **2. Estoque** | [Passo 8](#passo-8--lista-de-peças-com-custo-e-reposição) a [Passo 11](#passo-11--kardex-rota-com-parâmetro) |
 | **3. Manutenção** | [Passo 12](#passo-12--lista-de-os-com-filtros-na-url) a [Passo 15](#passo-15--custo-de-manutenção-por-máquina) |
-| **4. Polimento** | [Passo 16.1](#passo-161--estilos-globais-e-tons-semânticos) e [Refinamentos R1 a R3](#refinamentos-r1-a-r3--identidade-visual-e-tema-escuro) |
+| **4. Polimento** | [Passo 16.1](#passo-161--estilos-globais-e-tons-semânticos) a [16.3](#passo-163--responsividade-celular), [Refinamentos R1 a R3](#refinamentos-r1-a-r3--identidade-visual-e-tema-escuro) e [R4](#refinamento-r4--conferência-visual-e-correções) |
 
 > **Dica para os alunos:** o histórico do Git tem **um commit por passo** (`git log --oneline`). Para ver exatamente o que mudou num passo, use `git show <hash>`. O [CHECKLIST.md](../CHECKLIST.md) lista os hashes.
 
@@ -1065,6 +1065,121 @@ export function etiquetaStatusMaquina(status: StatusMaquina): string {
 
 ---
 
+### Passo 16.2 — Diálogo de confirmação reutilizável
+
+🎯 Pedir confirmação antes de uma ação **irreversível** (fechar a O.S.), dizendo **o que vai acontecer**.
+
+🧩 `shared/confirmacao-dialog/confirmacao-dialog.ts`:
+
+```ts
+export interface DadosConfirmacao {
+  titulo: string;
+  mensagem: string;
+  detalhes?: string[];     // o que será afetado
+  confirmar: string;       // o VERBO da ação, nunca só "OK"
+  cancelar?: string;
+  irreversivel?: boolean;
+}
+
+export class ConfirmacaoDialog {
+  protected readonly dados = inject<DadosConfirmacao>(MAT_DIALOG_DATA);
+}
+```
+
+Template: os botões devolvem a resposta sem nenhum código:
+
+```html
+<button mat-button [mat-dialog-close]="false">{{ dados.cancelar ?? 'Cancelar' }}</button>
+<button mat-flat-button [mat-dialog-close]="true" cdkFocusInitial>{{ dados.confirmar }}</button>
+```
+
+No detalhe da O.S., o `fechar()` virou **perguntar** + **enviar**:
+
+```ts
+this.dialog
+  .open<ConfirmacaoDialog, DadosConfirmacao, boolean>(ConfirmacaoDialog, { data: dados, width: '480px' })
+  .afterClosed()
+  .pipe(filter(confirmou => confirmou === true)) // cancelar, Esc ou clique fora: nada acontece
+  .subscribe(() => this.enviarFechamento(pecas));
+```
+
+📚 **Conceitos**
+- **`core/` × `shared/`:** `core` guarda o que existe **uma vez** no app (services, interceptor, tema). `shared` guarda **componentes reutilizáveis** por várias telas. O diálogo não sabe nada de O.S.: recebe textos e devolve `true`/`false`.
+- **`[mat-dialog-close]="valor"`:** fecha o diálogo e entrega o valor ao `afterClosed()`. Esc e clique fora devolvem `undefined`, por isso o filtro compara com `=== true`.
+- **Confirmação que informa:** "Tem certeza?" não ajuda ninguém a decidir. O diálogo lista as peças que vão sair do estoque, o custo estimado e as consequências; o botão repete o verbo ("Fechar O.S.").
+- **Só para o irreversível:** confirmar tudo treina o usuário a clicar sem ler. Saída, retorno e entrada de estoque não pedem confirmação.
+
+🧪 **Testes**
+1. Numa O.S. aberta, adicione uma peça e clique em **Fechar O.S.**: o diálogo lista a peça e o custo estimado.
+2. **Cancelar**, Esc ou clique fora: nada é enviado (confira a aba Network) e o formulário continua preenchido.
+3. **Fechar O.S.** no diálogo: a O.S. fecha como antes.
+4. Sem nenhuma linha: o diálogo avisa que a O.S. será fechada sem custo.
+
+---
+
+### Passo 16.3 — Responsividade (celular)
+
+🎯 Usar o sistema no celular, no pátio ou na oficina: sem o menu lateral ocupando metade da tela e com as áreas principais ao alcance do polegar.
+
+🧩 `layout/shell/shell.ts`:
+
+```ts
+const CELULAR = '(max-width: 767.98px)';
+
+// true quando a tela é de celular; muda sozinho ao girar o aparelho ou redimensionar a janela
+protected readonly celular = toSignal(
+  inject(BreakpointObserver).observe(CELULAR).pipe(map(estado => estado.matches)),
+  { initialValue: false },
+);
+
+// Navegação inferior: só os itens com rótulo curto
+protected readonly itensInferiores = this.itensMenu.filter(item => item.curto);
+```
+
+`shell.html`:
+
+```html
+<!-- Desktop: menu fixo ao lado. Celular: gaveta por cima do conteúdo, fechada. -->
+<mat-sidenav #menu [mode]="celular() ? 'over' : 'side'" [opened]="!celular()">
+  ... <a mat-list-item ... (click)="aoNavegar(menu)"> ...
+</mat-sidenav>
+
+@if (celular()) {
+  <nav class="nav-inferior" aria-label="Navegação principal">
+    @for (item of itensInferiores; track item.rota) {
+      <a [routerLink]="item.rota" routerLinkActive="nav-inferior__item--ativo" ariaCurrentWhenActive="page">
+        <span class="nav-inferior__icone"><mat-icon>{{ item.icone }}</mat-icon></span>
+        {{ item.curto }}
+      </a>
+    }
+  </nav>
+}
+```
+
+Tabelas (`_comuns.scss`): no celular, a tabela rola na horizontal em vez de sair da tela:
+
+```scss
+@media (max-width: 767.98px) {
+  .mat-mdc-table.tabela { display: block; overflow-x: auto; white-space: nowrap; }
+}
+```
+
+📚 **Conceitos**
+- **`BreakpointObserver` (Angular CDK):** observa uma *media query* e emite a cada mudança. Com `toSignal`, vira um signal que o template usa em `@if` e em bindings.
+- **TS decide o que existe, CSS ajusta a aparência:** a navegação inferior só **existe** no celular (`@if`), enquanto margens e tamanhos mudam por `@media` no SCSS. As duas usam a **mesma** largura de corte (767,98px).
+- **`mat-sidenav` com `mode`:** `side` empurra o conteúdo (desktop); `over` abre por cima, com fundo escurecido (celular). A gaveta fecha ao escolher uma tela.
+- **Navegação inferior:** as 4 áreas mais usadas ficam ao alcance do polegar; o restante (Movimentações) continua no menu ☰. Cada item tem 56px de altura (área de toque confortável) e `aria-current="page"` no ativo.
+- **`100dvh` e `safe-area-inset-bottom`:** no celular, `100vh` inclui a barra de endereço (a página ficaria maior que a tela); `dvh` é a altura **visível**. O `env(safe-area-inset-bottom)` afasta a navegação da barra de gestos do iPhone.
+- **Layout que quebra linha:** no fechamento da O.S., a peça ocupa a largura inteira e a quantidade desce para a linha de baixo (`flex-wrap` + `flex-basis: 100%`).
+
+🧪 **Testes** (DevTools → *Toggle device toolbar*, Ctrl+Shift+M, com um celular de ~390px)
+1. A navegação inferior aparece; o menu lateral some.
+2. Toque em ☰: o menu abre por cima; escolha **Movimentações**: ele fecha sozinho.
+3. Em **Máquinas**, a tabela rola para o lado, sem quebrar "TR-01".
+4. Aumente a largura para mais de 768px: volta o menu lateral fixo e a navegação inferior some, sem recarregar.
+
+---
+
 ### Refinamentos R1 a R3 — Identidade visual e tema escuro
 
 🎯 Dar ao sistema a cara do produto: página inicial com a logo, paleta da marca e tema escuro.
@@ -1154,25 +1269,326 @@ No `index.html`, um script de poucas linhas aplica o tema salvo **antes** do Ang
 
 ---
 
+### Refinamento R4 — Conferência visual e correções
+
+🎯 Percorrer **todas** as telas e diálogos nos dois temas, com dados reais, e corrigir o que aparecer.
+
+A conferência cobriu 18 cenários (listas, diálogos abertos, erros de validação, snackbars, kardex inexistente, O.S. aberta e fechada) × 2 temas. As cores passaram; os defeitos foram de **formatação** e **layout**:
+
+| Defeito | Correção |
+|---|---|
+| "horímetro atual: 1012.5 h" e "11.5 h" nos diálogos | Pipe `number: '1.0-1'` no template; `toLocaleString('pt-BR')` nos textos montados no TypeScript (snackbars) |
+| Mensagem de erro cortada no estoque mínimo e invadindo a linha de baixo no fechamento da O.S. | `subscriptSizing="dynamic"` no `mat-form-field` |
+| Kardex de peça inexistente com o aviso **duas vezes** (tela + snackbar) | `HttpContextToken` que marca a requisição como "erro tratado na tela" |
+
+🧩 `core/api.ts` + interceptor + service:
+
+```ts
+export const ERRO_TRATADO_NA_TELA = new HttpContextToken<boolean>(() => false);
+
+export function erroTratadoNaTela(): HttpContext {
+  return new HttpContext().set(ERRO_TRATADO_NA_TELA, true);
+}
+
+// interceptor
+if (!req.context.get(ERRO_TRATADO_NA_TELA)) {
+  snackBar.open(mensagemDeErro(erro), 'Fechar', { ... });
+}
+
+// PecaService
+buscar(id: number): Observable<Peca> {
+  return this.http.get<Peca>(`${this.url}/${id}`, { context: erroTratadoNaTela() });
+}
+```
+
+📚 **Conceitos**
+- **Todo número exibido passa por formatação:** o pipe cuida do template, mas texto montado em TypeScript (`` `${horas} h` ``) usa o formato do JavaScript (ponto decimal). Revise os dois lugares.
+- **`subscriptSizing`:** por padrão, o `mat-form-field` reserva **uma linha fixa** para dica/erro (para o layout não "pular"). Mensagens longas precisam de `dynamic`, ou de um texto mais curto.
+- **`HttpContext`:** metadados que viajam **junto com a requisição**, sem ir para o servidor. É o jeito oficial de uma chamada pedir um comportamento diferente a um interceptor (pular o aviso, pular o token de login, marcar para cache...).
+- **Regra geral com exceção explícita:** o aviso global continua valendo para todo o sistema; só as chamadas que a tela explica sozinha são marcadas.
+- **Conferir com dados reais:** a maioria desses defeitos só aparece com números decimais, erros de validação e registros inexistentes. Uma tela "vazia" parece sempre perfeita.
+
+🧪 **Testes**
+1. Dê saída no TR-01 (horímetro 1.000) e retorno com 1012,5: o diálogo e o snackbar mostram vírgula.
+2. Nova peça em `un` com mínimo 2,5: a mensagem aparece inteira, em duas linhas.
+3. Na O.S. aberta, adicione duas linhas vazias e clique em **Fechar O.S.**: as mensagens não se sobrepõem.
+4. Acesse `/estoque/99`: só o aviso da tela, sem snackbar. Acesse `/ordens-servico/99`: o snackbar continua aparecendo (lá a tela mostra um texto genérico e o snackbar traz o motivo da API).
+
+---
+
+### Redesign R5 — Do protótipo ao código
+
+O redesign foi desenhado primeiro num **canvas de design** (painel de operação, lista com ação principal, fechamento de O.S. com resumo, telas de celular) e só depois implementado, em passos pequenos. Desenhar antes permite discutir a direção sem gastar código.
+
+#### R5.1 — Identidade: menu verde-escuro, contador de O.S. e fundo tonalizado
+
+🎯 Trocar a "moldura" do sistema: menu lateral verde-escuro com seções, contador de pendências em laranja, fundo tonalizado e uma fonte de texto mais legível em números.
+
+🧩 Cores novas em `_comuns.scss` (sempre nos dois temas):
+
+```scss
+--agro-fundo: light-dark(#f5f4ee, #0f1511);      // atrás do conteúdo
+--agro-cartao: light-dark(#ffffff, #161e19);     // barra, navegação inferior, cartões
+--agro-menu-fundo: light-dark(#0c3a26, #0a100c); // menu lateral
+--agro-sinal: #f38302;                           // laranja = pendência
+```
+
+Menu pelos **tokens** da lista (`shell.scss`):
+
+```scss
+.menu {
+  background: var(--agro-menu-fundo);
+  @include mat.list-overrides((
+    list-item-label-text-color: var(--agro-menu-texto),
+    list-item-leading-icon-color: var(--agro-menu-suave),
+    active-indicator-color: var(--agro-menu-ativo),
+    active-indicator-shape: 10px,
+  ));
+}
+```
+
+Contador de O.S. abertas, refeito a cada navegação (`shell.ts`):
+
+```ts
+private readonly navegacao = toSignal(
+  inject(Router).events.pipe(filter(evento => evento instanceof NavigationEnd)),
+);
+
+protected readonly osAbertas = rxResource({
+  params: () => this.navegacao(),                  // muda a cada troca de tela
+  stream: () => this.osService.contarAbertas(),    // GET silencioso (erroTratadoNaTela)
+});
+```
+
+Template: seções e `@let`:
+
+```html
+@let totalOsAbertas = osAbertas.hasValue() ? osAbertas.value() : 0;
+@for (secao of secoesMenu; track secao.titulo) {
+  <div mat-subheader class="secao">{{ secao.titulo }}</div>
+  @for (item of secao.itens; track item.rota) { ... }
+}
+```
+
+📚 **Conceitos**
+- **Protótipo antes do código:** decisões de layout e cor são baratas num canvas e caras no código. O código segue o protótipo aprovado.
+- **Cor com papel definido:** verde = marca e navegação; laranja = **sinal** (pendência, item ativo, aviso). Usar o laranja só para isso faz o olho encontrar o que precisa de atenção.
+- **`mat.list-overrides`:** personaliza a lista do Material pelos tokens (cor do texto, do ícone, do indicador ativo), sem depender de classes internas.
+- **Recarregar a cada navegação:** um signal alimentado pelos eventos `NavigationEnd` vira o `params` do `rxResource`. Enquanto o signal é `undefined` (antes da primeira navegação), o recurso espera.
+- **Requisição silenciosa:** o contador é buscado o tempo todo; se a API cair, ele só some. Por isso `contarAbertas()` usa o `erroTratadoNaTela()` do R4.
+- **`@let`:** guarda um valor calculado numa variável do template, usada em vários pontos.
+- **Slots do Material têm estilo próprio:** o contador no slot `matListItemMeta` herdava fonte e margens que cortavam o texto; dentro do título, com `display: flex`, ficou legível.
+
+🧪 **Testes**
+1. O menu aparece verde-escuro nos dois temas, com as seções **Operação** e **Histórico**.
+2. Com uma O.S. aberta, o contador laranja aparece em **Ordens de Serviço** (e no ícone O.S. do celular).
+3. Feche a O.S. e troque de tela: o contador some.
+4. Pare a API e navegue: nenhum snackbar extra por causa do contador.
+
+#### R5.2 — Painel: "o que precisa de mim agora?"
+
+🎯 Transformar a página inicial (que apresentava o produto) num **painel de operação**: indicadores com contexto, pendências com a ação que as resolve e o custo de manutenção.
+
+🧩 `features/inicio/inicio.ts`: **4 chamadas**, todo o resto é derivado:
+
+```ts
+protected readonly maquinas = rxResource({ stream: () => this.maquinaService.listar() });
+protected readonly pecas = rxResource({ stream: () => this.pecaService.listar() });
+protected readonly ordens = rxResource({ stream: () => this.osService.listar() });
+protected readonly movimentacoes = rxResource({ stream: () => this.maquinaService.listarMovimentacoes() });
+```
+
+Pendências como **união discriminada** (cada tipo carrega o dado da sua ação):
+
+```ts
+type Pendencia =
+  | { tipo: 'os'; titulo: string; detalhe: string; os: OrdemServico }
+  | { tipo: 'campo'; titulo: string; detalhe: string; maquina: Maquina }
+  | { tipo: 'repor'; titulo: string; detalhe: string; peca: Peca };
+```
+
+```html
+@switch (pendencia.tipo) {
+  @case ('os') { <a mat-flat-button [routerLink]="['/ordens-servico', pendencia.os.id]">Fechar O.S.</a> }
+  @case ('campo') { <button mat-stroked-button (click)="registrarRetorno(pendencia.maquina)">Registrar retorno</button> }
+  @case ('repor') { <button mat-stroked-button (click)="registrarEntrada(pendencia.peca)">Registrar entrada</button> }
+}
+```
+
+Quem está com a máquina em campo vem da movimentação **sem retorno**:
+
+```ts
+.filter(mov => !mov.dataRetorno)   // Carlos · Talhão 8 · saiu 27/09 às 16:40 com 320 h
+```
+
+📚 **Conceitos**
+- **Tela orientada a tarefa:** um número ("1 em campo") não diz o que fazer; "PU-03 com Carlos no Talhão 8 · Registrar retorno" diz. Cada pendência traz o botão da ação.
+- **União discriminada + `@switch`:** o campo `tipo` diz qual formato o objeto tem. Dentro de `@case ('os')`, o TypeScript sabe que `pendencia.os` existe (*type narrowing*), também no template.
+- **Poucas chamadas, muitos derivados:** indicadores, pendências, custo por tipo e valor do estoque são `computed` sobre as mesmas 4 listas. Depois de uma ação, `recarregar()` refaz as 4 e tudo se atualiza.
+- **Reaproveitar diálogos:** Abrir O.S., Retorno e Entrada são os mesmos componentes das outras telas; o Painel só decide quando abri-los.
+- **Extrair na segunda vez:** as cores do gráfico preventiva × corretiva saíram do detalhe da máquina para `--agro-serie-*` em `_comuns.scss`, porque agora duas telas usam.
+- **`formatDate`:** a versão em TypeScript do pipe `date`, para montar textos fora do template ("desde 27/09 às 16:40").
+- **Estado vazio positivo:** sem pendências, o painel diz "Tudo em ordem", em vez de uma área em branco.
+
+🧪 **Testes**
+1. Com uma O.S. aberta, uma máquina em campo e uma peça abaixo do mínimo, as três aparecem em "Precisa de atenção", cada uma com seu botão.
+2. **Registrar retorno** no Painel: a pendência some e o indicador "Em campo" diminui.
+3. **Fechar O.S.** leva ao detalhe da O.S.; depois de fechar, volte ao Painel: a pendência sumiu e o custo aumentou.
+4. No celular, os indicadores ficam em 2 × 2 e as pendências logo abaixo.
+
+#### R5.3 — Máquinas: filtros, uma ação principal e cartões no celular
+
+🎯 Encontrar a máquina rápido (busca e filtros por situação) e saber **o que fazer** com ela (uma ação principal), com uma lista que vira cartões no celular.
+
+🧩 `maquinas-lista.ts`: filtro na URL (padrão do Passo 12) e busca local:
+
+```ts
+readonly situacao = input<StatusMaquina | undefined, string | undefined>(undefined, { transform: paraSituacao });
+protected readonly busca = signal('');
+
+protected readonly visiveis = computed(() => {
+  const situacao = this.situacao();
+  const termo = this.busca().trim().toLowerCase();
+  return this.linhas().filter(({ maquina }) =>
+    (!situacao || maquina.status === situacao) &&
+    (!termo || maquina.tag.toLowerCase().includes(termo) || maquina.modelo.toLowerCase().includes(termo)),
+  );
+});
+```
+
+Contexto de cada máquina: quem está com ela (movimentação sem retorno) ou qual O.S. a segura:
+
+```ts
+if (maquina.status === 'Em Operação') {
+  const saida = saidas.find(m => m.maquinaId === maquina.id);
+  return { maquina, contexto: `${saida.operador} · ${saida.frenteTrabalho}` };
+}
+```
+
+Uma ação principal, decidida pela situação:
+
+```html
+@switch (maquina.status) {
+  @case ('Disponível') { <button mat-flat-button (click)="abrirSaida(maquina)">Registrar saída</button> }
+  @case ('Em Operação') { <button mat-stroked-button (click)="abrirRetorno(maquina)">Registrar retorno</button> }
+  @case ('Em Manutenção') { <a mat-stroked-button [routerLink]="['/ordens-servico', linha.osAbertaId]">Ver O.S.</a> }
+}
+```
+
+**Um markup, dois layouts** (`maquinas-lista.scss`):
+
+```scss
+.maquina {            // desktop: uma linha de 4 colunas
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1.6fr);
+}
+
+@media (max-width: 767.98px) {
+  .maquina {          // celular: o MESMO HTML vira um cartão
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'nome situacao'
+      'horimetro horimetro'
+      'acoes acoes';
+  }
+}
+```
+
+📚 **Conceitos**
+- **Uma ação principal:** antes, a linha tinha Saída/Retorno **e** O.S. com o mesmo peso. Agora o botão cheio é a próxima ação natural; "Abrir O.S." virou um botão de ícone secundário (com `matTooltip` e `aria-label`, porque ícone sozinho não se explica).
+- **`grid-template-areas`:** dá nome às regiões da grade e reposiciona os mesmos elementos só com CSS. Nada de HTML duplicado para celular.
+- **Filtro na URL × estado local:** a situação vai para a URL (link compartilhável, botão Voltar); o texto da busca fica num signal, porque muda a cada tecla.
+- **Contagem nos filtros ("Em campo · 1"):** o usuário sabe o que vai encontrar antes de clicar.
+- **`tabular-nums`:** algarismos com a mesma largura, para os horímetros se alinharem.
+- **Tabela × lista de cartões:** tabela é ótima para comparar muitas colunas; aqui a tarefa é **agir** sobre cada máquina, e a lista de blocos funciona melhor nas duas larguras.
+
+🧪 **Testes**
+1. Clique em **Em campo · 1**: só a máquina em campo aparece, e a URL ganha `?situacao=Em%20Opera%C3%A7%C3%A3o`. Voltar do navegador desfaz o filtro.
+2. Digite "col" na busca: só a Colheitadeira.
+3. Cada máquina mostra uma ação: **Registrar saída**, **Registrar retorno** ou **Ver O.S.**; a ferramenta abre a O.S.
+4. No celular, as máquinas viram cartões com a ação ocupando a largura.
+
+#### R5.4 — O.S. em fechamento: etapas, subtotais e resumo
+
+🎯 Fechar a O.S. sabendo **antes do clique** o que vai acontecer: onde a O.S. está no ciclo de vida, quanto custa cada linha e quais peças vão travar o fechamento.
+
+🧩 `os-detalhe.ts`: dados derivados para a tela:
+
+```ts
+// Etapas do ciclo de vida (Aberta -> Fechamento -> Fechada)
+protected readonly etapas = computed<Etapa[]>(() => { ... });
+
+// Quanto a quantidade PASSA do saldo (0 = cabe)
+protected excessoDoSaldo(indice: number): number {
+  const peca = this.pecaDaLinha(indice);
+  const quantidade = this.linhas.at(indice).controls.quantidade.value;
+  return peca && quantidade !== null ? Math.max(0, quantidade - peca.saldo) : 0;
+}
+
+// As peças que vão travar o fechamento (tudo ou nada), para o resumo
+protected readonly pecasSemSaldo = computed(() =>
+  this.valoresLinhas().flatMap(linha => {
+    const peca = linha.pecaId != null ? this.pecaPorId().get(linha.pecaId) : undefined;
+    return peca && linha.quantidade != null && linha.quantidade > peca.saldo ? [peca.codigo] : [];
+  }),
+);
+```
+
+Template: etapas como **lista ordenada** e a etapa atual com `aria-current="step"`:
+
+```html
+<ol class="etapas" aria-label="Andamento da O.S.">
+  @for (etapa of etapas(); track etapa.rotulo) {
+    <li [class]="'etapa--' + etapa.estado" [attr.aria-current]="etapa.estado === 'atual' ? 'step' : null">...</li>
+  }
+</ol>
+```
+
+Resumo lateral com o aviso de tudo ou nada **citando as peças**:
+
+```html
+@if (pecasSemSaldo().length > 0) {
+  <p class="resumo__alerta" role="alert">
+    <strong>Tudo ou nada.</strong> {{ pecasSemSaldo().join(', ') }} não tem saldo suficiente: ...
+  </p>
+}
+<button mat-flat-button (click)="fechar()">Revisar e fechar O.S.</button>
+```
+
+📚 **Conceitos**
+- **Etapas (stepper) só de leitura:** mostram o ciclo de vida do documento (Aberta → Fechamento → Fechada). `<ol>` anuncia a sequência para leitores de tela, e `aria-current="step"` marca onde a O.S. está.
+- **Aviso específico:** "Acima do saldo" obriga o usuário a descobrir quanto; "COR-001: 41 un a mais que o saldo de 9 un" já diz o que corrigir.
+- **Prevenir em vez de remediar:** o 409 "tudo ou nada" da API continua existindo (ela é a autoridade), mas o resumo avisa **antes** do clique, citando quais peças travam.
+- **Layout de decisão:** o formulário à esquerda, o resumo e o botão à direita (em telas estreitas, o resumo desce). O botão "Revisar e fechar" leva à confirmação do Passo 16.2.
+- **Dica do campo × aviso da linha:** o aviso de saldo não cabia no campo estreito de quantidade (quebrava em três linhas); saiu do `mat-hint` e virou uma faixa abaixo da linha inteira.
+
+🧪 **Testes**
+1. Numa O.S. aberta, as etapas mostram **Aberta** (com data) e **Fechamento** como atual; numa O.S. fechada, as três ficam concluídas.
+2. Escolha uma peça: saldo e preço aparecem abaixo dela; digite a quantidade: o subtotal aparece e o custo estimado do resumo muda.
+3. Passe do saldo: a faixa "X a mais que o saldo" aparece na linha e o resumo cita a peça no aviso de tudo ou nada.
+4. **Revisar e fechar O.S.** abre a confirmação com a lista das peças.
+
+---
+
 ## 6. Roteiro de testes no navegador
 
 Roteiro completo para uma demonstração, com a API recém-iniciada. Siga na ordem.
 
 | # | Onde | Ação | Resultado esperado |
 |---|---|---|---|
-| 1 | Início | Abrir `http://localhost:4200` | Logo, "2 de 2 máquinas disponíveis", "1 peça para repor" |
+| 1 | Painel | Abrir `http://localhost:4200` | "Disponíveis no pátio: 2 de 2"; COR-001 abaixo do mínimo em "Precisa de atenção", com o botão **Registrar entrada** |
 | 2 | Máquinas | **Nova máquina** `PU-03`, Pulverizador, 0 h | Snackbar de sucesso, 3 máquinas na lista |
 | 3 | Máquinas | **Nova máquina** `PU-03` de novo | Snackbar vermelho com o 409 da API, diálogo continua aberto |
-| 4 | Máquinas | **Saída** do TR-01 sem preencher | Campos em vermelho, nenhuma requisição na aba Network |
-| 5 | Máquinas | **Saída** do TR-01 com operador e frente | TR-01 "Em Operação", botão vira **Retorno** |
-| 6 | Máquinas | **Retorno** do TR-01 com horímetro menor | Erro no campo |
-| 7 | Máquinas | **Retorno** com 1010 e uma avaria | "10 h trabalhadas", TR-01 "Disponível" |
+| 4 | Máquinas | **Registrar saída** do TR-01 e confirmar sem preencher | Campos em vermelho, nenhuma requisição na aba Network |
+| 5 | Máquinas | **Registrar saída** do TR-01 com operador e frente | TR-01 "Em Operação" com "operador · frente"; a ação vira **Registrar retorno** |
+| 6 | Máquinas | **Registrar retorno** do TR-01 com horímetro menor | Erro no campo |
+| 7 | Máquinas | **Registrar retorno** com 1010 e uma avaria | "10 h trabalhadas", TR-01 "Disponível" |
 | 8 | Movimentações | Filtrar por TR-01 | Uma linha, com datas em pt-BR e a avaria |
 | 9 | Estoque | Ligar **Só reposição** | Só a COR-001, com a coluna "Falta" |
 | 10 | Estoque | **Nova peça** em `un` com mínimo 2,5 | Erro "inteiro"; trocando para `L`, o erro some |
 | 11 | Estoque | **Entrada** de 10 un na COR-001 | Prévia do saldo, mensagem "Custo: de → para" |
 | 12 | Estoque | Clicar no código da COR-001 | Kardex com implantação e entrada |
-| 13 | Máquinas | **Saída** do CO-02 e depois **O.S.** nele | Aviso "máquina em campo"; snackbar com as horas trabalhadas |
+| 13 | Máquinas | **Registrar saída** do CO-02 e depois o botão de ferramenta (Abrir O.S.) nele | Aviso "máquina em campo"; snackbar com as horas trabalhadas; a ação vira **Ver O.S.** |
 | 14 | Ordens de Serviço | Filtrar por status "Aberta"; copiar a URL numa aba nova | O filtro vem aplicado pela URL |
 | 15 | O.S. aberta | Adicionar a mesma peça em duas linhas | Erro "peça repetida" |
 | 16 | O.S. aberta | Quantidade acima do saldo e **Fechar** | Aviso amarelo; 409 da API; kardex sem baixa |
@@ -1327,6 +1743,7 @@ O padrão deste projeto (**lista com estados + diálogos que devolvem a resposta
 | Código colado no `.spec.ts` em vez do `.ts` | Os dois arquivos têm nomes parecidos | Confira o nome da aba no editor antes de colar |
 | Item repetido no menu | Linhas de contexto de um trecho foram coladas junto | Cole só as linhas novas; revise com `git diff` antes do commit |
 | Aviso de *budget* no `ng build` | O pacote inicial passou do limite do `angular.json` | Veja o que entrou no pacote inicial (componentes do Material na casca pesam) |
+| Você salva o arquivo e a tela não muda (nem com F5) | O `ng serve` parou de observar os arquivos (acontece depois de trocar de branch ou de muitas alterações de uma vez) | Pare o `ng serve` (Ctrl+C) e rode `npm start` de novo |
 | Os dados da demonstração sumiram | A API reiniciou (dados em memória) | Comportamento esperado; refaça o roteiro |
 | O `localhost:4200` abre, mas sem estilo nem ícones | Sem internet: as fontes vêm do Google Fonts | Conecte-se, ou baixe as fontes para `public/` |
 
@@ -1338,19 +1755,14 @@ O padrão deste projeto (**lista com estados + diálogos que devolvem a resposta
 
 - **Sem login:** qualquer pessoa com acesso à URL usa tudo (mesma decisão do back-end).
 - **Dados em memória:** herdado da API; reiniciar o back-end zera tudo.
-- **Sem confirmação** antes de ações irreversíveis, como o fechamento da O.S. (Passo 16.2 não implementado).
-- **Menu lateral fixo:** em telas de celular ele ocupa espaço demais (Passo 16.3, responsividade, não implementado).
 - **Testes unitários:** os `.spec.ts` são os gerados pelo CLI e ainda não foram adaptados. Hoje o `npm test` mostra **7 passando e 14 falhando**: as telas dependem de `HttpClient`, `ActivatedRoute` e `MAT_DIALOG_DATA`, e os testes gerados não fornecem esses providers (erro `NG0201: No provider found`). Adaptá-los é um ótimo exercício.
 - **Proxy só no desenvolvimento:** em produção, o front e a API precisam ser servidos na mesma origem (ou a API precisa liberar CORS).
 
 ### Próximos passos
 
-**Etapa 2, front-end: ✅ concluída** (Fases 0 a 3, polimento de estilos e identidade visual).
+**Etapa 2, front-end: ✅ concluída** (Fases 0 a 3, polimento, identidade visual e redesign R5).
 
-1. **Diálogo de confirmação reutilizável** (`ConfirmacaoDialog`) antes de fechar a O.S.
-2. **Responsividade:** `BreakpointObserver` para o menu virar sobreposto (`mode="over"`) no celular.
-3. **Testes unitários** de um service (`HttpTestingController`) e de um componente.
-4. **Conferência visual** de todas as telas nos dois temas.
+1. **Testes unitários** de um service (`HttpTestingController`) e de um componente.
 
 **Futuro:** login e perfis, banco de dados (PostgreSQL + Prisma) no back-end e publicação (build + servidor web).
 

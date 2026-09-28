@@ -1,9 +1,7 @@
-// Cores das séries (tipo de O.S.): par categórico validado para daltonismo e contraste,
-// nos DOIS temas (claro: #2a78d6/#eb6834; escuro: #3987e5/#d95926, ajustados ao fundo escuro).
-// Declaradas uma vez; a barra e a legenda usam as mesmas.
+// Cores das séries (tipo de O.S.): --agro-serie-* em src/estilos/_comuns.scss (o Painel usa as mesmas)
 :host {
-  --serie-preventiva: light-dark(#2a78d6, #3987e5);
-  --serie-corretiva: light-dark(#eb6834, #d95926);
+  --serie-preventiva: var(--agro-serie-preventiva);
+  --serie-corretiva: var(--agro-serie-corretiva);
 }
 
 .voltar {

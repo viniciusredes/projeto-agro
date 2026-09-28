@@ -1,74 +1,117 @@
-<!-- ===== Apresentação ===== -->
-<section class="apresentacao">
-  <img
-    class="apresentacao__logo"
-    [src]="tema.escuroAtivo() ? 'img/logo-agrofrota-escuro.webp' : 'img/logo-agrofrota.webp'"
-    alt="Agro Frota — Gestão inteligente de máquinas agrícolas"
-    width="900"
-    height="460"
-  />
-
-  <p class="apresentacao__texto">
-    O Agro Frota substitui cadernos, planilhas e mensagens soltas por um sistema único para a
-    fazenda: saiba <strong>onde está cada máquina</strong> e com quem, <strong>quantas horas
-    ela trabalhou</strong>, <strong>quanto custou mantê-la</strong> e <strong>o que precisa ser
-    reposto</strong> no almoxarifado.
-  </p>
-
-  <div class="apresentacao__acoes">
-    <a mat-flat-button routerLink="/maquinas">
-      <mat-icon>agriculture</mat-icon>
-      Ver a frota
-    </a>
-    <a mat-stroked-button routerLink="/ordens-servico">
-      <mat-icon>build</mat-icon>
-      Ordens de serviço
-    </a>
+<!-- ===== Topo: data de hoje, título e a ação mais comum ===== -->
+<header class="topo">
+  <div>
+    <p class="topo__data">{{ hoje | date: "EEEE, d 'de' MMMM" }}</p>
+    <h1 class="topo__titulo">Painel da frota</h1>
   </div>
-</section>
+  <button mat-flat-button type="button" (click)="abrirOs()">
+    <mat-icon>add</mat-icon>
+    Abrir O.S.
+  </button>
+</header>
 
-<!-- ===== A frota agora (números ao vivo, vindos da API) ===== -->
-<section class="agora" aria-labelledby="titulo-agora">
-  <h2 id="titulo-agora">A frota agora</h2>
+@if (carregando()) {
+  <mat-progress-bar mode="indeterminate" />
+}
 
-  @if (maquinas.error() || pecasParaRepor.error()) {
-    <p class="aviso aviso--erro">
-      <mat-icon>error</mat-icon>
-      Não foi possível carregar os números da frota.
-    </p>
-  } @else {
-    <div class="indicadores">
-      <a class="indicador" routerLink="/maquinas">
-        <span class="indicador__valor">{{ frota().disponiveis }}<small> de {{ frota().total }}</small></span>
-        <span class="indicador__rotulo">máquinas disponíveis</span>
+@if (comErro()) {
+  <p class="aviso aviso--erro">
+    <mat-icon>error</mat-icon>
+    Não foi possível carregar o painel. Verifique se a API está rodando.
+  </p>
+} @else {
+  <!-- ===== Situação da frota: número + QUAIS máquinas (o número sozinho não diz o que fazer) ===== -->
+  <section class="indicadores" aria-label="Situação da frota">
+    @for (indicador of indicadores(); track indicador.rotulo) {
+      <a class="indicador" [routerLink]="indicador.rota">
+        <span class="indicador__rotulo"><span class="ponto" [class]="indicador.classe"></span>{{ indicador.rotulo }}</span>
+        <span class="indicador__valor">
+          {{ indicador.valor }}
+          @if (indicador.total !== undefined) {
+            <small>de {{ indicador.total }}</small>
+          }
+        </span>
+        <span class="indicador__contexto">{{ indicador.contexto }}</span>
       </a>
-      <a class="indicador" routerLink="/movimentacoes">
-        <span class="indicador__valor">{{ frota().emCampo }}</span>
-        <span class="indicador__rotulo">em campo agora</span>
-      </a>
-      <a class="indicador" routerLink="/ordens-servico">
-        <span class="indicador__valor">{{ frota().emManutencao }}</span>
-        <span class="indicador__rotulo">em manutenção</span>
-      </a>
-      <a class="indicador" routerLink="/estoque">
-        <span class="indicador__valor">{{ totalParaRepor() }}</span>
-        <span class="indicador__rotulo">{{ totalParaRepor() === 1 ? 'peça para repor' : 'peças para repor' }}</span>
-      </a>
-    </div>
-  }
-</section>
+    }
+  </section>
 
-<!-- ===== Módulos ===== -->
-<section class="modulos" aria-label="Módulos do sistema">
-  @for (modulo of modulos; track modulo.rota) {
-    <article class="modulo">
-      <mat-icon class="modulo__icone">{{ modulo.icone }}</mat-icon>
-      <h3>{{ modulo.titulo }}</h3>
-      <p>{{ modulo.descricao }}</p>
-      <a mat-button [routerLink]="modulo.rota">
-        {{ modulo.acao }}
-        <mat-icon iconPositionEnd>arrow_forward</mat-icon>
+  <div class="colunas">
+    <!-- ===== Precisa de atenção: cada pendência traz a ação que a resolve ===== -->
+    <section class="cartao" aria-labelledby="titulo-atencao">
+      <div class="cartao__cabecalho">
+        <h2 id="titulo-atencao">Precisa de atenção</h2>
+        <span class="cartao__nota">{{ pendencias().length }} {{ pendencias().length === 1 ? 'item' : 'itens' }}</span>
+      </div>
+
+      @for (pendencia of pendencias(); track $index) {
+        <article class="pendencia" [class.pendencia--os]="pendencia.tipo === 'os'">
+          <span class="pendencia__icone" [class]="'pendencia__icone--' + pendencia.tipo">
+            <mat-icon>{{ pendencia.tipo === 'os' ? 'build' : pendencia.tipo === 'campo' ? 'agriculture' : 'inventory_2' }}</mat-icon>
+          </span>
+          <div class="pendencia__texto">
+            <strong>{{ pendencia.titulo }}</strong>
+            <span>{{ pendencia.detalhe }}</span>
+          </div>
+          @switch (pendencia.tipo) {
+            @case ('os') {
+              <a mat-flat-button [routerLink]="['/ordens-servico', pendencia.os.id]">Fechar O.S.</a>
+            }
+            @case ('campo') {
+              <button mat-stroked-button type="button" (click)="registrarRetorno(pendencia.maquina)">Registrar retorno</button>
+            }
+            @case ('repor') {
+              <button mat-stroked-button type="button" (click)="registrarEntrada(pendencia.peca)">Registrar entrada</button>
+            }
+          }
+        </article>
+      } @empty {
+        @if (!carregando()) {
+          <p class="tudo-certo">
+            <mat-icon>task_alt</mat-icon>
+            Tudo em ordem: nenhuma O.S. aberta, máquina em campo ou peça abaixo do mínimo.
+          </p>
+        }
+      }
+
+      <a class="ver-todas" routerLink="/maquinas">
+        Ver todas as máquinas
+        <mat-icon>arrow_forward</mat-icon>
       </a>
-    </article>
-  }
-</section>
+    </section>
+
+    <!-- ===== Custo de manutenção: total + parte preventiva × corretiva ===== -->
+    <section class="cartao" aria-labelledby="titulo-custo">
+      <h2 id="titulo-custo">Custo de manutenção</h2>
+      @let resumo = custo();
+      <div>
+        <p class="custo__total">{{ resumo.total | currency }}</p>
+        <p class="cartao__nota">{{ resumo.fechadas }} {{ resumo.fechadas === 1 ? 'O.S. fechada' : 'O.S. fechadas' }}</p>
+      </div>
+
+      @if (resumo.total > 0) {
+        <div class="barra" role="img" [attr.aria-label]="resumo.descricao">
+          @for (segmento of resumo.segmentos; track segmento.tipo) {
+            @if (segmento.valor > 0) {
+              <div class="barra__segmento" [attr.data-tipo]="segmento.tipo" [style.flex-grow]="segmento.valor"></div>
+            }
+          }
+        </div>
+        <ul class="legenda">
+          @for (segmento of resumo.segmentos; track segmento.tipo) {
+            <li>
+              <span class="legenda__cor" [attr.data-tipo]="segmento.tipo"></span>
+              <span class="legenda__tipo">{{ segmento.tipo }}</span>
+              <strong>{{ segmento.valor | currency }}</strong>
+              <span class="legenda__percentual">{{ segmento.percentual | number: '1.0-0' }}%</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="cartao__nota">Nenhuma O.S. fechada ainda.</p>
+      }
+
+      <p class="estoque">Estoque: <strong>{{ valorEmEstoque() | currency }}</strong> em peças e fluidos</p>
+    </section>
+  </div>
+}

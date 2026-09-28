@@ -2,7 +2,7 @@
 
 <form [formGroup]="form" (ngSubmit)="confirmar()">
   <mat-dialog-content>
-    <p class="info">{{ maquina.modelo }} · horímetro atual: {{ maquina.horimetro }} h</p>
+    <p class="info">{{ maquina.modelo }} · horímetro atual: {{ maquina.horimetro | number: '1.0-1' }} h</p>
 
     <mat-form-field appearance="outline" class="campo">
       <mat-label>Operador</mat-label>

@@ -6,6 +6,8 @@
 }
 
 .cabecalho {
+  align-items: center;
+
   h2 {
     display: inline-block;
     margin: 0 12px 0 0;
@@ -16,35 +18,128 @@
   }
 }
 
-// Dados do cabeçalho em "cartões" lado a lado
+// ===== Etapas: Aberta -> Fechamento -> Fechada =====
+.etapas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.etapa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.etapa__marca {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border-radius: 50%;
+
+  mat-icon {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+  }
+}
+
+.etapa--feita .etapa__marca {
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+}
+
+// Etapa atual: anel laranja (o SINAL de "é aqui que você está")
+.etapa--atual {
+  font-weight: 700;
+
+  .etapa__marca {
+    border: 6px solid var(--agro-sinal);
+  }
+}
+
+.etapa--pendente {
+  font-weight: 400;
+  color: var(--mat-sys-on-surface-variant);
+
+  .etapa__marca {
+    border: 2px solid var(--agro-borda);
+  }
+}
+
+.etapa__ligacao {
+  width: 28px;
+  height: 2px;
+  background: var(--agro-borda);
+}
+
+.etapa__ligacao--feita {
+  background: var(--mat-sys-primary);
+}
+
+// ===== Dados do cabeçalho em cartões lado a lado =====
 .dados {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
-  margin: 0 0 24px; // o .cabecalho global já dá o espaço de cima
+  margin: 0 0 20px;
 
   div {
-    padding: 12px;
-    border-radius: 8px;
-    background: var(--mat-sys-surface-container);
+    padding: 12px 14px;
+    border: 1px solid var(--agro-borda);
+    border-radius: 12px;
+    background: var(--agro-cartao);
   }
 
   dt {
-    font-size: 0.8em;
+    font-size: 0.85em;
     color: var(--mat-sys-on-surface-variant);
   }
 
   dd {
     margin: 4px 0 0;
-    font-weight: 500;
+    font-weight: 600;
   }
 }
 
 .dados__largo {
-  grid-column: 1 / -1; // a descrição ocupa a linha inteira
+  grid-column: 1 / -1;
 }
 
-// Uma linha do FormArray: peça (larga) + quantidade + botão remover
+// ===== Fechamento: peças | resumo (uma coluna só em telas estreitas) =====
+.fechamento {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+
+  @media (max-width: 1023.98px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cartao {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid var(--agro-borda);
+  border-radius: 16px;
+  background: var(--agro-cartao);
+
+  h3 {
+    margin: 0;
+  }
+}
+
+// Uma linha do FormArray: peça (larga) + quantidade + subtotal + remover
 .linha {
   display: flex;
   align-items: flex-start;
@@ -57,6 +152,15 @@
 
 .linha__quantidade {
   flex: 1;
+  min-width: 120px;
+}
+
+.linha__subtotal {
+  min-width: 96px;
+  padding-top: 16px;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .erro-linha {
@@ -64,19 +168,89 @@
 }
 
 .alerta-linha {
-  color: var(--agro-alerta-texto);
-  font-weight: 500;
-}
-
-.rodape {
   display: flex;
-  flex-wrap: wrap; // em telas estreitas, a estimativa e os botões quebram linha
   align-items: center;
-  gap: 16px;
-  margin-top: 8px;
+  gap: 6px;
+  margin: -4px 0 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--agro-alerta-fundo);
+  color: var(--agro-alerta-texto);
+  font-weight: 700;
+
+  mat-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+  }
 }
 
-.estimativa {
-  flex: 1;
-  text-align: right;
+.adicionar {
+  align-self: flex-start;
+}
+
+// ===== Resumo lateral =====
+.resumo {
+  gap: 14px;
+
+  button {
+    height: 48px;
+  }
+}
+
+.resumo__valores {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+
+  div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  dt {
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 600;
+  }
+}
+
+.resumo__custo {
+  font-family: var(--mat-sys-headline-small-font);
+  font-size: 22px;
+  font-weight: 800 !important;
+}
+
+.resumo__alerta {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--agro-alerta-fundo);
+  line-height: 1.45;
+
+  mat-icon {
+    flex-shrink: 0;
+    color: var(--agro-alerta-texto);
+  }
+}
+
+// Celular: a peça ocupa a linha inteira; quantidade, subtotal e lixeira descem
+@media (max-width: 767.98px) {
+  .linha {
+    flex-wrap: wrap;
+    column-gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--agro-borda);
+  }
+
+  .linha__peca {
+    flex-basis: 100%;
+  }
 }

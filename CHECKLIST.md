@@ -60,16 +60,25 @@ Branch: `feat/front-base` · PR #2 (PR final da Etapa 2)
 - [x] **R1** — Logo tratada (fundo removido, versões clara/escura/compacta), página inicial com a logo e o descritivo do produto, logo no lugar do texto "Agro Frota" no menu · `8a86129`
 - [x] **R2** — Paleta da logo em todo o site (`_theme-colors.scss` gerado pelo schematic `theme-color`), títulos em Montserrat, barra com faixa verde→laranja, menu lateral em superfície própria · `234b243`
 - [x] **R3** — Tema escuro (menu Claro/Escuro na barra, salvo no navegador; na 1ª visita segue o sistema), `light-dark()` nas cores próprias, logo escura própria (fundo removido por *color-to-alpha*, preservando o brilho), botões e destaques do escuro em verde-menta/laranja da logo (`mat.theme-overrides`), gráfico com par escuro validado; correção do rodapé cortado (`box-sizing` na área de conteúdo) · `234b243`
-- [ ] *(Adiado)* **R4** — Conferência visual de todas as telas nos temas claro e escuro (já conferidas: início, detalhe da máquina, estoque, detalhe da O.S.; faltam diálogos, kardex, listas de máquinas/O.S./movimentações)
+- [x] **R4** — Conferência visual de 18 telas e diálogos nos temas claro e escuro (capturas automatizadas pelo protocolo de depuração do Edge). Corrigidos: números sem formato pt-BR nos diálogos e snackbars (`number` / `toLocaleString`), mensagens de erro cortadas ou sobrepostas (`subscriptSizing="dynamic"`) e aviso duplicado no kardex (`HttpContextToken` `ERRO_TRATADO_NA_TELA`) · `5a61008`
 
 ### Fase 4 — Fechamento ✅
 
-- [x] **Passo 16** — Polimento (a aula terminou após o 16.1 e os refinamentos; 16.2 e 16.3 ficaram como próximos passos)
+- [x] **Passo 16** — Polimento (16.2 e 16.3 retomados depois da aula, junto com o redesign)
   - [x] **16.1** — Estilos globais (`src/estilos/_comuns.scss`), tons semânticos das etiquetas (`core/ui/tons.ts`) e links com a cor do tema · `e337049`
-  - [ ] *(Adiado)* **16.2** — Diálogo de confirmação reutilizável (antes de fechar a O.S.)
-  - [ ] *(Adiado)* **16.3** — Responsividade (menu lateral sobreposto no celular)
+  - [x] **16.2** — Diálogo de confirmação reutilizável (`shared/confirmacao-dialog`), usado antes de fechar a O.S. com a lista das peças e o custo estimado · `566cb45`
+  - [x] **16.3** — Responsividade: `BreakpointObserver` → signal `celular()`; menu lateral fixo no desktop e em gaveta no celular, navegação inferior com 4 áreas, tabelas com rolagem horizontal, `100dvh`, linha de peças da O.S. quebrando no celular · `98d1596`
 - [x] **Passo 17** — `ng build` sem erros, README do front-end, `context.md` atualizado e movido para a raiz, README da raiz (escopo, clonagem e execução) e PR final · último commit do PR #2
 - [ ] *(Opcional)* Testes unitários de um service e de um componente
+
+### Fase 5 — Redesign ✅
+
+> A partir do canvas de design "Agro Frota — Redesign" (painel de operação, lista com ação principal, fechamento de O.S. com resumo e telas para celular), aprovado pelo usuário. Branch `feat/redesign`.
+
+- [x] **R5.1** — Identidade do redesign: menu lateral verde-escuro com seções (Operação/Histórico) via `mat.list-overrides`, contador de O.S. abertas (recarregado a cada navegação, silencioso em caso de erro) no menu e na navegação inferior, fonte de texto Source Sans 3, fundo tonalizado e novas cores `--agro-*` · `bc717ae`
+- [x] **R5.2** — Página inicial vira o Painel: indicadores com as máquinas de cada situação, "Precisa de atenção" (O.S. abertas, máquinas em campo, peças abaixo do mínimo) com ações diretas, custo de manutenção por tipo e valor em estoque; cores das séries extraídas para `--agro-serie-*` · `9e684b7`
+- [x] **R5.3** — Máquinas: busca por tag/modelo, filtros rápidos por situação com contagem (`?situacao=` na URL), contexto de cada máquina (operador · frente ou O.S. aberta), uma ação principal por situação + "Abrir O.S." como ícone, lista em CSS grid que vira cartões no celular (`grid-template-areas`) · `6c9fef0`
+- [x] **R5.4** — O.S. em fechamento: etapas do ciclo de vida (`<ol>` + `aria-current="step"`), saldo e preço da peça escolhida, subtotal por linha, aviso específico de saldo abaixo da linha ("41 un a mais que o saldo de 9 un"), resumo lateral com o tudo ou nada citando as peças e botão "Revisar e fechar O.S." · `2e4c32e`
 
 ---
 

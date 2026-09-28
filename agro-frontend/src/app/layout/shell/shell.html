@@ -35,21 +35,34 @@
 </mat-toolbar>
 
 <mat-sidenav-container class="container">
-  <!-- Menu lateral: #menu é uma referência usada pelo botão acima -->
-  <mat-sidenav #menu mode="side" opened class="menu">
+  <!-- Menu lateral: #menu é uma referência usada pelo botão acima.
+       Desktop: fixo ao lado do conteúdo ("side"). Celular: gaveta por cima do conteúdo ("over"), fechada. -->
+  <mat-sidenav #menu [mode]="celular() ? 'over' : 'side'" [opened]="!celular()" class="menu">
+    <!-- @let: guarda o total de O.S. abertas numa variável do template (0 enquanto carrega ou se falhar) -->
+    @let totalOsAbertas = osAbertas.hasValue() ? osAbertas.value() : 0;
+
     <mat-nav-list>
-      @for (item of itensMenu; track item.rota) {
-        <a
-          mat-list-item
-          [routerLink]="item.rota"
-          routerLinkActive
-          [routerLinkActiveOptions]="{ exact: item.rota === '/' }"
-          #rla="routerLinkActive"
-          [activated]="rla.isActive"
-        >
-          <mat-icon matListItemIcon>{{ item.icone }}</mat-icon>
-          <span matListItemTitle>{{ item.titulo }}</span>
-        </a>
+      @for (secao of secoesMenu; track secao.titulo) {
+        <div mat-subheader class="secao">{{ secao.titulo }}</div>
+        @for (item of secao.itens; track item.rota) {
+          <a
+            mat-list-item
+            [routerLink]="item.rota"
+            routerLinkActive
+            [routerLinkActiveOptions]="{ exact: item.rota === '/' }"
+            #rla="routerLinkActive"
+            [activated]="rla.isActive"
+            (click)="aoNavegar(menu)"
+          >
+            <mat-icon matListItemIcon>{{ item.icone }}</mat-icon>
+            <span matListItemTitle class="titulo-item">
+              {{ item.titulo }}
+              @if (item.contaOsAbertas && totalOsAbertas > 0) {
+                <span class="contador" [attr.aria-label]="totalOsAbertas + ' abertas'">{{ totalOsAbertas }}</span>
+              }
+            </span>
+          </a>
+        }
       }
     </mat-nav-list>
   </mat-sidenav>
@@ -59,3 +72,26 @@
     <router-outlet />
   </mat-sidenav-content>
 </mat-sidenav-container>
+
+<!-- Celular: navegação inferior com as áreas principais, ao alcance do polegar -->
+@if (celular()) {
+  <nav class="nav-inferior" aria-label="Navegação principal">
+    @for (item of itensInferiores; track item.rota) {
+      <a
+        class="nav-inferior__item"
+        [routerLink]="item.rota"
+        routerLinkActive="nav-inferior__item--ativo"
+        [routerLinkActiveOptions]="{ exact: item.rota === '/' }"
+        ariaCurrentWhenActive="page"
+      >
+        <span class="nav-inferior__icone">
+          <mat-icon>{{ item.icone }}</mat-icon>
+          @if (item.contaOsAbertas && osAbertas.hasValue() && osAbertas.value() > 0) {
+            <span class="nav-inferior__contador" [attr.aria-label]="osAbertas.value() + ' abertas'">{{ osAbertas.value() }}</span>
+          }
+        </span>
+        {{ item.curto }}
+      </a>
+    }
+  </nav>
+}

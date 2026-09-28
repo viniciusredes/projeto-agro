@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
 import { rxResource, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
@@ -18,7 +19,7 @@ import { NAO_VAZIO } from '../../../core/validacao';
 @Component({
   selector: 'app-abrir-os-dialog',
   imports: [
-    ReactiveFormsModule,
+    DecimalPipe, ReactiveFormsModule,
     MatDialogModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatButtonToggleModule,
     MatButtonModule, MatIconModule,
   ],

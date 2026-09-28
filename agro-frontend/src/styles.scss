@@ -17,10 +17,11 @@ html {
         // escura conforme a propriedade CSS "color-scheme" (definida logo abaixo)
         theme-type: color-scheme,
       ),
-      // Montserrat (títulos, parecida com a letra da logo) + Roboto (textos)
+      // Montserrat (títulos, parecida com a letra da logo) + Source Sans 3 (textos: mais legível
+      // em tabelas e números que a Roboto, e com mais personalidade)
       typography: (
-        brand-family: 'Montserrat, Roboto, sans-serif',
-        plain-family: 'Roboto, sans-serif',
+        brand-family: "Montserrat, 'Source Sans 3', sans-serif",
+        plain-family: "'Source Sans 3', sans-serif",
         bold-weight: 700,
         medium-weight: 500,
         regular-weight: 400,
@@ -60,8 +61,8 @@ html {
 }
 
 body {
-  // Fundo, fonte e cor do texto vêm das variáveis do tema (mudam sozinhas com o color-scheme)
-  background-color: var(--mat-sys-surface);
+  // Fundo tonalizado do redesign (_comuns.scss); fonte e cor do texto vêm do tema
+  background-color: var(--agro-fundo);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
   margin: 0;

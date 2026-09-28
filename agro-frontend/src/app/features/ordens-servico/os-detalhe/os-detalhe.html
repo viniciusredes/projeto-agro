@@ -23,6 +23,23 @@
       <span class="etiqueta" [class]="etiquetaTipo(ordem.tipo)">{{ ordem.tipo }}</span>
       <span class="etiqueta" [class]="etiquetaStatus(ordem.status)">{{ ordem.status }}</span>
     </div>
+
+    <!-- Etapas do ciclo de vida: onde esta O.S. está (lista ordenada = leitores de tela anunciam a sequência) -->
+    <ol class="etapas" aria-label="Andamento da O.S.">
+      @for (etapa of etapas(); track etapa.rotulo; let ultima = $last) {
+        <li class="etapa" [class]="'etapa--' + etapa.estado" [attr.aria-current]="etapa.estado === 'atual' ? 'step' : null">
+          <span class="etapa__marca" aria-hidden="true">
+            @if (etapa.estado === 'feita') {
+              <mat-icon>check</mat-icon>
+            }
+          </span>
+          {{ etapa.rotulo }}
+        </li>
+        @if (!ultima) {
+          <li class="etapa__ligacao" [class.etapa__ligacao--feita]="etapa.estado === 'feita'" aria-hidden="true"></li>
+        }
+      }
+    </ol>
   </div>
 
   <dl class="dados">
@@ -95,74 +112,115 @@
     }
   } @else {
     <!-- ===== O.S. aberta: formulário de fechamento com linhas dinâmicas (FormArray) ===== -->
-    <h3>Fechamento</h3>
-    <p class="info">
-      Informe as peças usadas no reparo. Se alguma não tiver saldo suficiente, o fechamento inteiro
-      é recusado e <strong>nada</strong> é baixado do estoque.
-    </p>
+    <div class="fechamento">
+      <!-- ===== Coluna 1: as peças usadas no reparo ===== -->
+      <section class="cartao" aria-labelledby="titulo-pecas">
+        <h3 id="titulo-pecas">Peças usadas no reparo</h3>
+        <p class="info">Baixadas do estoque só quando a O.S. for fechada.</p>
 
-    @for (linha of linhas.controls; track linha; let i = $index) {
-      <div class="linha" [formGroup]="linha">
-        <mat-form-field appearance="outline" class="linha__peca">
-          <mat-label>Peça</mat-label>
-          <mat-select formControlName="pecaId">
-            @if (pecas.hasValue()) {
-              @for (peca of pecas.value(); track peca.id) {
-                <mat-option [value]="peca.id">
-                  {{ peca.codigo }} · {{ peca.descricao }} (saldo {{ peca.saldo | number: '1.0-2' }} {{ peca.unidade }})
-                </mat-option>
+        @for (linha of linhas.controls; track linha; let i = $index) {
+          @let peca = pecaDaLinha(i);
+          @let excesso = excessoDoSaldo(i);
+          <div class="linha" [formGroup]="linha">
+            <!-- dynamic: dicas e erros longos empurram a linha de baixo, em vez de invadi-la -->
+            <mat-form-field appearance="outline" class="linha__peca" subscriptSizing="dynamic">
+              <mat-label>Peça</mat-label>
+              <mat-select formControlName="pecaId">
+                @if (pecas.hasValue()) {
+                  @for (opcao of pecas.value(); track opcao.id) {
+                    <mat-option [value]="opcao.id">{{ opcao.codigo }} · {{ opcao.descricao }}</mat-option>
+                  }
+                }
+              </mat-select>
+              <!-- Saldo e preço da peça escolhida, logo abaixo dela -->
+              @if (peca) {
+                <mat-hint>Saldo {{ peca.saldo | number: '1.0-2' }} {{ peca.unidade }} · {{ peca.custoUnitario | currency }}/{{ peca.unidade }}</mat-hint>
               }
-            }
-          </mat-select>
-          <mat-error>Escolha a peça</mat-error>
-        </mat-form-field>
+              <mat-error>Escolha a peça</mat-error>
+            </mat-form-field>
 
-        <mat-form-field appearance="outline" class="linha__quantidade">
-          <mat-label>Quantidade</mat-label>
-          <input matInput type="number" formControlName="quantidade" min="0" />
-          @if (pecaDaLinha(i); as peca) {
-            <span matTextSuffix>{{ peca.unidade }}</span>
+            <mat-form-field appearance="outline" class="linha__quantidade" subscriptSizing="dynamic">
+              <mat-label>Quantidade</mat-label>
+              <input matInput type="number" formControlName="quantidade" min="0" />
+              @if (peca) {
+                <span matTextSuffix>{{ peca.unidade }}</span>
+              }
+              @if (linha.hasError('inteiro')) {
+                <mat-hint class="erro-linha">Use número inteiro</mat-hint>
+              }
+              <mat-error>Maior que zero</mat-error>
+            </mat-form-field>
+
+            <span class="linha__subtotal">
+              @if (subtotal(i); as valor) {
+                {{ valor | currency }}
+              }
+            </span>
+
+            <button mat-icon-button type="button" (click)="removerLinha(i)" [attr.aria-label]="'Remover linha ' + (i + 1)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+
+          <!-- Aviso ESPECÍFICO, abaixo da linha inteira: quanto passa do saldo (não só "acima do saldo") -->
+          @if (peca && excesso > 0) {
+            <p class="alerta-linha">
+              <mat-icon>warning</mat-icon>
+              {{ peca.codigo }}: {{ excesso | number: '1.0-2' }} {{ peca.unidade }} a mais que o saldo de
+              {{ peca.saldo | number: '1.0-2' }} {{ peca.unidade }}
+            </p>
           }
-          @if (linha.hasError('inteiro')) {
-            <mat-hint class="erro-linha">Peça contada em unidades: use número inteiro</mat-hint>
-          } @else if (acimaDoSaldo(i)) {
-            <mat-hint class="alerta-linha">Acima do saldo disponível</mat-hint>
-          }
-          <mat-error>Informe uma quantidade maior que zero</mat-error>
-        </mat-form-field>
-
-        <button mat-icon-button type="button" (click)="removerLinha(i)" aria-label="Remover linha">
-          <mat-icon>delete</mat-icon>
-        </button>
-      </div>
-    }
-
-    <!-- Erro da LISTA inteira (validador do FormArray) -->
-    @if (linhas.hasError('pecaRepetida')) {
-      <p class="aviso aviso--erro">
-        <mat-icon>error</mat-icon>
-        A mesma peça aparece em mais de uma linha. Informe a quantidade total numa linha só.
-      </p>
-    }
-
-    <div class="rodape">
-      <button mat-stroked-button type="button" (click)="adicionarLinha()" [disabled]="!pecas.hasValue()">
-        <mat-icon>add</mat-icon>
-        Adicionar peça
-      </button>
-
-      <span class="estimativa">
-        @if (linhas.length > 0) {
-          Custo estimado: <strong>{{ custoEstimado() | currency }}</strong>
-        } @else {
-          Nenhuma peça: a O.S. será fechada sem custo.
         }
-      </span>
 
-      <button mat-flat-button type="button" (click)="fechar()" [disabled]="fechando()">
-        <mat-icon>task_alt</mat-icon>
-        {{ fechando() ? 'Fechando...' : 'Fechar O.S.' }}
-      </button>
+        <!-- Erro da LISTA inteira (validador do FormArray) -->
+        @if (linhas.hasError('pecaRepetida')) {
+          <p class="aviso aviso--erro">
+            <mat-icon>error</mat-icon>
+            A mesma peça aparece em mais de uma linha. Informe a quantidade total numa linha só.
+          </p>
+        }
+
+        <button mat-stroked-button type="button" class="adicionar" (click)="adicionarLinha()" [disabled]="!pecas.hasValue()">
+          <mat-icon>add</mat-icon>
+          Adicionar peça
+        </button>
+      </section>
+
+      <!-- ===== Coluna 2: resumo e a decisão de fechar ===== -->
+      <aside class="cartao resumo" aria-labelledby="titulo-resumo">
+        <h3 id="titulo-resumo">Resumo</h3>
+        <dl class="resumo__valores">
+          <div>
+            <dt>Linhas</dt>
+            <dd>{{ linhas.length }} {{ linhas.length === 1 ? 'peça' : 'peças' }}</dd>
+          </div>
+          <div>
+            <dt>Custo estimado</dt>
+            <dd class="resumo__custo">{{ custoEstimado() | currency }}</dd>
+          </div>
+        </dl>
+
+        <!-- Tudo ou nada, avisado ANTES do clique e citando quais peças travam o fechamento -->
+        @if (pecasSemSaldo().length > 0) {
+          <p class="resumo__alerta" role="alert">
+            <mat-icon>warning</mat-icon>
+            <span>
+              <strong>Tudo ou nada.</strong> {{ pecasSemSaldo().join(', ') }}
+              {{ pecasSemSaldo().length === 1 ? 'não tem' : 'não têm' }} saldo suficiente: do jeito que está,
+              o fechamento será recusado e nenhuma peça será baixada.
+            </span>
+          </p>
+        } @else if (linhas.length === 0) {
+          <p class="info">Sem peças, a O.S. será fechada com custo zero.</p>
+        }
+
+        <p class="info">O custo final usa o preço de cada peça no momento do fechamento e fica congelado na O.S.</p>
+
+        <button mat-flat-button type="button" (click)="fechar()" [disabled]="fechando()">
+          <mat-icon>task_alt</mat-icon>
+          {{ fechando() ? 'Fechando...' : 'Revisar e fechar O.S.' }}
+        </button>
+      </aside>
     </div>
   }
 }
