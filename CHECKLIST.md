@@ -78,7 +78,7 @@ Branch: `feat/front-base` · PR #2 (PR final da Etapa 2)
 - [x] **R5.1** — Identidade do redesign: menu lateral verde-escuro com seções (Operação/Histórico) via `mat.list-overrides`, contador de O.S. abertas (recarregado a cada navegação, silencioso em caso de erro) no menu e na navegação inferior, fonte de texto Source Sans 3, fundo tonalizado e novas cores `--agro-*` · `bc717ae`
 - [x] **R5.2** — Página inicial vira o Painel: indicadores com as máquinas de cada situação, "Precisa de atenção" (O.S. abertas, máquinas em campo, peças abaixo do mínimo) com ações diretas, custo de manutenção por tipo e valor em estoque; cores das séries extraídas para `--agro-serie-*` · `9e684b7`
 - [x] **R5.3** — Máquinas: busca por tag/modelo, filtros rápidos por situação com contagem (`?situacao=` na URL), contexto de cada máquina (operador · frente ou O.S. aberta), uma ação principal por situação + "Abrir O.S." como ícone, lista em CSS grid que vira cartões no celular (`grid-template-areas`) · `6c9fef0`
-- [x] **R5.4** — O.S. em fechamento: etapas do ciclo de vida (`<ol>` + `aria-current="step"`), saldo e preço da peça escolhida, subtotal por linha, aviso específico de saldo abaixo da linha ("41 un a mais que o saldo de 9 un"), resumo lateral com o tudo ou nada citando as peças e botão "Revisar e fechar O.S." · *commit: a preencher*
+- [x] **R5.4** — O.S. em fechamento: etapas do ciclo de vida (`<ol>` + `aria-current="step"`), saldo e preço da peça escolhida, subtotal por linha, aviso específico de saldo abaixo da linha ("41 un a mais que o saldo de 9 un"), resumo lateral com o tudo ou nada citando as peças e botão "Revisar e fechar O.S." · `2e4c32e`
 
 ---
 
