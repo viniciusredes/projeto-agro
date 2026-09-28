@@ -1,8 +1,8 @@
 import { Component, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { map } from 'rxjs';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, map } from 'rxjs';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
@@ -11,6 +11,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { PreferenciaTema, TemaService } from '../../core/ui/tema.service';
+import { OrdemServicoService } from '../../core/services/ordem-servico.service';
 
 // Formato de um item do menu lateral
 interface ItemMenu {
@@ -18,6 +19,13 @@ interface ItemMenu {
   rota: string;
   icone: string; // nome do ícone do Material Symbols
   curto?: string; // rótulo na navegação inferior do celular; sem ele, o item fica só no menu lateral
+  contaOsAbertas?: boolean; // mostra o contador de O.S. abertas ao lado
+}
+
+// Seção do menu lateral: um título e seus itens
+interface SecaoMenu {
+  titulo: string;
+  itens: ItemMenu[];
 }
 
 // Até esta largura, o layout é o de celular (navegação inferior + menu em gaveta)
@@ -50,17 +58,38 @@ export class Shell {
     { initialValue: false },
   );
 
-  // Os itens do menu ficam numa lista: para acrescentar uma tela, basta uma linha aqui
-  protected readonly itensMenu: ItemMenu[] = [
-    { titulo: 'Início', rota: '/', icone: 'home', curto: 'Início' },
-    { titulo: 'Máquinas', rota: '/maquinas', icone: 'agriculture', curto: 'Máquinas' },
-    { titulo: 'Estoque', rota: '/estoque', icone: 'inventory_2', curto: 'Estoque' },
-    { titulo: 'Ordens de Serviço', rota: '/ordens-servico', icone: 'build', curto: 'O.S.' },
-    { titulo: 'Movimentações', rota: '/movimentacoes', icone: 'history' },
+  // O menu fica numa lista de seções: para acrescentar uma tela, basta uma linha aqui
+  protected readonly secoesMenu: SecaoMenu[] = [
+    {
+      titulo: 'Operação',
+      itens: [
+        { titulo: 'Início', rota: '/', icone: 'home', curto: 'Início' },
+        { titulo: 'Máquinas', rota: '/maquinas', icone: 'agriculture', curto: 'Máquinas' },
+        { titulo: 'Estoque', rota: '/estoque', icone: 'inventory_2', curto: 'Estoque' },
+        { titulo: 'Ordens de Serviço', rota: '/ordens-servico', icone: 'build', curto: 'O.S.', contaOsAbertas: true },
+      ],
+    },
+    {
+      titulo: 'Histórico',
+      itens: [{ titulo: 'Movimentações', rota: '/movimentacoes', icone: 'history' }],
+    },
   ];
 
   // Navegação inferior: só os itens com rótulo curto (4 cabem bem numa tela de celular)
-  protected readonly itensInferiores = this.itensMenu.filter(item => item.curto);
+  protected readonly itensInferiores = this.secoesMenu.flatMap(secao => secao.itens).filter(item => item.curto);
+
+  // Cada navegação concluída vira um valor novo neste signal...
+  private readonly navegacao = toSignal(
+    inject(Router).events.pipe(filter(evento => evento instanceof NavigationEnd)),
+  );
+
+  // ...e o recurso usa esse valor como parâmetro: a contagem é refeita a cada troca de tela.
+  // (Antes da primeira navegação o parâmetro é undefined, e o rxResource espera sem buscar.)
+  private readonly osService = inject(OrdemServicoService);
+  protected readonly osAbertas = rxResource({
+    params: () => this.navegacao(),
+    stream: () => this.osService.contarAbertas(),
+  });
 
   protected readonly opcoesTema: OpcaoTema[] = [
     { valor: 'claro', rotulo: 'Claro', icone: 'light_mode' },

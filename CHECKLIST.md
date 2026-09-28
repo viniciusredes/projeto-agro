@@ -67,7 +67,7 @@ Branch: `feat/front-base` · PR #2 (PR final da Etapa 2)
 - [x] **Passo 16** — Polimento (16.2 e 16.3 retomados depois da aula, junto com o redesign)
   - [x] **16.1** — Estilos globais (`src/estilos/_comuns.scss`), tons semânticos das etiquetas (`core/ui/tons.ts`) e links com a cor do tema · `e337049`
   - [x] **16.2** — Diálogo de confirmação reutilizável (`shared/confirmacao-dialog`), usado antes de fechar a O.S. com a lista das peças e o custo estimado · `566cb45`
-  - [x] **16.3** — Responsividade: `BreakpointObserver` → signal `celular()`; menu lateral fixo no desktop e em gaveta no celular, navegação inferior com 4 áreas, tabelas com rolagem horizontal, `100dvh`, linha de peças da O.S. quebrando no celular · *commit: a preencher*
+  - [x] **16.3** — Responsividade: `BreakpointObserver` → signal `celular()`; menu lateral fixo no desktop e em gaveta no celular, navegação inferior com 4 áreas, tabelas com rolagem horizontal, `100dvh`, linha de peças da O.S. quebrando no celular · `98d1596`
 - [x] **Passo 17** — `ng build` sem erros, README do front-end, `context.md` atualizado e movido para a raiz, README da raiz (escopo, clonagem e execução) e PR final · último commit do PR #2
 - [ ] *(Opcional)* Testes unitários de um service e de um componente
 
@@ -75,7 +75,7 @@ Branch: `feat/front-base` · PR #2 (PR final da Etapa 2)
 
 > A partir do canvas de design "Agro Frota — Redesign" (painel de operação, lista com ação principal, fechamento de O.S. com resumo e telas para celular), aprovado pelo usuário. Branch `feat/redesign`.
 
-- [ ] **R5.1** — Identidade do redesign: menu lateral verde-escuro com seções e contador de O.S. abertas, fonte de texto Source Sans 3, fundo tonalizado
+- [x] **R5.1** — Identidade do redesign: menu lateral verde-escuro com seções (Operação/Histórico) via `mat.list-overrides`, contador de O.S. abertas (recarregado a cada navegação, silencioso em caso de erro) no menu e na navegação inferior, fonte de texto Source Sans 3, fundo tonalizado e novas cores `--agro-*` · *commit: a preencher*
 - [ ] **R5.2** — Página inicial vira o Painel: indicadores com contexto e bloco "Precisa de atenção" com ações diretas
 - [ ] **R5.3** — Máquinas: filtros rápidos por situação, uma ação principal por máquina, cartões no celular
 - [ ] **R5.4** — O.S. em fechamento: etapas, subtotal por peça, aviso de saldo na linha e resumo lateral

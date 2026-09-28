@@ -1,3 +1,5 @@
+@use '@angular/material' as mat;
+
 // A casca ocupa a tela inteira: barra em cima, o resto para o menu + conteúdo
 :host {
   display: flex;
@@ -11,8 +13,8 @@
 .barra {
   position: relative;
   gap: 8px;
-  background: var(--mat-sys-surface-container-lowest);
-  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  background: var(--agro-cartao);
+  border-bottom: 1px solid var(--agro-borda);
 
   &::before {
     content: '';
@@ -49,20 +51,75 @@
   flex: 1; // ocupa toda a altura que sobra abaixo da barra
 }
 
-// Menu lateral um tom abaixo do conteúdo, para separar as áreas sem precisar de sombras
+// Menu lateral verde-escuro (redesign): separa a navegação do conteúdo pela cor, sem bordas.
+// As cores dos itens entram pelos TOKENS da lista (mat.list-overrides), o jeito oficial de
+// personalizar um componente do Material sem depender das classes internas dele.
 .menu {
-  width: 240px;
-  padding-top: 8px;
-  background: var(--mat-sys-surface-container-low);
-  border-right: 1px solid var(--mat-sys-outline-variant);
+  width: 256px;
+  padding: 8px 6px;
+  box-sizing: border-box;
+  background: var(--agro-menu-fundo);
+
+  @include mat.list-overrides((
+    list-item-label-text-color: var(--agro-menu-texto),
+    list-item-hover-label-text-color: var(--agro-menu-texto),
+    list-item-focus-label-text-color: var(--agro-menu-texto),
+    list-item-leading-icon-color: var(--agro-menu-suave),
+    list-item-hover-leading-icon-color: var(--agro-menu-texto),
+    list-item-hover-state-layer-color: #ffffff,
+    list-item-label-text-font: inherit,
+    active-indicator-color: var(--agro-menu-ativo),
+    active-indicator-shape: 10px,
+  ));
+
+  // Item ativo: texto em negrito e ícone na cor do texto
+  .mdc-list-item--activated {
+    --mat-list-list-item-leading-icon-color: var(--agro-menu-texto);
+    font-weight: 700;
+  }
+}
+
+// Título de cada seção do menu ("Operação", "Histórico")
+.secao {
+  height: auto;
+  padding: 16px 16px 6px;
+  color: var(--agro-menu-suave);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+// Título do item com o contador empurrado para a direita
+.titulo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+// Contador de O.S. abertas: o laranja da marca como SINAL de pendência
+.contador {
+  flex-shrink: 0;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 11px;
+  background: var(--agro-sinal);
+  color: var(--agro-sinal-texto);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
 }
 
 .conteudo {
   // O Material dá "height: 100%" a esta área. Sem border-box, o padding SOMA à altura
   // (100% + 48px) e os últimos 48px da página ficam escondidos atrás da borda da tela.
   box-sizing: border-box;
-  padding: 24px;
-  background: var(--mat-sys-surface);
+  padding: 28px 32px;
+  background: var(--agro-fundo);
 }
 
 // ===== Celular =====
@@ -82,8 +139,8 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   padding: 4px 8px calc(8px + env(safe-area-inset-bottom)); // respeita a barra de gestos do iPhone
-  background: var(--mat-sys-surface-container-lowest);
-  border-top: 1px solid var(--mat-sys-outline-variant);
+  background: var(--agro-cartao);
+  border-top: 1px solid var(--agro-borda);
 }
 
 .nav-inferior__item {
@@ -105,12 +162,31 @@
 
 // O ícone fica numa "pílula", que ganha cor no item ativo (padrão de navegação do Material 3)
 .nav-inferior__icone {
+  position: relative; // referência para o contador no canto
   display: flex;
   align-items: center;
   justify-content: center;
   width: 56px;
   height: 30px;
   border-radius: 15px;
+}
+
+// Contador de O.S. abertas no canto do ícone (mesmo laranja do menu lateral)
+.nav-inferior__contador {
+  position: absolute;
+  top: -4px;
+  right: 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: var(--agro-sinal);
+  color: var(--agro-sinal-texto);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
 }
 
 .nav-inferior__item--ativo {

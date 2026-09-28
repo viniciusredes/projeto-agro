@@ -1316,6 +1316,77 @@ buscar(id: number): Observable<Peca> {
 
 ---
 
+### Redesign R5 — Do protótipo ao código
+
+O redesign foi desenhado primeiro num **canvas de design** (painel de operação, lista com ação principal, fechamento de O.S. com resumo, telas de celular) e só depois implementado, em passos pequenos. Desenhar antes permite discutir a direção sem gastar código.
+
+#### R5.1 — Identidade: menu verde-escuro, contador de O.S. e fundo tonalizado
+
+🎯 Trocar a "moldura" do sistema: menu lateral verde-escuro com seções, contador de pendências em laranja, fundo tonalizado e uma fonte de texto mais legível em números.
+
+🧩 Cores novas em `_comuns.scss` (sempre nos dois temas):
+
+```scss
+--agro-fundo: light-dark(#f5f4ee, #0f1511);      // atrás do conteúdo
+--agro-cartao: light-dark(#ffffff, #161e19);     // barra, navegação inferior, cartões
+--agro-menu-fundo: light-dark(#0c3a26, #0a100c); // menu lateral
+--agro-sinal: #f38302;                           // laranja = pendência
+```
+
+Menu pelos **tokens** da lista (`shell.scss`):
+
+```scss
+.menu {
+  background: var(--agro-menu-fundo);
+  @include mat.list-overrides((
+    list-item-label-text-color: var(--agro-menu-texto),
+    list-item-leading-icon-color: var(--agro-menu-suave),
+    active-indicator-color: var(--agro-menu-ativo),
+    active-indicator-shape: 10px,
+  ));
+}
+```
+
+Contador de O.S. abertas, refeito a cada navegação (`shell.ts`):
+
+```ts
+private readonly navegacao = toSignal(
+  inject(Router).events.pipe(filter(evento => evento instanceof NavigationEnd)),
+);
+
+protected readonly osAbertas = rxResource({
+  params: () => this.navegacao(),                  // muda a cada troca de tela
+  stream: () => this.osService.contarAbertas(),    // GET silencioso (erroTratadoNaTela)
+});
+```
+
+Template: seções e `@let`:
+
+```html
+@let totalOsAbertas = osAbertas.hasValue() ? osAbertas.value() : 0;
+@for (secao of secoesMenu; track secao.titulo) {
+  <div mat-subheader class="secao">{{ secao.titulo }}</div>
+  @for (item of secao.itens; track item.rota) { ... }
+}
+```
+
+📚 **Conceitos**
+- **Protótipo antes do código:** decisões de layout e cor são baratas num canvas e caras no código. O código segue o protótipo aprovado.
+- **Cor com papel definido:** verde = marca e navegação; laranja = **sinal** (pendência, item ativo, aviso). Usar o laranja só para isso faz o olho encontrar o que precisa de atenção.
+- **`mat.list-overrides`:** personaliza a lista do Material pelos tokens (cor do texto, do ícone, do indicador ativo), sem depender de classes internas.
+- **Recarregar a cada navegação:** um signal alimentado pelos eventos `NavigationEnd` vira o `params` do `rxResource`. Enquanto o signal é `undefined` (antes da primeira navegação), o recurso espera.
+- **Requisição silenciosa:** o contador é buscado o tempo todo; se a API cair, ele só some. Por isso `contarAbertas()` usa o `erroTratadoNaTela()` do R4.
+- **`@let`:** guarda um valor calculado numa variável do template, usada em vários pontos.
+- **Slots do Material têm estilo próprio:** o contador no slot `matListItemMeta` herdava fonte e margens que cortavam o texto; dentro do título, com `display: flex`, ficou legível.
+
+🧪 **Testes**
+1. O menu aparece verde-escuro nos dois temas, com as seções **Operação** e **Histórico**.
+2. Com uma O.S. aberta, o contador laranja aparece em **Ordens de Serviço** (e no ícone O.S. do celular).
+3. Feche a O.S. e troque de tela: o contador some.
+4. Pare a API e navegue: nenhum snackbar extra por causa do contador.
+
+---
+
 ## 6. Roteiro de testes no navegador
 
 Roteiro completo para uma demonstração, com a API recém-iniciada. Siga na ordem.

@@ -19,6 +19,21 @@
   --agro-atencao-fundo: light-dark(#fff4d6, #3d3210); // aviso amarelo (ex.: máquina em campo)
   --agro-atencao-texto: light-dark(#6b4a00, #f3d27a);
   --agro-linha-destaque: light-dark(#fff7ed, #2e2415); // linha de tabela em destaque (repor)
+
+  // Redesign (R5): fundo tonalizado atrás do conteúdo, cartões claros por cima
+  --agro-fundo: light-dark(#f5f4ee, #0f1511);
+  --agro-cartao: light-dark(#ffffff, #161e19);
+  --agro-borda: light-dark(#e2e0d6, #2a352e);
+
+  // Menu lateral verde-escuro (nos dois temas o texto é claro sobre fundo escuro)
+  --agro-menu-fundo: light-dark(#0c3a26, #0a100c);
+  --agro-menu-texto: light-dark(#e8f1ec, #e8eee9);
+  --agro-menu-suave: light-dark(#a9c4b6, #8fa197); // títulos das seções e contadores
+  --agro-menu-ativo: light-dark(#17513a, #18291f);
+
+  // Laranja da marca como SINAL: item ativo, contador de pendências, avisos
+  --agro-sinal: #f38302;
+  --agro-sinal-texto: #2b1600; // texto sobre o laranja (contraste 8:1)
 }
 
 // ----- Links com a cor do tema (em vez do azul sublinhado padrão do navegador) -----
