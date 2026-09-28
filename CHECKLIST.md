@@ -19,7 +19,9 @@ Concluída e mergeada na `main` (PR #1). Detalhes em [agro-backend/README.md](ag
 
 ## Etapa 2 — Front-end (Angular 22 + Angular Material) ✅
 
-Branch: `feat/front-base` · PR #2 (PR final da Etapa 2)
+Mergeada na `main` em dois PRs:
+- **PR #2** (`feat/front-base`): Fases 0 a 4 (até o Passo 17 e os refinamentos R1 a R3) · merge `d5190a0`
+- **PR #3** (`feat/redesign`): R4, Passos 16.2 e 16.3 e a Fase 5 (redesign) · merge `8b2a5ce`
 
 ### Fase 0 — Preparação ✅
 
@@ -73,7 +75,7 @@ Branch: `feat/front-base` · PR #2 (PR final da Etapa 2)
 
 ### Fase 5 — Redesign ✅
 
-> A partir do canvas de design "Agro Frota — Redesign" (painel de operação, lista com ação principal, fechamento de O.S. com resumo e telas para celular), aprovado pelo usuário. Branch `feat/redesign`.
+> A partir do canvas de design "Agro Frota — Redesign" (painel de operação, lista com ação principal, fechamento de O.S. com resumo e telas para celular), aprovado pelo usuário. Branch `feat/redesign`, mergeada na `main` pelo PR #3 (`8b2a5ce`).
 
 - [x] **R5.1** — Identidade do redesign: menu lateral verde-escuro com seções (Operação/Histórico) via `mat.list-overrides`, contador de O.S. abertas (recarregado a cada navegação, silencioso em caso de erro) no menu e na navegação inferior, fonte de texto Source Sans 3, fundo tonalizado e novas cores `--agro-*` · `bc717ae`
 - [x] **R5.2** — Página inicial vira o Painel: indicadores com as máquinas de cada situação, "Precisa de atenção" (O.S. abertas, máquinas em campo, peças abaixo do mínimo) com ações diretas, custo de manutenção por tipo e valor em estoque; cores das séries extraídas para `--agro-serie-*` · `9e684b7`

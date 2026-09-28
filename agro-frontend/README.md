@@ -174,6 +174,7 @@ O front foi construído em **passos pequenos**. Cada passo traz: 🎯 o **objeti
 | **2. Estoque** | [Passo 8](#passo-8--lista-de-peças-com-custo-e-reposição) a [Passo 11](#passo-11--kardex-rota-com-parâmetro) |
 | **3. Manutenção** | [Passo 12](#passo-12--lista-de-os-com-filtros-na-url) a [Passo 15](#passo-15--custo-de-manutenção-por-máquina) |
 | **4. Polimento** | [Passo 16.1](#passo-161--estilos-globais-e-tons-semânticos) a [16.3](#passo-163--responsividade-celular), [Refinamentos R1 a R3](#refinamentos-r1-a-r3--identidade-visual-e-tema-escuro) e [R4](#refinamento-r4--conferência-visual-e-correções) |
+| **5. Redesign** | [R5.1](#r51--identidade-menu-verde-escuro-contador-de-os-e-fundo-tonalizado) a [R5.4](#r54--os-em-fechamento-etapas-subtotais-e-resumo) |
 
 > **Dica para os alunos:** o histórico do Git tem **um commit por passo** (`git log --oneline`). Para ver exatamente o que mudou num passo, use `git show <hash>`. O [CHECKLIST.md](../CHECKLIST.md) lista os hashes.
 

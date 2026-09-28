@@ -15,7 +15,7 @@ O sistema substitui cadernos, planilhas e mensagens soltas por uma plataforma ú
 | Parte | Tecnologia | Documentação |
 |---|---|---|
 | [`agro-backend/`](agro-backend) | Node.js 24, Express e TypeScript (dados **em memória**) | [README do back-end](agro-backend/README.md): API, regras, construção passo a passo e testes com curl |
-| [`agro-frontend/`](agro-frontend) | Angular 22 e Angular Material (tema claro e escuro) | [README do front-end](agro-frontend/README.md): telas, conceitos, construção passo a passo e roteiro de testes |
+| [`agro-frontend/`](agro-frontend) | Angular 22 e Angular Material: painel de operação, tema claro e escuro, uso no desktop e no celular | [README do front-end](agro-frontend/README.md): telas, conceitos, construção passo a passo e roteiro de testes |
 
 Outros documentos:
 - [context.md](context.md): problema de negócio, decisões técnicas e histórico do projeto.
