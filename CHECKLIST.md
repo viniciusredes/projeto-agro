@@ -93,17 +93,17 @@ Mergeada na `main` em dois PRs:
 
 > Itens que estavam em "Pendências", resolvidos depois do redesign. Branch `feat/pendencias`.
 
-- [x] **Passo 18** — Testes unitários: auxiliar `src/testing/provedores-de-teste.ts` (HttpClient de teste, Router, pt-BR, diálogo), os 20 testes gerados consertados e testes de comportamento de função pura, service, interceptor e dois diálogos · 34 testes passando · *commit: a preencher*
-- [x] **Passo 19** — Tamanho do pacote inicial: análise com `ng build --stats-json`, menu lateral com links simples no lugar do `mat-nav-list` (o `@angular/forms` saiu do carregamento inicial), 685,6 → 603,5 kB, aviso do budget em 650 kB · *commit: a preencher*
-- [x] **Passo 20** — Services com `@Service()` (Angular 22) no lugar de `@Injectable({ providedIn: 'root' })`, nos quatro services · *commit: a preencher*
+- [x] **Passo 18** — Testes unitários: auxiliar `src/testing/provedores-de-teste.ts` (HttpClient de teste, Router, pt-BR, diálogo), os 20 testes gerados consertados e testes de comportamento de função pura, service, interceptor e dois diálogos · 34 testes passando · `00eee59`
+- [x] **Passo 19** — Tamanho do pacote inicial: análise com `ng build --stats-json`, menu lateral com links simples no lugar do `mat-nav-list` (o `@angular/forms` saiu do carregamento inicial), 685,6 → 603,5 kB, aviso do budget em 650 kB · `00eee59`
+- [x] **Passo 20** — Services com `@Service()` (Angular 22) no lugar de `@Injectable({ providedIn: 'root' })`, nos quatro services · `00eee59`
 
 ---
 
 ## Pendências e decisões em aberto
 
 - [x] **Cadastro de máquinas** — decidido: **entra no sistema** (Passos 8.1 e 8.2).
-- [x] **Material do back-end após o cadastro de máquinas** — `testes.http` com os cenários N1 a N6 do cadastro, roteiro de testes do README com a tabela do `POST /maquinas` (88 cenários), e o exercício 4 trocado por **"Editar máquina" (`PATCH /maquinas/:id`)**, com gabarito testado e verbete `PATCH` no glossário · *commit: a preencher*
+- [x] **Material do back-end após o cadastro de máquinas** — `testes.http` com os cenários N1 a N6 do cadastro, roteiro de testes do README com a tabela do `POST /maquinas` (88 cenários), e o exercício 4 trocado por **"Editar máquina" (`PATCH /maquinas/:id`)**, com gabarito testado e verbete `PATCH` no glossário · `00eee59`
 - [x] **Branch/PR do front-end** — decidido: tudo no PR #2 (título e descrição atualizados no Passo 17).
 - [x] **Budget do pacote inicial** — resolvido no Passo 19: 685,6 → 603,5 kB (o menu `mat-nav-list` trazia o `@angular/forms` para o carregamento inicial); aviso do budget reduzido para 650 kB.
-- [x] **Migrar services para `@Service()`** — feito no Passo 20 nos quatro services (`MaquinaService`, `PecaService`, `OrdemServicoService` e `TemaService`); build e testes continuam passando · *commit: a preencher*
+- [x] **Migrar services para `@Service()`** — feito no Passo 20 nos quatro services (`MaquinaService`, `PecaService`, `OrdemServicoService` e `TemaService`); build e testes continuam passando · `00eee59`
 - [x] **Testes unitários** — resolvido no Passo 18 (34 testes passando; o teste revelou e corrigiu o `matchMedia` sem verificação no `TemaService`).
