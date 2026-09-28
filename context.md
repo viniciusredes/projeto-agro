@@ -108,10 +108,11 @@ Projeto `agro-frontend/` (detalhes, conceitos e testes no [README do front-end](
 > **Status:** a **Etapa 1 (back-end em memória)** e a **Etapa 2 (front-end Angular)** estão concluídas. O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
 
 - **Redesign do front-end (concluído e mergeado na `main` pelo PR #3):** Passo 16 (16.2 confirmação antes de fechar a O.S.; 16.3 responsividade com navegação inferior no celular) e R5.1 a R5.4 (identidade com menu verde-escuro e contador de O.S., Painel com pendências e ações diretas, Máquinas com filtros e cartões, fechamento de O.S. com etapas e resumo), a partir do canvas de design aprovado.
-- **Redesign 2 (branch `feat/redesign-2`):** R6.1 paleta escura revista (menu verde-floresta, camadas mais distintas, verde-menta mais calmo), R6.2 Estoque no padrão do redesign (barra de nível do saldo, filtro para repor) e R6.3 lista de O.S. com cada O.S. inteira como link (abertas em cartões, fechadas em lista).
-- **Testes unitários do front:** os `.spec.ts` gerados pelo CLI precisam receber os providers (`HttpClient`, `ActivatedRoute`, `MAT_DIALOG_DATA`). Hoje 7 passam e 14 falham.
-- **Material do back-end:** trocar o exercício 4 (que virou "resposta pronta" com o `POST /maquinas`) por outro desafio, com gabarito, e incluir o cadastro no `testes.http`.
-- **Tamanho do pacote inicial:** cerca de 675 kB, perto do alerta de 700 kB configurado no `angular.json`.
+- **Redesign 2 (mergeado na `main` pelo PR #4):** R6.1 paleta escura revista (menu verde-floresta, camadas mais distintas, verde-menta mais calmo), R6.2 Estoque no padrão do redesign (barra de nível do saldo, filtro para repor) e R6.3 lista de O.S. com cada O.S. inteira como link (abertas em cartões, fechadas em lista).
+- **Testes unitários do front:** resolvidos no Passo 18 (34 testes passando). Próximo passo natural: um teste de comportamento para cada tela.
+- **Material do back-end:** atualizado. O `testes.http` cobre o cadastro de máquinas, e o exercício 4 virou "Editar máquina" (`PATCH /maquinas/:id`), com gabarito testado.
+- **Tamanho do pacote inicial:** 603,5 kB depois do Passo 19 (era 685,6 kB), com aviso configurado em 650 kB no `angular.json`.
+- **Services com `@Service()`:** os quatro services usam o decorador do Angular 22 (Passo 20).
 - **Evolução Futura:** Substituir as variáveis em memória por um banco de dados relacional (provavelmente PostgreSQL utilizando Prisma ORM), autenticação com perfis e publicação (build do front servido na mesma origem da API).
 
 ## 6. Ideias Descartadas e Por Quê

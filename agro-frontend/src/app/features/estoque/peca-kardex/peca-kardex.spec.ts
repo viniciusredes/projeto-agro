@@ -1,21 +1,14 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { PecaKardex } from './peca-kardex';
+import { provedoresBase } from '../../../../testing/provedores-de-teste';
 
 describe('PecaKardex', () => {
-  let component: PecaKardex;
-  let fixture: ComponentFixture<PecaKardex>;
-
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [PecaKardex],
-    }).compileComponents();
-
-    fixture = TestBed.createComponent(PecaKardex);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
-  });
-
   it('should create', () => {
-    expect(component).toBeTruthy();
+    TestBed.configureTestingModule({ imports: [PecaKardex], providers: provedoresBase() });
+    const fixture = TestBed.createComponent(PecaKardex);
+    // input.required: sem o id, o ngOnInit falharia (no app, o :id vem da rota)
+    fixture.componentRef.setInput('id', 1);
+    fixture.detectChanges();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

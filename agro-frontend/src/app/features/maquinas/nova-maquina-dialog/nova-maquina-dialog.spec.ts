@@ -1,21 +1,13 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { NovaMaquinaDialog } from './nova-maquina-dialog';
+import { provedoresDeDialogo } from '../../../../testing/provedores-de-teste';
 
 describe('NovaMaquinaDialog', () => {
-  let component: NovaMaquinaDialog;
-  let fixture: ComponentFixture<NovaMaquinaDialog>;
-
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [NovaMaquinaDialog],
-    }).compileComponents();
-
-    fixture = TestBed.createComponent(NovaMaquinaDialog);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
-  });
-
   it('should create', () => {
-    expect(component).toBeTruthy();
+    // Este diálogo não recebe dados (ele CRIA uma máquina)
+    TestBed.configureTestingModule({ imports: [NovaMaquinaDialog], providers: provedoresDeDialogo(null) });
+    const fixture = TestBed.createComponent(NovaMaquinaDialog);
+    fixture.detectChanges();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

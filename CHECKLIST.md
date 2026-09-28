@@ -71,7 +71,6 @@ Mergeada na `main` em dois PRs:
   - [x] **16.2** — Diálogo de confirmação reutilizável (`shared/confirmacao-dialog`), usado antes de fechar a O.S. com a lista das peças e o custo estimado · `566cb45`
   - [x] **16.3** — Responsividade: `BreakpointObserver` → signal `celular()`; menu lateral fixo no desktop e em gaveta no celular, navegação inferior com 4 áreas, tabelas com rolagem horizontal, `100dvh`, linha de peças da O.S. quebrando no celular · `98d1596`
 - [x] **Passo 17** — `ng build` sem erros, README do front-end, `context.md` atualizado e movido para a raiz, README da raiz (escopo, clonagem e execução) e PR final · último commit do PR #2
-- [ ] *(Opcional)* Testes unitários de um service e de um componente
 
 ### Fase 5 — Redesign ✅
 
@@ -90,13 +89,21 @@ Mergeada na `main` em dois PRs:
 - [x] **R6.2** — Estoque no padrão do redesign: busca, filtro `?filtro=repor`, peças a repor primeiro, barra de nível com a marca do mínimo, ação principal e cartões no celular; busca e filtros extraídos para `_comuns.scss` · `d61e9a8`
 - [x] **R6.3** — Lista de O.S.: abertas em cartões e fechadas em lista, cada O.S. inteira como link, contadores por status (status filtrado na tela) · `d61e9a8`
 
+### Fase 7 — Qualidade e pendências ✅
+
+> Itens que estavam em "Pendências", resolvidos depois do redesign. Branch `feat/pendencias`.
+
+- [x] **Passo 18** — Testes unitários: auxiliar `src/testing/provedores-de-teste.ts` (HttpClient de teste, Router, pt-BR, diálogo), os 20 testes gerados consertados e testes de comportamento de função pura, service, interceptor e dois diálogos · 34 testes passando · `00eee59`
+- [x] **Passo 19** — Tamanho do pacote inicial: análise com `ng build --stats-json`, menu lateral com links simples no lugar do `mat-nav-list` (o `@angular/forms` saiu do carregamento inicial), 685,6 → 603,5 kB, aviso do budget em 650 kB · `00eee59`
+- [x] **Passo 20** — Services com `@Service()` (Angular 22) no lugar de `@Injectable({ providedIn: 'root' })`, nos quatro services · `00eee59`
+
 ---
 
 ## Pendências e decisões em aberto
 
 - [x] **Cadastro de máquinas** — decidido: **entra no sistema** (Passos 8.1 e 8.2).
-- [ ] **Material do back-end após o cadastro de máquinas** — README do back-end já atualizado no Passo 17 (rota, regras e limitações). Falta: o `testes.http` e trocar o exercício 4 (que passa a ser "resposta pronta") por outro desafio, com gabarito.
+- [x] **Material do back-end após o cadastro de máquinas** — `testes.http` com os cenários N1 a N6 do cadastro, roteiro de testes do README com a tabela do `POST /maquinas` (88 cenários), e o exercício 4 trocado por **"Editar máquina" (`PATCH /maquinas/:id`)**, com gabarito testado e verbete `PATCH` no glossário · `00eee59`
 - [x] **Branch/PR do front-end** — decidido: tudo no PR #2 (título e descrição atualizados no Passo 17).
-- [ ] **Budget do pacote inicial** — 686 kB após o redesign (R5 e R6); alerta configurado em 700 kB. Avaliar numa próxima etapa.
-- [ ] *(Opcional)* **Migrar services para `@Service()`** — decorador novo do Angular 22 (gerado pelo CLI), equivalente a `@Injectable({ providedIn: 'root' })`. Hoje os 3 services usam `@Injectable` por consistência; migrar os três juntos.
-- [ ] **Testes unitários** — os `.spec.ts` gerados pelo CLI ainda não foram ajustados: `npm test` dá 7 passando e 14 falhando (faltam os providers `HttpClient`, `ActivatedRoute`, `MAT_DIALOG_DATA`).
+- [x] **Budget do pacote inicial** — resolvido no Passo 19: 685,6 → 603,5 kB (o menu `mat-nav-list` trazia o `@angular/forms` para o carregamento inicial); aviso do budget reduzido para 650 kB.
+- [x] **Migrar services para `@Service()`** — feito no Passo 20 nos quatro services (`MaquinaService`, `PecaService`, `OrdemServicoService` e `TemaService`); build e testes continuam passando · `00eee59`
+- [x] **Testes unitários** — resolvido no Passo 18 (34 testes passando; o teste revelou e corrigiu o `matchMedia` sem verificação no `TemaService`).

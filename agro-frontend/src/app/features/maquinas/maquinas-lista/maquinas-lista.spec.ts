@@ -1,21 +1,12 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { MaquinasLista } from './maquinas-lista';
+import { provedoresBase } from '../../../../testing/provedores-de-teste';
 
 describe('MaquinasLista', () => {
-  let component: MaquinasLista;
-  let fixture: ComponentFixture<MaquinasLista>;
-
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [MaquinasLista],
-    }).compileComponents();
-
-    fixture = TestBed.createComponent(MaquinasLista);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
-  });
-
   it('should create', () => {
-    expect(component).toBeTruthy();
+    TestBed.configureTestingModule({ imports: [MaquinasLista], providers: provedoresBase() });
+    const fixture = TestBed.createComponent(MaquinasLista);
+    fixture.detectChanges();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

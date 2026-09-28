@@ -1,21 +1,12 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { Inicio } from './inicio';
+import { provedoresBase } from '../../../testing/provedores-de-teste';
 
 describe('Inicio', () => {
-  let component: Inicio;
-  let fixture: ComponentFixture<Inicio>;
-
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [Inicio],
-    }).compileComponents();
-
-    fixture = TestBed.createComponent(Inicio);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
-  });
-
   it('should create', () => {
-    expect(component).toBeTruthy();
+    TestBed.configureTestingModule({ imports: [Inicio], providers: provedoresBase() });
+    const fixture = TestBed.createComponent(Inicio);
+    fixture.detectChanges();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

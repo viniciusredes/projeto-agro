@@ -1,11 +1,11 @@
-import { DOCUMENT, Injectable, computed, effect, inject, signal } from '@angular/core';
+import { DOCUMENT, Service, computed, effect, inject, signal } from '@angular/core';
 
 export type PreferenciaTema = 'claro' | 'escuro';
 
 // Mesma chave lida pelo script do index.html (que aplica o tema antes do Angular carregar)
 const CHAVE = 'agro-frota-tema';
 
-@Injectable({ providedIn: 'root' })
+@Service()
 export class TemaService {
   private readonly documento = inject(DOCUMENT);
 
@@ -43,7 +43,8 @@ export class TemaService {
     } catch {
       // sem acesso ao localStorage: usa o tema do sistema
     }
-    const sistemaEscuro = this.documento.defaultView?.matchMedia('(prefers-color-scheme: dark)').matches;
+    // matchMedia?.(): só chama se existir (não existe no ambiente de testes nem na renderização no servidor)
+    const sistemaEscuro = this.documento.defaultView?.matchMedia?.('(prefers-color-scheme: dark)').matches;
     return sistemaEscuro ? 'escuro' : 'claro';
   }
 }

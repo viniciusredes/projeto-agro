@@ -188,7 +188,7 @@ Execução que observa os arquivos e **reinicia** o programa automaticamente a c
 
 ### Normalização
 Padronizar um dado antes de gravar ou comparar, como remover espaços e deixar em maiúsculas, para que `" pv-03 "` e `"PV-03"` sejam o mesmo valor.
-🏋️ [Exercício 4](exercicios.md#exercício-4--cadastrar-máquina)
+🏋️ [Exercício 4](exercicios.md#exercício-4--editar-máquina)
 
 ### Optional chaining (`?.`)
 Acessa uma propriedade só se o objeto existir. Caso contrário, resulta em `undefined` em vez de dar erro.
@@ -203,6 +203,13 @@ Parte **variável** do caminho, que **identifica** um recurso. Lido com `req.par
 app.get('/maquinas/:id', ...)   // /maquinas/1  ->  req.params.id === '1'
 ```
 📘 [Ponto de partida](../README.md#ponto-de-partida)
+
+### PATCH
+Método HTTP de **atualização parcial**: o corpo traz só os campos que mudam, e o resto do recurso fica como está. Diferente do `PUT`, que **substitui** o recurso inteiro (quem usa `PUT` precisa reenviar todos os campos).
+```
+PATCH /maquinas/2   { "modelo": "Colheitadeira" }   ->  só o modelo muda
+```
+🏋️ [Exercício 4](exercicios.md#exercício-4--editar-máquina)
 
 ### Ponto flutuante
 Forma como o computador guarda números decimais, que nem sempre é exata: `1012.3 - 1000` resulta em `12.299999999999955`. Resolve-se arredondando: `Math.round(x * 10) / 10`.
@@ -287,7 +294,7 @@ type Resultado = { ok: true; itens: Item[] } | { ok: false; status: number; erro
 
 ### Unicidade
 Regra que impede dois registros com o mesmo valor num campo (ex.: duas máquinas com a tag `PV-03`). A violação responde **409**.
-🏋️ [Exercício 4](exercicios.md#exercício-4--cadastrar-máquina)
+🏋️ [Exercício 4](exercicios.md#exercício-4--editar-máquina)
 
 ### `unknown` × `any`
 Os dois aceitam qualquer valor, mas com `unknown` o TypeScript **obriga** a checar o tipo antes de usar. Com `any`, ele deixa passar tudo. `unknown` é o mais seguro para dados que vêm de fora.

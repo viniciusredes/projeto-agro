@@ -707,3 +707,73 @@ Content-Type: application/json
 ### Q8 — Custo congelado
 # Esperado: 200, a O.S. nº 1 continua com o filtro a 92.46 e custoTotal 493.37
 GET {{baseUrl}}/ordens-servico/1
+
+
+# =====================================================================
+#  POST /maquinas (cadastro)
+#  Fica no FIM de propósito: cadastrar uma máquina muda a lista, e os
+#  testes acima contam com as 2 máquinas iniciais. Mesmos códigos do testes.sh.
+# =====================================================================
+
+### N1 — Cadastro válido (a tag é normalizada: sem espaços e em maiúsculas)
+# Esperado: 201, tag "PV-03", status "Disponível", id 3
+POST {{baseUrl}}/maquinas
+Content-Type: application/json
+
+{
+  "tag": " pv-03 ",
+  "modelo": "Pulverizador",
+  "horimetro": 250
+}
+
+### N2 — Tag repetida
+# Esperado: 409, "Já existe uma máquina com a tag PV-03"
+POST {{baseUrl}}/maquinas
+Content-Type: application/json
+
+{
+  "tag": "PV-03",
+  "modelo": "Outro",
+  "horimetro": 0
+}
+
+### N3 — Horímetro negativo
+# Esperado: 400, "Campo 'horimetro' deve ser um número maior ou igual a zero"
+POST {{baseUrl}}/maquinas
+Content-Type: application/json
+
+{
+  "tag": "X-01",
+  "modelo": "Trator",
+  "horimetro": -5
+}
+
+### N4 — Sem tag
+# Esperado: 400, "Campo 'tag' é obrigatório"
+POST {{baseUrl}}/maquinas
+Content-Type: application/json
+
+{
+  "modelo": "Trator",
+  "horimetro": 10
+}
+
+### N5 — Sem modelo
+# Esperado: 400, "Campo 'modelo' é obrigatório"
+POST {{baseUrl}}/maquinas
+Content-Type: application/json
+
+{
+  "tag": "X-01",
+  "horimetro": 10
+}
+
+### N6 — A máquina nova já pode sair para o campo
+# Esperado: 200, a máquina 3 (PV-03) fica "Em Operação"
+POST {{baseUrl}}/maquinas/3/saida
+Content-Type: application/json
+
+{
+  "operador": "Ana",
+  "frenteTrabalho": "Talhão 2"
+}

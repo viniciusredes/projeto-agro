@@ -1,21 +1,12 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { NovaPecaDialog } from './nova-peca-dialog';
+import { provedoresDeDialogo } from '../../../../testing/provedores-de-teste';
 
 describe('NovaPecaDialog', () => {
-  let component: NovaPecaDialog;
-  let fixture: ComponentFixture<NovaPecaDialog>;
-
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [NovaPecaDialog],
-    }).compileComponents();
-
-    fixture = TestBed.createComponent(NovaPecaDialog);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
-  });
-
   it('should create', () => {
-    expect(component).toBeTruthy();
+    TestBed.configureTestingModule({ imports: [NovaPecaDialog], providers: provedoresDeDialogo(null) });
+    const fixture = TestBed.createComponent(NovaPecaDialog);
+    fixture.detectChanges();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

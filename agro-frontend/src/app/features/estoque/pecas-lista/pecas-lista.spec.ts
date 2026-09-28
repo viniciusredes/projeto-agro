@@ -1,21 +1,12 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { PecasLista } from './pecas-lista';
+import { provedoresBase } from '../../../../testing/provedores-de-teste';
 
 describe('PecasLista', () => {
-  let component: PecasLista;
-  let fixture: ComponentFixture<PecasLista>;
-
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [PecasLista],
-    }).compileComponents();
-
-    fixture = TestBed.createComponent(PecasLista);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
-  });
-
   it('should create', () => {
-    expect(component).toBeTruthy();
+    TestBed.configureTestingModule({ imports: [PecasLista], providers: provedoresBase() });
+    const fixture = TestBed.createComponent(PecasLista);
+    fixture.detectChanges();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });
