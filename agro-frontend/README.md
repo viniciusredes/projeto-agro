@@ -113,7 +113,7 @@ Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.
 | Rota | Tela | Chamadas à API |
 |---|---|---|
 | `/` | Painel: indicadores da frota, "Precisa de atenção" com ações diretas e custo de manutenção | `GET /maquinas`, `GET /pecas`, `GET /ordens-servico`, `GET /movimentacoes` |
-| `/maquinas` | Lista de máquinas + diálogos Nova máquina, Saída, Retorno e O.S. | `GET /maquinas`, `POST /maquinas`, `POST /maquinas/:id/saida`, `POST /maquinas/:id/retorno` |
+| `/maquinas` | Lista de máquinas com busca, filtros por situação (`?situacao=`) e uma ação principal por máquina + diálogos Nova máquina, Saída, Retorno e O.S. | `GET /maquinas`, `GET /movimentacoes`, `GET /ordens-servico?status=Aberta`, `POST /maquinas`, `POST /maquinas/:id/saida`, `POST /maquinas/:id/retorno` |
 | `/maquinas/:id` | Detalhe da máquina: indicadores e custo por tipo de O.S. | `GET /maquinas/:id/manutencoes` |
 | `/movimentacoes` | Histórico de saídas e retornos, com filtro por máquina | `GET /movimentacoes?maquinaId=` |
 | `/estoque` | Lista de peças + diálogos Nova peça e Entrada | `GET /pecas`, `POST /pecas`, `POST /pecas/:id/entradas` |
@@ -1436,6 +1436,78 @@ Quem está com a máquina em campo vem da movimentação **sem retorno**:
 3. **Fechar O.S.** leva ao detalhe da O.S.; depois de fechar, volte ao Painel: a pendência sumiu e o custo aumentou.
 4. No celular, os indicadores ficam em 2 × 2 e as pendências logo abaixo.
 
+#### R5.3 — Máquinas: filtros, uma ação principal e cartões no celular
+
+🎯 Encontrar a máquina rápido (busca e filtros por situação) e saber **o que fazer** com ela (uma ação principal), com uma lista que vira cartões no celular.
+
+🧩 `maquinas-lista.ts`: filtro na URL (padrão do Passo 12) e busca local:
+
+```ts
+readonly situacao = input<StatusMaquina | undefined, string | undefined>(undefined, { transform: paraSituacao });
+protected readonly busca = signal('');
+
+protected readonly visiveis = computed(() => {
+  const situacao = this.situacao();
+  const termo = this.busca().trim().toLowerCase();
+  return this.linhas().filter(({ maquina }) =>
+    (!situacao || maquina.status === situacao) &&
+    (!termo || maquina.tag.toLowerCase().includes(termo) || maquina.modelo.toLowerCase().includes(termo)),
+  );
+});
+```
+
+Contexto de cada máquina: quem está com ela (movimentação sem retorno) ou qual O.S. a segura:
+
+```ts
+if (maquina.status === 'Em Operação') {
+  const saida = saidas.find(m => m.maquinaId === maquina.id);
+  return { maquina, contexto: `${saida.operador} · ${saida.frenteTrabalho}` };
+}
+```
+
+Uma ação principal, decidida pela situação:
+
+```html
+@switch (maquina.status) {
+  @case ('Disponível') { <button mat-flat-button (click)="abrirSaida(maquina)">Registrar saída</button> }
+  @case ('Em Operação') { <button mat-stroked-button (click)="abrirRetorno(maquina)">Registrar retorno</button> }
+  @case ('Em Manutenção') { <a mat-stroked-button [routerLink]="['/ordens-servico', linha.osAbertaId]">Ver O.S.</a> }
+}
+```
+
+**Um markup, dois layouts** (`maquinas-lista.scss`):
+
+```scss
+.maquina {            // desktop: uma linha de 4 colunas
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1.6fr);
+}
+
+@media (max-width: 767.98px) {
+  .maquina {          // celular: o MESMO HTML vira um cartão
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'nome situacao'
+      'horimetro horimetro'
+      'acoes acoes';
+  }
+}
+```
+
+📚 **Conceitos**
+- **Uma ação principal:** antes, a linha tinha Saída/Retorno **e** O.S. com o mesmo peso. Agora o botão cheio é a próxima ação natural; "Abrir O.S." virou um botão de ícone secundário (com `matTooltip` e `aria-label`, porque ícone sozinho não se explica).
+- **`grid-template-areas`:** dá nome às regiões da grade e reposiciona os mesmos elementos só com CSS. Nada de HTML duplicado para celular.
+- **Filtro na URL × estado local:** a situação vai para a URL (link compartilhável, botão Voltar); o texto da busca fica num signal, porque muda a cada tecla.
+- **Contagem nos filtros ("Em campo · 1"):** o usuário sabe o que vai encontrar antes de clicar.
+- **`tabular-nums`:** algarismos com a mesma largura, para os horímetros se alinharem.
+- **Tabela × lista de cartões:** tabela é ótima para comparar muitas colunas; aqui a tarefa é **agir** sobre cada máquina, e a lista de blocos funciona melhor nas duas larguras.
+
+🧪 **Testes**
+1. Clique em **Em campo · 1**: só a máquina em campo aparece, e a URL ganha `?situacao=Em%20Opera%C3%A7%C3%A3o`. Voltar do navegador desfaz o filtro.
+2. Digite "col" na busca: só a Colheitadeira.
+3. Cada máquina mostra uma ação: **Registrar saída**, **Registrar retorno** ou **Ver O.S.**; a ferramenta abre a O.S.
+4. No celular, as máquinas viram cartões com a ação ocupando a largura.
+
 ---
 
 ## 6. Roteiro de testes no navegador
@@ -1447,16 +1519,16 @@ Roteiro completo para uma demonstração, com a API recém-iniciada. Siga na ord
 | 1 | Painel | Abrir `http://localhost:4200` | "Disponíveis no pátio: 2 de 2"; COR-001 abaixo do mínimo em "Precisa de atenção", com o botão **Registrar entrada** |
 | 2 | Máquinas | **Nova máquina** `PU-03`, Pulverizador, 0 h | Snackbar de sucesso, 3 máquinas na lista |
 | 3 | Máquinas | **Nova máquina** `PU-03` de novo | Snackbar vermelho com o 409 da API, diálogo continua aberto |
-| 4 | Máquinas | **Saída** do TR-01 sem preencher | Campos em vermelho, nenhuma requisição na aba Network |
-| 5 | Máquinas | **Saída** do TR-01 com operador e frente | TR-01 "Em Operação", botão vira **Retorno** |
-| 6 | Máquinas | **Retorno** do TR-01 com horímetro menor | Erro no campo |
-| 7 | Máquinas | **Retorno** com 1010 e uma avaria | "10 h trabalhadas", TR-01 "Disponível" |
+| 4 | Máquinas | **Registrar saída** do TR-01 e confirmar sem preencher | Campos em vermelho, nenhuma requisição na aba Network |
+| 5 | Máquinas | **Registrar saída** do TR-01 com operador e frente | TR-01 "Em Operação" com "operador · frente"; a ação vira **Registrar retorno** |
+| 6 | Máquinas | **Registrar retorno** do TR-01 com horímetro menor | Erro no campo |
+| 7 | Máquinas | **Registrar retorno** com 1010 e uma avaria | "10 h trabalhadas", TR-01 "Disponível" |
 | 8 | Movimentações | Filtrar por TR-01 | Uma linha, com datas em pt-BR e a avaria |
 | 9 | Estoque | Ligar **Só reposição** | Só a COR-001, com a coluna "Falta" |
 | 10 | Estoque | **Nova peça** em `un` com mínimo 2,5 | Erro "inteiro"; trocando para `L`, o erro some |
 | 11 | Estoque | **Entrada** de 10 un na COR-001 | Prévia do saldo, mensagem "Custo: de → para" |
 | 12 | Estoque | Clicar no código da COR-001 | Kardex com implantação e entrada |
-| 13 | Máquinas | **Saída** do CO-02 e depois **O.S.** nele | Aviso "máquina em campo"; snackbar com as horas trabalhadas |
+| 13 | Máquinas | **Registrar saída** do CO-02 e depois o botão de ferramenta (Abrir O.S.) nele | Aviso "máquina em campo"; snackbar com as horas trabalhadas; a ação vira **Ver O.S.** |
 | 14 | Ordens de Serviço | Filtrar por status "Aberta"; copiar a URL numa aba nova | O filtro vem aplicado pela URL |
 | 15 | O.S. aberta | Adicionar a mesma peça em duas linhas | Erro "peça repetida" |
 | 16 | O.S. aberta | Quantidade acima do saldo e **Fechar** | Aviso amarelo; 409 da API; kardex sem baixa |

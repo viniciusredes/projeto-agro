@@ -1,18 +1,200 @@
-// .cabecalho, .tabela, .aviso e .etiqueta vêm de src/estilos/_comuns.scss (globais).
+// .cabecalho, .aviso, .etiqueta e .numero vêm de src/estilos/_comuns.scss (globais).
 // Aqui fica só o que é específico desta tela.
 
-// Botões de ação alinhados à direita da linha
-.acoes {
-  text-align: right;
+.cabecalho h2 {
+  margin: 0;
 }
 
-// Espaço entre o botão de Saída/Retorno e o de O.S.
-.botao-os {
-  margin-left: 8px;
+.subtitulo {
+  margin: 2px 0 0;
+  color: var(--mat-sys-on-surface-variant);
 }
 
-// Botões do cabeçalho lado a lado
 .botoes {
   display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+// ===== Busca + filtros =====
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.busca {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 300px;
+  height: 44px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  border: 1px solid var(--agro-borda);
+  border-radius: 12px;
+  background: var(--agro-cartao);
+  color: var(--mat-sys-on-surface-variant);
+
+  &:focus-within {
+    border-color: var(--mat-sys-primary);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--mat-sys-on-surface);
+    font: inherit;
+  }
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto; // no celular, os filtros rolam para o lado
+}
+
+.chip {
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--agro-borda);
+  border-radius: 20px;
+  background: var(--agro-cartao);
+  color: var(--mat-sys-on-surface);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+// Filtro ativo: invertido (texto claro sobre fundo escuro) para destacar sem usar mais uma cor
+.chip--ativo {
+  border-color: var(--mat-sys-on-surface);
+  background: var(--mat-sys-on-surface);
+  color: var(--mat-sys-surface);
+}
+
+// ===== Lista: UM markup, dois layouts =====
+// Desktop: cada máquina é uma "linha" com 4 colunas (a mesma grade do cabeçalho .colunas)
+.colunas,
+.maquina {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1.6fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.colunas {
+  padding: 0 18px 8px;
+  font-weight: 600;
+  font-size: 0.9em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.maquina {
+  padding: 14px 18px;
+  border: 1px solid var(--agro-borda);
+  border-radius: 14px;
+  background: var(--agro-cartao);
+}
+
+.maquina__nome {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  div {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+  font-family: var(--mat-sys-headline-small-font);
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.maquina__tag {
+  font-weight: 700;
+  font-size: 1.05em;
+}
+
+.maquina__modelo,
+.maquina__contexto {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.maquina__horimetro {
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums; // algarismos da mesma largura: os números se alinham
+}
+
+.maquina__situacao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.maquina__acoes {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.sem-acao {
+  width: 48px; // largura de um mat-icon-button
+}
+
+// Celular: a mesma "linha" vira um CARTÃO (nome e situação em cima, ações embaixo)
+@media (max-width: 767.98px) {
+  .colunas,
+  .sem-acao {
+    display: none;
+  }
+
+  .maquina {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'nome situacao'
+      'horimetro horimetro'
+      'acoes acoes';
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .maquina__nome { grid-area: nome; }
+  .maquina__situacao { grid-area: situacao; align-items: flex-end; text-align: right; }
+  .maquina__horimetro { grid-area: horimetro; text-align: left; color: var(--mat-sys-on-surface-variant); }
+
+  .maquina__acoes {
+    grid-area: acoes;
+    justify-content: stretch;
+
+    // A ação principal ocupa a largura disponível: alvo grande para o polegar
+    > :first-child:not(.mat-mdc-icon-button) {
+      flex: 1;
+    }
+  }
 }
