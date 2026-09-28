@@ -41,30 +41,30 @@
     <!-- @let: guarda o total de O.S. abertas numa variável do template (0 enquanto carrega ou se falhar) -->
     @let totalOsAbertas = osAbertas.hasValue() ? osAbertas.value() : 0;
 
-    <mat-nav-list>
+    <!-- Links simples com routerLinkActive (como a navegação inferior do celular).
+         Antes era um mat-nav-list: o pacote de listas do Material traz junto o @angular/forms
+         (as listas de SELEÇÃO dele são campos de formulário), cerca de 83 kB no carregamento inicial. -->
+    <nav class="menu-lista" aria-label="Menu principal">
       @for (secao of secoesMenu; track secao.titulo) {
-        <div mat-subheader class="secao">{{ secao.titulo }}</div>
+        <p class="secao">{{ secao.titulo }}</p>
         @for (item of secao.itens; track item.rota) {
           <a
-            mat-list-item
+            class="item-menu"
             [routerLink]="item.rota"
-            routerLinkActive
+            routerLinkActive="item-menu--ativo"
             [routerLinkActiveOptions]="{ exact: item.rota === '/' }"
-            #rla="routerLinkActive"
-            [activated]="rla.isActive"
+            ariaCurrentWhenActive="page"
             (click)="aoNavegar(menu)"
           >
-            <mat-icon matListItemIcon>{{ item.icone }}</mat-icon>
-            <span matListItemTitle class="titulo-item">
-              {{ item.titulo }}
-              @if (item.contaOsAbertas && totalOsAbertas > 0) {
-                <span class="contador" [attr.aria-label]="totalOsAbertas + ' abertas'">{{ totalOsAbertas }}</span>
-              }
-            </span>
+            <mat-icon>{{ item.icone }}</mat-icon>
+            <span class="item-menu__titulo">{{ item.titulo }}</span>
+            @if (item.contaOsAbertas && totalOsAbertas > 0) {
+              <span class="contador" [attr.aria-label]="totalOsAbertas + ' abertas'">{{ totalOsAbertas }}</span>
+            }
           </a>
         }
       }
-    </mat-nav-list>
+    </nav>
   </mat-sidenav>
 
   <!-- Área central: aqui o roteador coloca a tela da rota atual -->

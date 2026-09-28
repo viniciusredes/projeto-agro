@@ -73,7 +73,7 @@ Abra **http://localhost:4200**. O Painel da frota deve mostrar "Disponíveis no 
 | `agro-backend` | `bash testes.sh` | Roteiro automatizado de testes da API, com a API rodando (✅/❌ por cenário) |
 | `agro-backend` | `npx tsc --noEmit` | Verificar erros de tipo |
 | `agro-frontend` | `npm run build` | Gerar a versão de produção em `dist/` |
-| `agro-frontend` | `npm test` | Testes unitários (ainda não adaptados, veja o README do front) |
+| `agro-frontend` | `npm test` | Testes unitários (Vitest): services, interceptor e componentes |
 
 ## Problemas comuns
 

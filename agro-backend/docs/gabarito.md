@@ -6,7 +6,7 @@
 
 Todas as soluções foram testadas com os comandos dos enunciados.
 
-**Onde colocar o código:** novas rotas vão **depois das rotas existentes e antes do tratador de 404** (`// Rota não encontrada...`). Alterações em rotas existentes (exercícios 2, 5 e 6) são indicadas em cada solução.
+**Onde colocar o código:** novas rotas vão **depois das rotas existentes e antes do tratador de 404** (`// Rota não encontrada...`). Alterações em rotas existentes (exercícios 2, 4, 5 e 6) são indicadas em cada solução.
 
 ---
 
@@ -91,54 +91,91 @@ app.get('/maquinas/:id/movimentacoes', (req, res) => {
 
 ---
 
-## Exercício 4 — Cadastrar máquina
+## Exercício 4 — Editar máquina
+
+**1)** Uma função para a normalização da tag, **antes** das rotas. Ela passa a ser usada no cadastro (`POST /maquinas`) e na edição:
 
 ```ts
-// Gerador de ids para máquinas novas (as duas iniciais usam 1 e 2)
-let proximoIdMaquina = 3;
+// A tag é gravada sem espaços nas pontas e em maiúsculas: " pv-03 " vira "PV-03".
+// Uma função só, usada no cadastro e na edição: a regra não pode divergir entre as duas.
+function normalizarTag(tag: string): string {
+  return tag.trim().toUpperCase();
+}
+```
 
-// Caminho para CADASTRAR uma máquina
-app.post('/maquinas', (req, res) => {
-  const { tag, modelo, horimetro } = req.body ?? {};
+No `POST /maquinas`, troque `tag.trim().toUpperCase()` por `normalizarTag(tag)`.
 
-  // Validações de formato
-  if (typeof tag !== 'string' || tag.trim() === '') {
-    return res.status(400).json({ erro: "Campo 'tag' é obrigatório" });
+**2)** A rota de edição, depois das rotas existentes e antes do tratador de 404:
+
+```ts
+// Campos que o cliente NÃO altera por aqui: o sistema controla (status e horímetro mudam
+// pela saída, pelo retorno e pelas O.S.; o id nunca muda)
+const CAMPOS_PROTEGIDOS = ['id', 'status', 'horimetro'];
+
+// Caminho para EDITAR uma máquina (só os campos enviados)
+app.patch('/maquinas/:id', (req, res) => {
+  const id = Number(req.params.id);
+
+  // Validação 1 (formato): o id é um número inteiro?
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
   }
-  if (typeof modelo !== 'string' || modelo.trim() === '') {
-    return res.status(400).json({ erro: "Campo 'modelo' é obrigatório" });
-  }
-  if (typeof horimetro !== 'number' || !Number.isFinite(horimetro) || horimetro < 0) {
-    return res.status(400).json({ erro: "Campo 'horimetro' deve ser um número maior ou igual a zero" });
-  }
 
-  // Regra de negócio: tag única (comparando já normalizada)
-  const tagNormalizada = tag.trim().toUpperCase();
-  if (maquinas.some(m => m.tag === tagNormalizada)) {
-    return res.status(409).json({ erro: `Já existe uma máquina com a tag ${tagNormalizada}` });
+  // Validação 2: a máquina existe?
+  const maquina = maquinas.find(m => m.id === id);
+  if (!maquina) {
+    return res.status(404).json({ erro: 'Máquina não encontrada' });
   }
 
-  // Tudo certo: cria a máquina
-  const novaMaquina: Maquina = {
-    id: proximoIdMaquina++,
-    tag: tagNormalizada,
-    modelo: modelo.trim(),
-    horimetro,
-    status: 'Disponível'
-  };
-  maquinas.push(novaMaquina);
+  const corpo = req.body ?? {};
 
-  res.status(201).json(novaMaquina);
+  // Validação 3: nenhum campo controlado pelo sistema
+  const protegido = CAMPOS_PROTEGIDOS.find(campo => campo in corpo);
+  if (protegido) {
+    return res.status(400).json({ erro: `Campo '${protegido}' é controlado pelo sistema e não pode ser alterado` });
+  }
+
+  const { tag, modelo } = corpo;
+
+  // Validação 4: há algo para alterar?
+  if (tag === undefined && modelo === undefined) {
+    return res.status(400).json({ erro: "Informe 'tag' e/ou 'modelo' para alterar" });
+  }
+
+  // Validação 5 (formato): o que veio precisa ser texto não vazio
+  if (tag !== undefined && (typeof tag !== 'string' || tag.trim() === '')) {
+    return res.status(400).json({ erro: "Campo 'tag' não pode ficar vazio" });
+  }
+  if (modelo !== undefined && (typeof modelo !== 'string' || modelo.trim() === '')) {
+    return res.status(400).json({ erro: "Campo 'modelo' não pode ficar vazio" });
+  }
+
+  // Validação 6 (regra de negócio): tag única, ignorando a própria máquina
+  const novaTag = tag !== undefined ? normalizarTag(tag) : undefined;
+  if (novaTag !== undefined && maquinas.some(m => m.tag === novaTag && m.id !== maquina.id)) {
+    return res.status(409).json({ erro: `Já existe uma máquina com a tag ${novaTag}` });
+  }
+
+  // Tudo validado: só agora altera (e só o que foi enviado)
+  if (novaTag !== undefined) {
+    maquina.tag = novaTag;
+  }
+  if (modelo !== undefined) {
+    maquina.modelo = modelo.trim();
+  }
+
+  res.json(maquina);
 });
 ```
 
 **Pontos de atenção**
-- **201 Created** é o código certo para criação. O 200 funcionaria, mas o 201 comunica melhor o que aconteceu.
-- **O cliente não escolhe o id nem o status.** Se ele enviar `"status": "Em Operação"` no corpo, o campo é simplesmente ignorado. Nunca confie no cliente para dados controlados pelo sistema.
-- **Normalizar antes de comparar:** sem o `toUpperCase`, `"pv-03"` e `"PV-03"` seriam duas máquinas diferentes.
-- **409 para duplicidade:** o pedido está bem formado, mas conflita com o estado atual (a tag já existe).
-- `Array.some` devolve `true`/`false`: é o mais indicado quando só interessa saber **se existe**.
-- **Alternativa para o id:** `Math.max(0, ...maquinas.map(m => m.id)) + 1`. Mas cuidado: se a máquina de maior id for excluída (exercício 8), o id seria **reaproveitado**. O contador, como os bancos de dados fazem, nunca repete.
+- **`PATCH` × `PUT`:** o `PATCH` altera só o que veio no corpo. Com `PUT`, o cliente teria de mandar a máquina **inteira**, inclusive `status` e `horimetro`, que ele nem pode mudar.
+- **`undefined` × vazio:** campo **ausente** (`undefined`) significa "não mexa"; campo **presente e vazio** é erro. Por isso as validações testam `tag !== undefined` antes de olhar o conteúdo.
+- **Recusar em vez de ignorar os campos protegidos:** no cadastro, um `status` enviado era simplesmente ignorado. Na edição, ignorar seria enganoso: o cliente acharia que mudou o status. O 400 com o nome do campo deixa claro o que não é permitido.
+- **`campo in corpo`:** o operador `in` diz se a chave existe no objeto, mesmo com valor `null` ou `0`.
+- **A máquina não conflita com ela mesma:** sem o `m.id !== maquina.id`, reenviar a própria tag daria 409.
+- **Validar tudo antes de alterar:** se a tag conflitar, nem o modelo muda. É o mesmo "tudo ou nada" do fechamento de O.S. (Parte OS5), em escala menor.
+- **Extrair na segunda vez:** a normalização apareceu em duas rotas e virou uma função. Se a regra mudar (ex.: trocar `_` por `-`), muda num lugar só.
 
 ---
 

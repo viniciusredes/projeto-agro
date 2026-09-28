@@ -1,21 +1,17 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { EntradaDialog } from './entrada-dialog';
+import { Peca } from '../../../core/models/peca';
+import { provedoresDeDialogo } from '../../../../testing/provedores-de-teste';
 
 describe('EntradaDialog', () => {
-  let component: EntradaDialog;
-  let fixture: ComponentFixture<EntradaDialog>;
-
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [EntradaDialog],
-    }).compileComponents();
-
-    fixture = TestBed.createComponent(EntradaDialog);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
-  });
+  const peca: Peca = {
+    id: 3, codigo: 'COR-001', descricao: 'Correia do alternador', unidade: 'un', saldo: 4, custoUnitario: 120, estoqueMinimo: 5,
+  };
 
   it('should create', () => {
-    expect(component).toBeTruthy();
+    TestBed.configureTestingModule({ imports: [EntradaDialog], providers: provedoresDeDialogo(peca) });
+    const fixture = TestBed.createComponent(EntradaDialog);
+    fixture.detectChanges();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

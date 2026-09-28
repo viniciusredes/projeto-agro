@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Service, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_URL } from '../api';
@@ -7,7 +7,9 @@ import {
 } from '../models/maquina';
 
 
-@Injectable({ providedIn: 'root' }) // uma única instância para o app inteiro
+// @Service() (Angular 22): disponível automaticamente para o app inteiro, com uma única
+// instância. Faz o mesmo que o antigo @Injectable({ providedIn: 'root' }), com menos cerimônia.
+@Service()
 export class MaquinaService {
   private readonly http = inject(HttpClient);
   private readonly url = `${API_URL}/maquinas`;

@@ -1,11 +1,11 @@
-import { Injectable, inject } from '@angular/core';
+import { Service, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_URL, erroTratadoNaTela } from '../api';
 import { DadosEntrada, DadosNovaPeca, MovimentoEstoque, Peca, PecaParaRepor, RespostaEntrada } from '../models/peca';
 
 
-@Injectable({ providedIn: 'root' })
+@Service()
 export class PecaService {
   private readonly http = inject(HttpClient);
   private readonly url = `${API_URL}/pecas`;

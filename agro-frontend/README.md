@@ -66,7 +66,7 @@ Outros comandos úteis:
 
 ```bash
 npm run build    # gera a versão de produção em dist/agro-frontend (deve terminar sem erros nem avisos)
-npm test         # testes unitários (Vitest), veja as limitações na seção 10
+npm test         # testes unitários (Vitest): 34 testes, todos passando
 ```
 
 > ⚠️ **Os dados zeram quando a API reinicia.** O front só mostra o que a API tem na memória. Se as O.S. sumirem, verifique se o back-end reiniciou (ao salvar o `server.ts`, por exemplo).
@@ -175,6 +175,7 @@ O front foi construído em **passos pequenos**. Cada passo traz: 🎯 o **objeti
 | **3. Manutenção** | [Passo 12](#passo-12--lista-de-os-com-filtros-na-url) a [Passo 15](#passo-15--custo-de-manutenção-por-máquina) |
 | **4. Polimento** | [Passo 16.1](#passo-161--estilos-globais-e-tons-semânticos) a [16.3](#passo-163--responsividade-celular), [Refinamentos R1 a R3](#refinamentos-r1-a-r3--identidade-visual-e-tema-escuro) e [R4](#refinamento-r4--conferência-visual-e-correções) |
 | **5. Redesign** | [R5.1](#r51--identidade-menu-verde-escuro-contador-de-os-e-fundo-tonalizado) a [R5.4](#r54--os-em-fechamento-etapas-subtotais-e-resumo) e [R6.1 a R6.3](#redesign-r6--tema-escuro-estoque-e-lista-de-os) |
+| **6. Qualidade** | [Passo 18](#passo-18--testes-unitários) (testes unitários), [Passo 19](#passo-19--tamanho-do-pacote-inicial) (tamanho do pacote inicial) e [Passo 20](#passo-20--services-com-service) (`@Service()`) |
 
 > **Dica para os alunos:** o histórico do Git tem **um commit por passo** (`git log --oneline`). Para ver exatamente o que mudou num passo, use `git show <hash>`. O [CHECKLIST.md](../CHECKLIST.md) lista os hashes.
 
@@ -294,7 +295,7 @@ export interface Maquina {
 `core/services/maquina.service.ts`:
 
 ```ts
-@Injectable({ providedIn: 'root' }) // uma única instância para o app inteiro
+@Service() // uma única instância para o app inteiro (antes do Passo 20: @Injectable({ providedIn: 'root' }))
 export class MaquinaService {
   private readonly http = inject(HttpClient);
   private readonly url = `${API_URL}/maquinas`;   // API_URL = '/api'
@@ -318,7 +319,7 @@ provideHttpClient(withInterceptors([erroApiInterceptor])), // o interceptor cheg
 - **Proxy de desenvolvimento:** o front chama **a própria origem** (`/api/maquinas`), e o `ng serve` repassa para a porta 3000. Assim **o back-end não precisou mudar**.
 - **`pathRewrite`:** tira o `/api` do caminho antes de repassar, porque a API não usa esse prefixo.
 - **Model como contrato:** as interfaces **copiam** os tipos do back-end. Se a API mudar um campo, o TypeScript aponta todos os pontos do front que quebram.
-- **Service + injeção de dependência:** a tela pede o service com `inject()`, e o Angular entrega **a mesma instância** para todos (`providedIn: 'root'`).
+- **Service + injeção de dependência:** a tela pede o service com `inject()`, e o Angular entrega **a mesma instância** para todos (`@Service()`; nas versões anteriores ao Angular 22, `@Injectable({ providedIn: 'root' })`).
 - **Observable:** a requisição **só acontece** quando alguém faz `.subscribe()` (é "preguiçosa").
 - **`http.get<Maquina[]>`:** o genérico diz o tipo da resposta. É uma **promessa** que o TypeScript não confere em tempo de execução.
 
@@ -1234,7 +1235,7 @@ html {
 ```
 
 ```ts
-@Injectable({ providedIn: 'root' })
+@Service()
 export class TemaService {
   readonly preferencia = signal<PreferenciaTema>(this.lerPreferenciaInicial());
   readonly escuroAtivo = computed(() => this.preferencia() === 'escuro');
@@ -1334,7 +1335,7 @@ O redesign foi desenhado primeiro num **canvas de design** (painel de operação
 --agro-sinal: #f38302;                           // laranja = pendência
 ```
 
-Menu pelos **tokens** da lista (`shell.scss`):
+Menu pelos **tokens** da lista (`shell.scss`). *(No Passo 19, o `mat-nav-list` foi trocado por links simples para tirar 82 kB do carregamento inicial; as cores continuaram as mesmas.)*
 
 ```scss
 .menu {
@@ -1671,6 +1672,152 @@ protected readonly abertas = computed(() =>
 
 ---
 
+### Passo 18 — Testes unitários
+
+🎯 Fazer o `npm test` passar (eram **7 passando e 14 falhando**) e escrever testes que verificam **comportamento**, não só "o componente foi criado".
+
+🧩 **Por que os testes gerados falhavam:** no app, o `app.config.ts` entrega `HttpClient`, `Router` e o idioma pt-BR para todos. O `TestBed` começa **vazio**. Um auxiliar declara o que os testes precisam (`src/testing/provedores-de-teste.ts`):
+
+```ts
+registerLocaleData(localePt);   // o teste não passa pelo app.config.ts
+
+export function provedoresBase() {
+  return [
+    provideHttpClient(),
+    provideHttpClientTesting(),  // nenhuma requisição sai de verdade
+    provideRouter([]),
+    { provide: LOCALE_ID, useValue: 'pt-BR' },
+    { provide: DEFAULT_CURRENCY_CODE, useValue: 'BRL' },
+  ];
+}
+
+export function provedoresDeDialogo<T>(dados: T) {
+  return [...provedoresBase(),
+    { provide: MAT_DIALOG_DATA, useValue: dados },
+    { provide: MatDialogRef, useValue: { close: vi.fn() } }];  // "espião" do close()
+}
+```
+
+A pasta `src/testing/` fica fora da build do app (`exclude` no `tsconfig.app.json`) e dentro da de testes (`include` no `tsconfig.spec.json`).
+
+**Quatro tipos de teste** no projeto, do mais simples ao mais completo:
+
+| Tipo | Exemplo | O que confere |
+|---|---|---|
+| Função pura | `core/validacao.spec.ts` | `inteiro()` recusa 2,5; `NAO_VAZIO` recusa só espaços |
+| Service | `maquina.service.spec.ts` | Método, URL, parâmetros e corpo de cada requisição (`HttpTestingController`) |
+| Interceptor | `erro-api-interceptor.spec.ts` | Abre o snackbar com a mensagem da API, repassa o erro e respeita `ERRO_TRATADO_NA_TELA` |
+| Componente | `retorno-dialog.spec.ts`, `confirmacao-dialog.spec.ts` | O que o usuário vê e o que vai para a API |
+
+Teste de service:
+
+```ts
+service.listar().subscribe(lista => (recebidas = lista));
+const req = http.expectOne('/api/maquinas');   // a requisição que o service montou
+expect(req.request.method).toBe('GET');
+req.flush(maquinas);                           // responde como se fosse a API
+expect(recebidas).toEqual(maquinas);
+```
+
+Teste de componente (o teste age como o usuário):
+
+```ts
+digitarHorimetro('900');   // muda o valor do input e dispara o evento 'input'
+enviar();                  // dispara 'submit' no formulário
+expect(tela.textContent).toContain('Não pode ser menor que 1.000 h');
+api.expectNone('/api/maquinas/1/retorno');   // nada foi para a API
+```
+
+📚 **Conceitos**
+- **`TestBed` começa vazio:** cada teste declara as dependências. O erro `NG0201: No provider found` significa exatamente "faltou declarar".
+- **`HttpTestingController`:** intercepta as requisições; o teste confere o que foi pedido e responde com `flush()`. `verify()` no `afterEach` garante que nenhuma ficou sem resposta.
+- **Espião (`vi.fn()`):** uma função falsa que registra as chamadas, para conferir com `toHaveBeenCalledWith(...)`.
+- **`setInput`:** nas telas com `:id` na rota, o teste entrega o valor direto no `input()` (não há roteador de verdade).
+- **Sem `whenStable()` em telas que buscam dados:** ele espera as requisições terminarem, e no teste elas ficam presas no `HttpTestingController` até alguém responder. O teste travaria.
+- **Testar comportamento, não implementação:** os testes do diálogo de retorno usam o DOM (digitar, enviar, ler a tela), não os campos internos do componente. Se o código mudar por dentro e a tela continuar igual, o teste continua passando.
+- **O teste revelou um bug real:** o `TemaService` chamava `matchMedia` sem conferir se ele existe (não existe no ambiente de teste nem na renderização no servidor). Agora usa `matchMedia?.(...)`.
+
+🧪 **Testes**
+
+```bash
+cd agro-frontend
+npm test   # 34 testes em 22 arquivos, todos passando
+```
+
+**Exercício:** troque `Validators.min(this.maquina.horimetro)` por `Validators.min(0)` no `retorno-dialog.ts` e rode `npm test`: o teste "barra horímetro menor que o atual" falha e mostra o porquê. Desfaça depois.
+
+---
+
+### Passo 19 — Tamanho do pacote inicial
+
+🎯 O pacote inicial (o que o navegador baixa **antes** da primeira tela) estava em **686 kB**, perto do alerta de 700 kB. Descobrir o que pesa e cortar o desnecessário.
+
+🧩 **Medir antes de mexer:** a build gera um mapa do que entrou em cada arquivo:
+
+```bash
+npx ng build --stats-json   # gera dist/agro-frontend/browser-stats.json
+```
+
+O arquivo pode ser aberto em <https://esbuild.github.io/analyze/> (arraste o arquivo para a página). A análise mostrou uma surpresa: **`@angular/forms` (51 kB) no pacote inicial**, sem nenhum formulário na casca do app. Quem o trazia era o **menu lateral**: o `mat-nav-list` vem do pacote de listas do Material, que importa o `forms` porque as listas de **seleção** dele funcionam como campo de formulário.
+
+**A troca:** o menu virou links comuns com `routerLinkActive`, no mesmo padrão da navegação inferior do celular:
+
+```html
+<a class="item-menu" [routerLink]="item.rota" routerLinkActive="item-menu--ativo"
+   [routerLinkActiveOptions]="{ exact: item.rota === '/' }" ariaCurrentWhenActive="page">
+  <mat-icon>{{ item.icone }}</mat-icon>
+  <span class="item-menu__titulo">{{ item.titulo }}</span>
+</a>
+```
+
+| | Antes | Depois |
+|---|---|---|
+| Pacote inicial | 685,6 kB | **603,5 kB** (−82 kB, −12%) |
+| Transferido (comprimido) | 159 kB | **146 kB** |
+
+O limite de aviso (*budget*) no `angular.json` desceu de 700 kB para **650 kB**: se algo pesado voltar para a casca, a build avisa.
+
+📚 **Conceitos**
+- **Pacote inicial × lazy loading:** as telas já eram carregadas sob demanda; o que fica no pacote inicial é a casca (barra, menu, tema, interceptor) e **tudo o que ela importa**, direta ou indiretamente.
+- **Dependência transitiva:** ninguém importou `@angular/forms` no menu; ele veio "de carona" com o pacote de listas. Só a análise do build mostra isso.
+- **Componente pronto × HTML simples:** o `mat-nav-list` resolve muita coisa (listas de seleção, teclado, densidade...), mas o menu só precisava de links. Para 5 links, `<a>` com `routerLinkActive` faz o mesmo sem o peso.
+- **Budget como alarme:** o limite não impede nada; ele avisa quando o tamanho cresce, para a regressão ser vista no mesmo dia.
+
+🧪 **Testes**
+1. `npx ng build`: "Initial total" perto de 603 kB, sem aviso.
+2. O menu continua igual nos dois temas: item ativo destacado, contador de O.S., gaveta no celular.
+3. Navegue com **Tab** pelo menu: o foco aparece em cada item (`:focus-visible`) e o item atual tem `aria-current="page"`.
+
+---
+
+### Passo 20 — Services com `@Service()`
+
+🎯 Adotar o decorador de service do Angular 22 nos quatro services do projeto (`MaquinaService`, `PecaService`, `OrdemServicoService` e `TemaService`).
+
+🧩
+
+```ts
+// Antes
+import { Injectable, inject } from '@angular/core';
+@Injectable({ providedIn: 'root' })
+export class MaquinaService { ... }
+
+// Depois
+import { Service, inject } from '@angular/core';
+@Service()
+export class MaquinaService { ... }
+```
+
+📚 **Conceitos**
+- **Mesmo comportamento, menos cerimônia:** `@Service()` deixa o service disponível no app inteiro, com **uma única instância**, exatamente como `providedIn: 'root'`. Nenhuma tela precisou mudar: elas continuam usando `inject(MaquinaService)`.
+- **`autoProvided: false`:** quando um service **não** deve ser global (ex.: um por tela), `@Service({ autoProvided: false })` e ele entra no `providers` de quem for usar.
+- **Conferir antes de adotar:** a API foi verificada na própria versão instalada (`node_modules/@angular/core`): é pública e estável (`@publicApi`). O `@Injectable` continua existindo e funcionando; a troca é de estilo, feita de uma vez nos quatro services para o projeto não ter dois jeitos de fazer a mesma coisa.
+- **Os testes como rede de segurança:** depois da troca, `npm test` continuou com 34 testes passando: as telas testadas recebem os services normalmente.
+
+🧪 **Testes:** `npx ng build` sem erros e `npm test` com 34 testes passando; o app funciona igual.
+
+---
+
 ## 6. Roteiro de testes no navegador
 
 Roteiro completo para uma demonstração, com a API recém-iniciada. Siga na ordem.
@@ -1856,14 +2003,13 @@ O padrão deste projeto (**lista com estados + diálogos que devolvem a resposta
 
 - **Sem login:** qualquer pessoa com acesso à URL usa tudo (mesma decisão do back-end).
 - **Dados em memória:** herdado da API; reiniciar o back-end zera tudo.
-- **Testes unitários:** os `.spec.ts` são os gerados pelo CLI e ainda não foram adaptados. Hoje o `npm test` mostra **7 passando e 14 falhando**: as telas dependem de `HttpClient`, `ActivatedRoute` e `MAT_DIALOG_DATA`, e os testes gerados não fornecem esses providers (erro `NG0201: No provider found`). Adaptá-los é um ótimo exercício.
 - **Proxy só no desenvolvimento:** em produção, o front e a API precisam ser servidos na mesma origem (ou a API precisa liberar CORS).
 
 ### Próximos passos
 
 **Etapa 2, front-end: ✅ concluída** (Fases 0 a 3, polimento, identidade visual e redesign R5).
 
-1. **Testes unitários** de um service (`HttpTestingController`) e de um componente.
+1. **Mais testes:** um teste de comportamento para cada tela (o Passo 18 cobre services, interceptor e dois diálogos).
 
 **Futuro:** login e perfis, banco de dados (PostgreSQL + Prisma) no back-end e publicação (build + servidor web).
 

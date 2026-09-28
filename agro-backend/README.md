@@ -1338,7 +1338,7 @@ curl.exe -i http://localhost:3000/maquinas/99/manutencoes   # 404
 
 ## 6. Roteiro completo de testes com curl
 
-> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 82 cenários abaixo (25 do uso, 25 do estoque e 32 da manutenção) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
+> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 88 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção e 6 do cadastro de máquinas) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
 >
 > 💡 **Alternativa sem terminal:** o arquivo [testes.http](testes.http) tem este mesmo roteiro para a extensão **REST Client** do VS Code. Basta clicar em "Send Request" acima de cada teste, sem se preocupar com aspas.
 
@@ -1623,6 +1623,28 @@ curl.exe -X POST $B/pecas/1/entradas -H "$H" -d '{"quantidade":5,"custoUnitario"
 curl.exe $B/ordens-servico/1                                                              # Q8
 ```
 
+### Máquinas — `POST /maquinas` (cadastro)
+
+Fica no fim do roteiro de propósito: cadastrar uma máquina muda a lista, e os testes anteriores contam com as 2 máquinas iniciais.
+
+| # | Cenário | Esperado |
+|---|---|---|
+| N1 | Tag `" pv-03 "`, Pulverizador, 250 h | **201**, tag normalizada `PV-03`, status `Disponível` |
+| N2 | Mesma tag de novo | **409**, `Já existe uma máquina com a tag PV-03` |
+| N3 | Horímetro negativo | **400**, `... maior ou igual a zero` |
+| N4 | Sem tag | **400**, `Campo 'tag' é obrigatório` |
+| N5 | Sem modelo | **400**, `Campo 'modelo' é obrigatório` |
+| N6 | Saída da máquina nova (id 3) | **200**, `Em Operação` |
+
+```bash
+curl.exe -X POST $B/maquinas -H "$H" -d '{"tag":" pv-03 ","modelo":"Pulverizador","horimetro":250}'   # N1
+curl.exe -X POST $B/maquinas -H "$H" -d '{"tag":"PV-03","modelo":"Outro","horimetro":0}'            # N2
+curl.exe -X POST $B/maquinas -H "$H" -d '{"tag":"X-01","modelo":"Trator","horimetro":-5}'           # N3
+curl.exe -X POST $B/maquinas -H "$H" -d '{"modelo":"Trator","horimetro":10}'                        # N4
+curl.exe -X POST $B/maquinas -H "$H" -d '{"tag":"X-01","horimetro":10}'                             # N5
+curl.exe -X POST $B/maquinas/3/saida -H "$H" -d '{"operador":"Ana","frenteTrabalho":"Talhao 2"}'   # N6
+```
+
 > **Dica:** para ver só o código HTTP de cada resposta, acrescente `-w "  [%{http_code}]\n"` ao comando.
 
 ---
@@ -1799,7 +1821,7 @@ O padrão do estoque (**catálogo + histórico de movimentos que explica o saldo
 
 ### Pratique antes
 
-Antes de começar um projeto do zero, resolva os [exercícios](docs/exercicios.md). São 8 desafios que acrescentam funcionalidades reais a esta API: buscar por id, filtros, cadastro, regras entre entidades, indicadores e exclusão com integridade referencial. O [gabarito](docs/gabarito.md) traz as soluções comentadas.
+Antes de começar um projeto do zero, resolva os [exercícios](docs/exercicios.md). São 8 desafios que acrescentam funcionalidades reais a esta API: buscar por id, filtros, edição com `PATCH`, regras entre entidades, indicadores e exclusão com integridade referencial. O [gabarito](docs/gabarito.md) traz as soluções comentadas.
 
 ### Checklist para o seu projeto
 

@@ -16,7 +16,7 @@ Desafios para praticar os conceitos do treinamento. Cada exercício acrescenta u
 | 1 | 🟢 Básico | [Buscar uma máquina pelo id](#exercício-1--buscar-uma-máquina-pelo-id) | Parâmetro de rota, 400 × 404 |
 | 2 | 🟢 Básico | [Filtrar máquinas por status](#exercício-2--filtrar-máquinas-por-status) | Query string, lista de valores válidos |
 | 3 | 🟢 Básico | [Histórico de uma máquina](#exercício-3--histórico-de-uma-máquina) | Rotas aninhadas, `filter` |
-| 4 | 🟡 Intermediário | [Cadastrar máquina](#exercício-4--cadastrar-máquina) | `POST` de criação, 201, unicidade (409) |
+| 4 | 🟡 Intermediário | [Editar máquina](#exercício-4--editar-máquina) | `PATCH`, atualização parcial, campos protegidos, unicidade (409) |
 | 5 | 🟡 Intermediário | [Limite de horas por saída](#exercício-5--limite-de-horas-por-saída) | Regra de negócio, constantes |
 | 6 | 🟡 Intermediário | [Um operador, uma máquina](#exercício-6--um-operador-uma-máquina) | Regra entre entidades, comparação de texto |
 | 7 | 🔴 Desafio | [Resumo de uso da máquina](#exercício-7--resumo-de-uso-da-máquina) | `reduce`, `map`, dados calculados |
@@ -116,48 +116,54 @@ curl.exe -i http://localhost:3000/maquinas/99/movimentacoes  # 404
 
 ---
 
-## Exercício 4 — Cadastrar máquina
+## Exercício 4 — Editar máquina
 
 🟡 **Intermediário**
 
-**Contexto:** hoje as máquinas ficam fixas no código. A fazenda comprou um pulverizador e precisa cadastrá-lo pela API.
+**Contexto:** a API já cadastra máquinas (`POST /maquinas`). Mas alguém cadastrou a colheitadeira como "Colhedora", e a fazenda decidiu trocar a tag `CO-02` por `CL-02`. Hoje não há como corrigir sem reiniciar o servidor.
 
-**O que fazer:** criar a rota `POST /maquinas`.
+**O que fazer:** criar a rota `PATCH /maquinas/:id`, que altera **só os campos enviados** (`tag` e/ou `modelo`).
 
-**Corpo da requisição:**
+**Corpo da requisição** (os dois campos são opcionais, mas pelo menos um precisa vir):
 
 ```json
-{ "tag": "PV-03", "modelo": "Pulverizador", "horimetro": 250 }
+{ "modelo": "Colheitadeira" }
 ```
 
 **Regras:**
 
 | Situação | Resposta |
 |---|---|
-| Cadastro válido | **201 Created** com a máquina criada |
-| `tag` ausente ou vazia | **400** `{ "erro": "Campo 'tag' é obrigatório" }` |
-| `modelo` ausente ou vazio | **400** `{ "erro": "Campo 'modelo' é obrigatório" }` |
-| `horimetro` não numérico ou negativo | **400** `{ "erro": "Campo 'horimetro' deve ser um número maior ou igual a zero" }` |
-| Já existe máquina com a mesma tag | **409** `{ "erro": "Já existe uma máquina com a tag PV-03" }` |
+| Alteração válida | **200** com a máquina já atualizada |
+| `id` não é um número inteiro | **400** `{ "erro": "O id deve ser um número inteiro" }` |
+| Máquina não existe | **404** `{ "erro": "Máquina não encontrada" }` |
+| Corpo com `status`, `horimetro` ou `id` | **400** `{ "erro": "Campo 'status' é controlado pelo sistema e não pode ser alterado" }` (com o nome do campo enviado). O status muda pela saída, pelo retorno e pelas O.S.; o horímetro, pelo retorno; o id nunca muda. |
+| Nem `tag` nem `modelo` no corpo | **400** `{ "erro": "Informe 'tag' e/ou 'modelo' para alterar" }` |
+| `tag` ou `modelo` enviados vazios (ou que não são texto) | **400** `{ "erro": "Campo 'tag' não pode ficar vazio" }` (ou `'modelo'`) |
+| Tag já usada por **outra** máquina | **409** `{ "erro": "Já existe uma máquina com a tag TR-01" }` |
 
 Além disso:
-- O **id** é gerado pelo servidor (o cliente não envia).
-- Toda máquina nova começa com status **`Disponível`**.
-- A tag é gravada **sem espaços nas pontas e em maiúsculas** (`" pv-03 "` vira `"PV-03"`), e a checagem de duplicidade usa a tag já normalizada.
+- A tag é gravada do mesmo jeito que no cadastro: **sem espaços nas pontas e em maiúsculas**.
+- Enviar a **mesma tag** que a máquina já tem **não** é duplicidade (a máquina não conflita com ela mesma).
 
-**Conceitos praticados:** criação de recurso, **201 Created**, geração de id, **normalização** de dados, **unicidade** (409), `Array.some`.
+**Conceitos praticados:** **`PATCH`** (atualização parcial) × `PUT` (substituição completa), **campos controlados pelo sistema**, **unicidade ignorando o próprio registro**, reaproveitar a normalização do cadastro (extrair uma função).
 
 **Testes:**
 
 ```bash
-curl.exe -i -X POST http://localhost:3000/maquinas -H "Content-Type: application/json" -d '{"tag":" pv-03 ","modelo":"Pulverizador","horimetro":250}'  # 201, tag "PV-03"
-curl.exe -i -X POST http://localhost:3000/maquinas -H "Content-Type: application/json" -d '{"tag":"PV-03","modelo":"Outro","horimetro":0}'                # 409
-curl.exe -i -X POST http://localhost:3000/maquinas -H "Content-Type: application/json" -d '{"tag":"X-01","modelo":"Trator","horimetro":-5}'              # 400
-curl.exe -i -X POST http://localhost:3000/maquinas -H "Content-Type: application/json" -d '{"modelo":"Trator","horimetro":10}'                          # 400
-curl.exe http://localhost:3000/maquinas                                                                                                                 # a nova máquina aparece
+curl.exe -i -X PATCH http://localhost:3000/maquinas/2 -H "Content-Type: application/json" -d '{"modelo":"Colheitadeira de grãos"}'  # 200, só o modelo muda
+curl.exe -i -X PATCH http://localhost:3000/maquinas/2 -H "Content-Type: application/json" -d '{"tag":" cl-02 "}'                       # 200, tag "CL-02"
+curl.exe -i -X PATCH http://localhost:3000/maquinas/2 -H "Content-Type: application/json" -d '{"tag":"CL-02"}'                         # 200 (a mesma tag: não é duplicidade)
+curl.exe -i -X PATCH http://localhost:3000/maquinas/2 -H "Content-Type: application/json" -d '{"tag":"TR-01"}'                         # 409
+curl.exe -i -X PATCH http://localhost:3000/maquinas/2 -H "Content-Type: application/json" -d '{"status":"Disponível"}'                 # 400 (campo protegido)
+curl.exe -i -X PATCH http://localhost:3000/maquinas/2 -H "Content-Type: application/json" -d '{}'                                      # 400 (nada para alterar)
+curl.exe -i -X PATCH http://localhost:3000/maquinas/2 -H "Content-Type: application/json" -d '{"modelo":"  "}'                         # 400 (vazio)
+curl.exe -i -X PATCH http://localhost:3000/maquinas/99 -H "Content-Type: application/json" -d '{"modelo":"X"}'                         # 404
 ```
 
-💡 **Dica:** use `.trim().toUpperCase()` para normalizar a tag e `maquinas.some(m => m.tag === tagNormalizada)` para checar se já existe.
+💡 **Dica:** a normalização da tag (`trim` + `toUpperCase`) já existe no `POST /maquinas`. Em vez de copiar, extraia uma função `normalizarTag(tag)` e use nas duas rotas. Para a duplicidade, procure outra máquina com a mesma tag **e um id diferente**: `maquinas.some(m => m.tag === tag && m.id !== maquina.id)`.
+
+🤔 **Para pensar:** por que `PATCH` e não `PUT`? (Resposta: o `PUT` substitui o recurso **inteiro**; quem quisesse trocar só o modelo teria de reenviar tudo, inclusive `horimetro` e `status`, que o cliente nem pode alterar. O `PATCH` descreve exatamente a intenção: "mude só isto".)
 
 ---
 
@@ -288,7 +294,7 @@ curl.exe -i http://localhost:3000/maquinas/99/resumo   # 404
 
 **Conceitos praticados:** método `DELETE`, **204 No Content**, **integridade referencial** (não apagar um registro referenciado por outros), remoção de itens de um array.
 
-**Testes** (depende do exercício 4 para criar uma máquina sem histórico):
+**Testes** (usam o `POST /maquinas`, que já faz parte da API, para criar uma máquina sem histórico):
 
 ```bash
 curl.exe -X POST http://localhost:3000/maquinas -H "Content-Type: application/json" -d '{"tag":"PV-03","modelo":"Pulverizador","horimetro":250}'   # cria id 3

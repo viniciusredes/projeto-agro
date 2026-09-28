@@ -5,7 +5,6 @@ import { filter, map } from 'rxjs';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
-import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
@@ -42,7 +41,7 @@ interface OpcaoTema {
   selector: 'app-shell',
   imports: [
     RouterOutlet, RouterLink, RouterLinkActive,
-    MatToolbarModule, MatSidenavModule, MatListModule, MatIconModule, MatButtonModule,
+    MatToolbarModule, MatSidenavModule, MatIconModule, MatButtonModule,
     MatMenuModule, MatTooltipModule,
   ],
   templateUrl: './shell.html',

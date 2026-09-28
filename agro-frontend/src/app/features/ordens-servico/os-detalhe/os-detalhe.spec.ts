@@ -1,21 +1,13 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { OsDetalhe } from './os-detalhe';
+import { provedoresBase } from '../../../../testing/provedores-de-teste';
 
 describe('OsDetalhe', () => {
-  let component: OsDetalhe;
-  let fixture: ComponentFixture<OsDetalhe>;
-
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [OsDetalhe],
-    }).compileComponents();
-
-    fixture = TestBed.createComponent(OsDetalhe);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
-  });
-
   it('should create', () => {
-    expect(component).toBeTruthy();
+    TestBed.configureTestingModule({ imports: [OsDetalhe], providers: provedoresBase() });
+    const fixture = TestBed.createComponent(OsDetalhe);
+    fixture.componentRef.setInput('id', 1);
+    fixture.detectChanges();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

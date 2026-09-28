@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Service, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { API_URL, erroTratadoNaTela } from '../api';
@@ -7,7 +7,7 @@ import {
   OrdemServicoDetalhe, RespostaAberturaOS, RespostaFechamentoOS,
 } from '../models/ordem-servico';
 
-@Injectable({ providedIn: 'root' })
+@Service()
 export class OrdemServicoService {
   private readonly http = inject(HttpClient);
   private readonly url = `${API_URL}/ordens-servico`;
