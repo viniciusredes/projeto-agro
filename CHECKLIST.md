@@ -86,9 +86,9 @@ Mergeada na `main` em dois PRs:
 
 > A partir do canvas "Agro Frota — Estoque, O.S. e tema escuro", aprovado pelo usuário. Branch `feat/redesign-2`; os três passos foram implementados juntos, num commit só.
 
-- [x] **R6.1** — Paleta escura "noite no campo": menu verde-floresta, camadas com passos de luminosidade, verde-menta mais calmo nos botões e link mais claro, âmbar suave nas pendências, etiquetas mais vivas (todos os pares de texto ≥ 4,5:1; par do gráfico revalidado) · *commit: a preencher*
-- [x] **R6.2** — Estoque no padrão do redesign: busca, filtro `?filtro=repor`, peças a repor primeiro, barra de nível com a marca do mínimo, ação principal e cartões no celular; busca e filtros extraídos para `_comuns.scss` · *commit: a preencher*
-- [x] **R6.3** — Lista de O.S.: abertas em cartões e fechadas em lista, cada O.S. inteira como link, contadores por status (status filtrado na tela) · *commit: a preencher*
+- [x] **R6.1** — Paleta escura "noite no campo": menu verde-floresta, camadas com passos de luminosidade, verde-menta mais calmo nos botões e link mais claro, âmbar suave nas pendências, etiquetas mais vivas (todos os pares de texto ≥ 4,5:1; par do gráfico revalidado) · `d61e9a8`
+- [x] **R6.2** — Estoque no padrão do redesign: busca, filtro `?filtro=repor`, peças a repor primeiro, barra de nível com a marca do mínimo, ação principal e cartões no celular; busca e filtros extraídos para `_comuns.scss` · `d61e9a8`
+- [x] **R6.3** — Lista de O.S.: abertas em cartões e fechadas em lista, cada O.S. inteira como link, contadores por status (status filtrado na tela) · `d61e9a8`
 
 ---
 
@@ -97,6 +97,6 @@ Mergeada na `main` em dois PRs:
 - [x] **Cadastro de máquinas** — decidido: **entra no sistema** (Passos 8.1 e 8.2).
 - [ ] **Material do back-end após o cadastro de máquinas** — README do back-end já atualizado no Passo 17 (rota, regras e limitações). Falta: o `testes.http` e trocar o exercício 4 (que passa a ser "resposta pronta") por outro desafio, com gabarito.
 - [x] **Branch/PR do front-end** — decidido: tudo no PR #2 (título e descrição atualizados no Passo 17).
-- [ ] **Budget do pacote inicial** — 675 kB após o tema escuro (menu e tooltip do Material na barra); alerta configurado em 700 kB. Avaliar numa próxima etapa.
+- [ ] **Budget do pacote inicial** — 686 kB após o redesign (R5 e R6); alerta configurado em 700 kB. Avaliar numa próxima etapa.
 - [ ] *(Opcional)* **Migrar services para `@Service()`** — decorador novo do Angular 22 (gerado pelo CLI), equivalente a `@Injectable({ providedIn: 'root' })`. Hoje os 3 services usam `@Injectable` por consistência; migrar os três juntos.
 - [ ] **Testes unitários** — os `.spec.ts` gerados pelo CLI ainda não foram ajustados: `npm test` dá 7 passando e 14 falhando (faltam os providers `HttpClient`, `ActivatedRoute`, `MAT_DIALOG_DATA`).
