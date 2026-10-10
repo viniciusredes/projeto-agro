@@ -1,22 +1,42 @@
 import { Link, Redirect, router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useRef } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useColorScheme, View,
+} from 'react-native';
 import { EtiquetaStatus } from '@/componentes/etiqueta-status';
+import { SeletorTema } from '@/componentes/seletor-tema';
 import { useOperador } from '@/contextos/operador';
 import { useRequisicao } from '@/hooks/use-requisicao';
-import { Maquina } from '@/models/maquina';
-import { listarMaquinas } from '@/servicos/maquinas';
-import { useTema } from '@/tema';
+import { StatusMaquina } from '@/models/maquina';
+import { buscarPainelDoOperador } from '@/servicos/maquinas';
+import { TOM_STATUS, useTema } from '@/tema';
 
-// Lista de máquinas. Um estado de cada vez: carregando, erro, vazio ou lista.
-export default function ListaDeMaquinas() {
-  // Regra dos hooks: sempre chamados, na MESMA ordem, antes de qualquer "return" antecipado
+// require: a imagem entra NO PACOTE do app (não vem da internet). Uma versão para cada tema.
+const LOGO = require('../../assets/images/logo.png');
+const LOGO_ESCURO = require('../../assets/images/logo-escuro.png');
+
+// Os três números da frota, na ordem em que a máquina "anda" (pátio → campo → oficina)
+const RESUMO: { status: StatusMaquina; rotulo: string }[] = [
+  { status: 'Disponível', rotulo: 'no pátio' },
+  { status: 'Em Operação', rotulo: 'em campo' },
+  { status: 'Em Manutenção', rotulo: 'na oficina' },
+];
+
+function saudacao(): string {
+  const hora = new Date().getHours();
+  return hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+}
+
+// Página inicial do operador (/): quem é, o que está com ele, a frota e os atalhos do dia
+export default function Inicio() {
+  // Regra dos hooks: todos antes de qualquer "return" antecipado
   const tema = useTema();
+  const escuro = useColorScheme() === 'dark';
   const { nome, carregado } = useOperador();
-  const { dados: maquinas, erro, carregando, atualizando, recarregar } = useRequisicao(listarMaquinas);
+  const buscar = useCallback(() => buscarPainelDoOperador(nome ?? ''), [nome]);
+  const { dados, erro, carregando, atualizando, recarregar } = useRequisicao(buscar);
 
-  // Ao VOLTAR para a lista (ex.: depois de registrar uma saída na ficha), busca de novo.
-  // Na primeira vez a tela já buscou (useRequisicao), então pula para não buscar em dobro.
+  // Ao voltar para o início (ex.: depois de registrar um retorno), busca de novo
   const primeiraVez = useRef(true);
   useFocusEffect(
     useCallback(() => {
@@ -36,15 +56,23 @@ export default function ListaDeMaquinas() {
       </View>
     );
   }
-
   // Ninguém se identificou neste aparelho: vai para "Quem é você?"
   if (!nome) {
     return <Redirect href="/identificacao" />;
   }
 
+  const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const contar = (status: StatusMaquina) => dados?.maquinas.filter(m => m.status === status).length ?? 0;
+
   return (
-    <>
-      {/* Uma tela pode ajustar a própria barra: aqui, o nome do operador à direita, que leva à troca */}
+    <ScrollView
+      style={{ backgroundColor: tema.fundo }}
+      contentContainerStyle={estilos.tela}
+      refreshControl={
+        <RefreshControl refreshing={atualizando} onRefresh={recarregar} colors={[tema.primaria]} tintColor={tema.primaria} />
+      }
+    >
+      {/* Na barra: o nome do operador, que leva à troca (antes ficava na lista de máquinas) */}
       <Stack.Screen
         options={{
           headerRight: () => (
@@ -54,133 +82,131 @@ export default function ListaDeMaquinas() {
           ),
         }}
       />
-      <Conteudo
-        maquinas={maquinas}
-        erro={erro}
-        carregando={carregando}
-        atualizando={atualizando}
-        recarregar={recarregar}
-      />
-    </>
-  );
-}
 
-// O conteúdo da lista (separado para a barra acima valer em todos os estados)
-function Conteudo({
-  maquinas,
-  erro,
-  carregando,
-  atualizando,
-  recarregar,
-}: {
-  maquinas: Maquina[] | null;
-  erro: string | null;
-  carregando: boolean;
-  atualizando: boolean;
-  recarregar: () => void;
-}) {
-  const tema = useTema();
-
-  if (carregando) {
-    return (
-      <View style={[estilos.centro, { backgroundColor: tema.fundo }]}>
-        <ActivityIndicator size="large" color={tema.primaria} />
-      </View>
-    );
-  }
-
-  if (erro && !maquinas) {
-    return (
-      <View style={[estilos.centro, { backgroundColor: tema.fundo }]}>
-        <Text style={[estilos.mensagem, { color: tema.erro }]}>{erro}</Text>
-        <Pressable
-          onPress={recarregar}
-          style={({ pressed }) => [estilos.botao, { backgroundColor: tema.primaria, opacity: pressed ? 0.8 : 1 }]}
-          accessibilityRole="button"
-        >
-          <Text style={[estilos.botaoTexto, { color: tema.sobrePrimaria }]}>Tentar novamente</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  return (
-    <FlatList
-      style={{ backgroundColor: tema.fundo }}
-      contentContainerStyle={estilos.lista}
-      data={maquinas ?? []}
-      keyExtractor={maquina => String(maquina.id)}
-      renderItem={({ item }) => <CartaoMaquina maquina={item} />}
-      // Puxar a lista para baixo recarrega (o gesto padrão dos apps)
-      refreshControl={
-        <RefreshControl refreshing={atualizando} onRefresh={recarregar} colors={[tema.primaria]} tintColor={tema.primaria} />
-      }
-      ListHeaderComponent={
-        <View style={estilos.cabecalho}>
-          {/* A ação mais rápida para quem está AO LADO da máquina: apontar a câmera para a etiqueta */}
-          <Pressable
-            onPress={() => router.push('/escanear')}
-            accessibilityRole="button"
-            style={({ pressed }) => [estilos.botaoEscanear, { backgroundColor: tema.primaria, opacity: pressed ? 0.8 : 1 }]}
-          >
-            <Text style={[estilos.botaoTexto, { color: tema.sobrePrimaria }]}>Escanear QR da máquina</Text>
-          </Pressable>
-          {erro && <Text style={[estilos.aviso, { color: tema.erro }]}>{erro}</Text>}
-        </View>
-      }
-      ListEmptyComponent={
-        <Text style={[estilos.mensagem, { color: tema.textoSuave }]}>Nenhuma máquina cadastrada.</Text>
-      }
-    />
-  );
-}
-
-// Um cartão por máquina (componente local: só esta tela usa)
-function CartaoMaquina({ maquina }: { maquina: Maquina }) {
-  const tema = useTema();
-  return (
-    // O cartão INTEIRO leva à ficha (área de toque grande, como a lista de O.S. da web).
-    // Pressable + router.push, e não <Link asChild>: o Link repassa as propriedades ao filho,
-    // mas NÃO repassa um "style" em forma de função ({ pressed }) => ...; o cartão perdia o
-    // fundo, a borda e o layout em linha.
-    <Pressable
-      onPress={() => router.push({ pathname: '/maquina/[id]', params: { id: maquina.id } })}
-      accessibilityRole="link"
-      accessibilityLabel={`${maquina.tag}, ${maquina.modelo}, ${maquina.status}. Abrir ficha`}
-      style={({ pressed }) => [
-        estilos.cartao,
-        { backgroundColor: tema.cartao, borderColor: pressed ? tema.primaria : tema.borda },
-      ]}
-    >
-      <View style={[estilos.avatar, { backgroundColor: tema.tons.sucesso.fundo }]}>
-        <Text style={[estilos.avatarTexto, { color: tema.tons.sucesso.texto }]}>{maquina.tag.slice(0, 2)}</Text>
-      </View>
-      <View style={estilos.cartaoTexto}>
-        <Text style={[estilos.tag, { color: tema.texto }]}>{maquina.tag}</Text>
-        <Text style={{ color: tema.textoSuave }}>
-          {maquina.modelo} · {maquina.horimetro.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h
+      {/* Boas-vindas, com a logo da marca na versão do tema atual */}
+      <View style={estilos.boasVindas}>
+        <Image source={escuro ? LOGO_ESCURO : LOGO} style={estilos.logo} resizeMode="contain" accessibilityLabel="Agro Frota" />
+        <Text style={[estilos.saudacao, { color: tema.texto }]}>
+          {saudacao()}, {nome.split(' ')[0]}!
         </Text>
+        <Text style={[estilos.data, { color: tema.textoSuave }]}>{hoje}</Text>
       </View>
-      <EtiquetaStatus status={maquina.status} />
-      <Text style={[estilos.seta, { color: tema.textoSuave }]}>›</Text>
-    </Pressable>
+
+      {/* A ação mais comum no campo: estar ao lado da máquina e abrir a ficha dela */}
+      <Pressable
+        onPress={() => router.push('/escanear')}
+        accessibilityRole="button"
+        style={({ pressed }) => [estilos.botaoPrincipal, { backgroundColor: tema.primaria, opacity: pressed ? 0.8 : 1 }]}
+      >
+        <Text style={[estilos.botaoTexto, { color: tema.sobrePrimaria }]}>Escanear QR da máquina</Text>
+      </Pressable>
+
+      {carregando ? (
+        <ActivityIndicator size="large" color={tema.primaria} style={estilos.carregando} />
+      ) : !dados ? (
+        <View style={[estilos.cartao, { backgroundColor: tema.cartao, borderColor: tema.borda }]}>
+          <Text style={[estilos.texto, { color: tema.erro }]}>{erro}</Text>
+          <Pressable
+            onPress={recarregar}
+            accessibilityRole="button"
+            style={({ pressed }) => [estilos.botaoSecundario, { borderColor: tema.borda, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={[estilos.botaoTexto, { color: tema.texto }]}>Tentar novamente</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <>
+          {/* O que o operador precisa lembrar: as máquinas que ele tirou e ainda não devolveu */}
+          <Text style={[estilos.secao, { color: tema.texto }]}>Com você agora</Text>
+          {dados.comigo.length === 0 ? (
+            <View style={[estilos.cartao, { backgroundColor: tema.cartao, borderColor: tema.borda }]}>
+              <Text style={[estilos.texto, { color: tema.textoSuave }]}>
+                Nenhuma máquina com você. Para registrar uma saída, escaneie o QR da máquina ou escolha na lista.
+              </Text>
+            </View>
+          ) : (
+            dados.comigo.map(({ maquina, saida }) => (
+              <Pressable
+                key={saida.id}
+                onPress={() => router.push({ pathname: '/maquina/[id]', params: { id: maquina.id } })}
+                accessibilityRole="link"
+                accessibilityLabel={`${maquina.tag}, em ${saida.frenteTrabalho}. Abrir ficha para registrar o retorno`}
+                style={({ pressed }) => [
+                  estilos.cartao,
+                  { backgroundColor: tema.tons.info.fundo, borderColor: pressed ? tema.primaria : tema.borda },
+                ]}
+              >
+                <View style={estilos.linha}>
+                  <Text style={[estilos.tag, { color: tema.tons.info.texto }]}>{maquina.tag}</Text>
+                  <EtiquetaStatus status={maquina.status} />
+                </View>
+                <Text style={[estilos.texto, { color: tema.texto }]}>
+                  {maquina.modelo} · {saida.frenteTrabalho}
+                </Text>
+                <Text style={[estilos.texto, { color: tema.textoSuave }]}>
+                  Saiu {new Date(saida.dataSaida).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} com{' '}
+                  {saida.horimetroSaida.toLocaleString('pt-BR')} h · toque para registrar o retorno
+                </Text>
+              </Pressable>
+            ))
+          )}
+
+          {/* A frota em três números; o toque leva à lista completa */}
+          <Text style={[estilos.secao, { color: tema.texto }]}>Frota agora</Text>
+          <Pressable
+            onPress={() => router.push('/maquinas')}
+            accessibilityRole="link"
+            accessibilityLabel={RESUMO.map(r => `${contar(r.status)} ${r.rotulo}`).join(', ') + '. Ver todas as máquinas'}
+            style={estilos.resumo}
+          >
+            {RESUMO.map(({ status, rotulo }) => {
+              const tom = tema.tons[TOM_STATUS[status]];
+              return (
+                <View key={status} style={[estilos.numero, { backgroundColor: tom.fundo }]}>
+                  <Text style={[estilos.numeroValor, { color: tom.texto }]}>{contar(status)}</Text>
+                  <Text style={[estilos.numeroRotulo, { color: tom.texto }]}>{rotulo}</Text>
+                </View>
+              );
+            })}
+          </Pressable>
+          <Pressable
+            onPress={() => router.push('/maquinas')}
+            accessibilityRole="button"
+            style={({ pressed }) => [estilos.botaoSecundario, { borderColor: tema.borda, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={[estilos.botaoTexto, { color: tema.texto }]}>Ver todas as máquinas</Text>
+          </Pressable>
+        </>
+      )}
+
+      {/* Aparência: segue o celular por padrão; o operador pode fixar claro ou escuro */}
+      <Text style={[estilos.secao, { color: tema.texto }]}>Aparência</Text>
+      <SeletorTema />
+      <Text style={[estilos.dica, { color: tema.textoSuave }]}>&quot;Sistema&quot; segue o tema do celular.</Text>
+    </ScrollView>
   );
 }
 
 const estilos = StyleSheet.create({
-  centro: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  mensagem: { fontSize: 16, textAlign: 'center' },
-  aviso: { fontWeight: '600', marginBottom: 8 },
-  botao: { minHeight: 48, paddingHorizontal: 24, borderRadius: 24, justifyContent: 'center' },
+  centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tela: { padding: 16, gap: 12, paddingBottom: 32 },
+  boasVindas: { alignItems: 'center', gap: 4, marginBottom: 4 },
+  logo: { width: 240, height: 123 }, // mesma proporção da logo (900 x 460)
+  saudacao: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
+  data: { fontSize: 15 },
+  secao: { fontSize: 18, fontWeight: '800', marginTop: 8 },
+  cartao: { padding: 14, borderRadius: 14, borderWidth: 1, gap: 4 },
+  linha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  tag: { fontSize: 18, fontWeight: '800' },
+  texto: { fontSize: 15, lineHeight: 21 },
+  resumo: { flexDirection: 'row', gap: 10 },
+  numero: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
+  numeroValor: { fontSize: 28, fontWeight: '800' },
+  numeroRotulo: { fontSize: 14, fontWeight: '600' },
+  botaoPrincipal: { minHeight: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  botaoSecundario: { minHeight: 52, borderRadius: 26, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   botaoTexto: { fontSize: 16, fontWeight: '700' },
-  lista: { padding: 16, gap: 10 },
-  cartao: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
-  avatar: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  avatarTexto: { fontWeight: '800', fontSize: 14 },
-  seta: { fontSize: 26, marginLeft: -4 },
-  cabecalho: { gap: 8, marginBottom: 4 },
-  botaoEscanear: { minHeight: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  cartaoTexto: { flex: 1 },
-  tag: { fontSize: 17, fontWeight: '700' },
+  carregando: { marginVertical: 24 },
+  dica: { fontSize: 14, textAlign: 'center' },
   operador: { color: '#ffffff', fontSize: 15, fontWeight: '600', paddingVertical: 8 },
 });

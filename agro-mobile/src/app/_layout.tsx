@@ -1,12 +1,23 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ProvedorOperador } from '@/contextos/operador';
+import { ProvedorPreferenciaTema } from '@/contextos/preferencia-tema';
 import { useTema } from '@/tema';
 
 // Layout raiz: no Expo Router, cada arquivo em src/app/ é uma tela, e o _layout.tsx diz COMO
 // elas se organizam. "Stack" = navegação em pilha: cada tela nova entra por cima da anterior,
 // e o botão Voltar (ou o gesto do celular) desempilha.
+// O provedor do tema fica POR FORA: a escolha (claro/escuro) precisa valer antes de a pilha
+// ler as cores. Por isso as telas ficam num componente separado (Telas), dentro dele.
 export default function LayoutRaiz() {
+  return (
+    <ProvedorPreferenciaTema>
+      <Telas />
+    </ProvedorPreferenciaTema>
+  );
+}
+
+function Telas() {
   const tema = useTema();
   return (
     // O provedor fica em VOLTA de todas as telas: qualquer uma pode ler o nome do operador
@@ -21,7 +32,8 @@ export default function LayoutRaiz() {
           contentStyle: { backgroundColor: tema.fundo },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'Máquinas' }} />
+        <Stack.Screen name="index" options={{ title: 'Início' }} />
+        <Stack.Screen name="maquinas" options={{ title: 'Máquinas' }} />
         <Stack.Screen name="identificacao" options={{ title: 'Identificação' }} />
         {/* Título provisório: a própria ficha troca pela tag da máquina */}
         <Stack.Screen name="maquina/[id]/index" options={{ title: 'Máquina' }} />

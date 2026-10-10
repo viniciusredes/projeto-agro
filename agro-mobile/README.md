@@ -64,10 +64,12 @@ agro-mobile/
 ├── .env.example        # modelo do endereço da API (vai para o Git)
 ├── .env.local          # o endereço da SUA rede (fica fora do Git)
 ├── app.json            # nome, ícone, splash e permissões do app
+├── assets/images/      # ícone e splash, gerados da logo da web (M8a)
 └── src/
     ├── app/            # TELAS: cada arquivo é uma rota (Expo Router)
     │   ├── _layout.tsx # navegação em pilha, com a barra verde da marca
-    │   ├── index.tsx   # lista de máquinas
+    │   ├── index.tsx   # página inicial do operador (M8b)
+    │   ├── maquinas.tsx       # lista de máquinas
     │   ├── identificacao.tsx  # "Quem é você?" (nome do operador)
     │   ├── escanear.tsx       # câmera que lê o QR da máquina
     │   └── maquina/[id]/      # rotas da máquina (o [id] vale para as duas)
@@ -79,8 +81,8 @@ agro-mobile/
     ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
     ├── validacao.ts    # regras de formulário em funções puras (ex.: horímetro)
     ├── qr.ts           # formato do QR da etiqueta (contrato com a web)
-    ├── componentes/    # peças reutilizáveis (etiqueta de status, câmera, galeria, aviso)
-    ├── contextos/      # valores compartilhados entre telas (ex.: o operador)
+    ├── componentes/    # peças reutilizáveis (etiqueta de status, câmera, galeria, aviso, seletor de tema)
+    ├── contextos/      # valores compartilhados entre telas (o operador, a preferência de tema)
     ├── hooks/          # lógica reutilizável com estado (ex.: useRequisicao)
     ├── models/         # tipos copiados do front web (o contrato da API)
     └── servicos/       # uma função por rota da API
@@ -605,6 +607,101 @@ export function enviarFotoOS(ordemServicoId: number, imagemBase64: string): Prom
 7. Teste **Flash** e **Virar câmera**.
 8. Na **web**, abra a O.S.: a seção **Fotos da avaria** mostra as miniaturas. Um clique abre a foto inteira numa aba nova.
 
+### M8a — Identidade do app: nome, ícone e splash
+
+🎯 O app deixa de parecer um projeto de exemplo: no celular, ele se chama **Agro Frota**, tem o trator da marca como ícone e abre com a logo, no claro e no escuro.
+
+🧩 **As imagens saem da logo da web** (`agro-frontend/public/img/`), geradas com Python e Pillow:
+
+| Arquivo (`assets/images/`) | O que é |
+|---|---|
+| `icon.png` | Ícone principal (iOS e lojas): o trator, sem o texto, sobre o creme do tema. Opaco, 1024 × 1024 |
+| `android-icon-foreground.png` | Ícone adaptativo do Android: o trator, com fundo transparente |
+| `android-icon-background.png` | Fundo do ícone adaptativo: o creme do tema (`#f5f4ee`) |
+| `android-icon-monochrome.png` | Silhueta branca, para os ícones temáticos do Android 13+ |
+| `splash-icon.png` / `splash-icon-escuro.png` | A logo completa, para a tela de abertura no claro e no escuro |
+| `favicon.png` | Ícone da versão web do app |
+
+No `app.json`:
+
+```json
+"name": "Agro Frota",
+"scheme": "agrofrota",
+"android": { "adaptiveIcon": { "backgroundColor": "#f5f4ee", ... } },
+"plugins": [
+  ["expo-splash-screen", {
+    "backgroundColor": "#f5f4ee",
+    "image": "./assets/images/splash-icon.png",
+    "imageWidth": 288,
+    "dark": { "backgroundColor": "#111a15", "image": "./assets/images/splash-icon-escuro.png" }
+  }]
+]
+```
+
+As imagens do template (logos do Expo e do React, ícones de abas, `expo.icon`) foram removidas com `git rm`: nenhuma era usada.
+
+📚 **Conceitos**
+- **Ícone não é logo:** com 48 px na tela inicial, o texto "Agro Frota" ficaria ilegível. O ícone usa só o desenho, e o nome aparece embaixo dele, vindo do `name` do `app.json`.
+- **Ícone adaptativo (Android):** o sistema recorta o ícone com a máscara do fabricante (círculo, gota, quadrado arredondado). Só o **círculo central de ~66%** é garantido, e por isso o trator ocupa ~60% da largura. Frente e fundo são camadas separadas, para o sistema animá-las.
+- **Splash do Android 12+:** a imagem fica numa área circular do tamanho de um ícone. Uma logo larga teria as pontas cortadas. A imagem é quadrada, com a logo ocupando 58% da largura, que é o tamanho que cabe no círculo seguro.
+- **Tema claro e escuro desde a abertura:** o `"userInterfaceStyle": "automatic"` segue o tema do celular, e a opção `dark` do splash usa a logo para fundo escuro (`#111a15`, o mesmo `tema.fundo` das telas). O app abre no tema certo, sem flash branco.
+- **O Expo Go não mostra o ícone nem o splash do app:** ele é um app "hospedeiro", com o ícone dele. Para ver os nossos, é preciso gerar um APK, com o EAS Build na nuvem (`npx eas-cli build -p android --profile preview`, exige conta Expo gratuita) ou com o Android Studio (`npx expo run:android`).
+
+🧪 **Testes**
+1. `npx expo-doctor`: 21/21 verificações.
+2. `npx expo config --type public`: `name: 'Agro Frota'` e o splash com a variante `dark`.
+3. *(Com um APK)* O ícone na tela inicial mostra o trator e o nome "Agro Frota". O splash mostra a logo sobre o creme e, com o celular no tema escuro, a logo clara sobre o verde-escuro.
+
+### M8b — Página inicial do operador e escolha de tema
+
+🎯 O app abre numa **página inicial** feita para quem está no campo, com a logo, e o operador pode fixar o tema claro ou escuro (o padrão continua sendo seguir o celular).
+
+🧩 **Rotas:** a lista de máquinas saiu do `index.tsx` (`git mv` para `maquinas.tsx`, rota `/maquinas`). O `index.tsx` novo é a página inicial (`/`). A verificação "ninguém se identificou → `/identificacao`" e o "Nome · trocar" da barra foram junto para a página inicial.
+
+**O que a página inicial mostra:**
+1. A logo da marca (a versão do tema atual), "Boa tarde, Ana!" e a data de hoje.
+2. O botão grande **Escanear QR da máquina**.
+3. **Com você agora:** as máquinas que o operador tirou e ainda não devolveu (saída sem retorno no nome dele), com a frente de trabalho e a hora da saída. Um toque abre a ficha, para registrar o retorno.
+4. **Frota agora:** três números (no pátio, em campo, na oficina) nas cores das etiquetas de status, e o botão **Ver todas as máquinas**.
+5. **Aparência:** Sistema | Claro | Escuro.
+
+Uma busca só monta a página (`buscarPainelDoOperador`, em `servicos/maquinas.ts`):
+
+```ts
+const [maquinas, movimentacoes] = await Promise.all([listarMaquinas(), requisitar<Movimentacao[]>('/movimentacoes')]);
+const comigo = movimentacoes
+  .filter(mov => !mov.dataRetorno && mesmoNome(mov.operador, nome))
+  .flatMap(saida => { const maquina = maquinas.find(m => m.id === saida.maquinaId); return maquina ? [{ maquina, saida }] : []; });
+```
+
+**A escolha de tema** (`src/contextos/preferencia-tema.tsx`):
+
+```ts
+const ESQUEMA = { sistema: 'unspecified', claro: 'light', escuro: 'dark' } as const;
+
+function escolher(nova: PreferenciaTema) {
+  Appearance.setColorScheme(ESQUEMA[nova]);   // troca o tema do app inteiro
+  setPreferencia(nova);
+  AsyncStorage.setItem(CHAVE, nova);           // lembra na próxima abertura
+}
+```
+
+📚 **Conceitos**
+- **Trocar o tema na fonte:** o `Appearance.setColorScheme` muda o que o `useColorScheme()` devolve **no app inteiro**. O `useTema()` de todas as telas já usava esse hook, então nenhuma tela precisou mudar. `'unspecified'` desfaz a escolha e volta a seguir o celular. Teclado e componentes nativos também acompanham.
+- **Padrão sensato, escolha disponível:** quem não mexe em nada continua com o tema do celular. A escolha fica salva no aparelho (`AsyncStorage`), como o nome do operador.
+- **Provedor por fora:** no `_layout.tsx`, o `ProvedorPreferenciaTema` envolve as telas. A pilha (com as cores da barra) fica num componente de dentro (`Telas`), para já nascer com o tema escolhido.
+- **Imagem do pacote (`require`):** a logo entra no app na hora de montar (não vem da API). Há uma versão para cada tema, escolhida pelo `useColorScheme()`.
+- **Informação para quem usa:** a página inicial responde às perguntas do operador ("o que está comigo?", "o que tem disponível?") antes de ele precisar procurar. A lista completa continua a um toque.
+- **Comparar nomes digitados:** "ana" e "Ana " são a mesma pessoa. A comparação ignora espaços nas pontas e maiúsculas (`toLocaleLowerCase('pt-BR')`).
+
+🧪 **Testes**
+1. Abra o app: a página inicial mostra a logo, a saudação com o seu nome e a data.
+2. Com nenhuma máquina sua em campo, "Com você agora" diz que não há nenhuma. Registre a saída de uma máquina e volte ao início: ela aparece, com a frente de trabalho e a hora. Toque nela: abre a ficha. Registre o retorno e volte: ela some, e os números da frota se atualizam.
+3. Toque nos números da frota ou em **Ver todas as máquinas**: abre a lista (`/maquinas`).
+4. Em **Aparência**, toque em **Escuro**: o app inteiro escurece na hora, e a logo troca para a versão escura. **Claro** faz o contrário. **Sistema** volta a seguir o celular (troque o tema do celular para conferir).
+5. Feche o app pelo multitarefa e abra de novo: a escolha continua valendo.
+6. Puxe a página para baixo: ela recarrega.
+
 ---
 
 ## 4. Problemas comuns
@@ -612,6 +709,7 @@ export function enviarFotoOS(ordemServicoId: number, imagemBase64: string): Prom
 | Sintoma | Causa | Solução |
 |---|---|---|
 | "Não foi possível acessar a API em http://..." | API parada, IP errado ou firewall | Confira a API (`npm run dev`), o IP do `.env.local` (`ipconfig`) e a porta 3000 no firewall |
+| Aviso amarelo "Cannot connect to Expo CLI" | O Expo Go perdeu a ligação com o `npx expo start` do PC: celular com a tela bloqueada ou o app em segundo plano por muito tempo, troca ou queda da rede (inclusive do roteador do celular), PC que dormiu, ou `app.json` alterado com o servidor rodando | Confira se o `npx expo start` ainda roda no PC. Feche o aviso e recarregue (`r` no terminal ou sacudir o celular → Reload). Depois de mudar o `app.json`, reinicie o `npx expo start`. Se nada resolver, reabra o projeto pelo QR do terminal |
 | O Expo Go não abre o projeto (fica carregando) | O celular não alcança a porta 8081 | Mesma rede Wi-Fi, rede **privada** no Windows e porta 8081 liberada; ou `npx expo start --tunnel` |
 | A API mudou de endereço e o app não percebeu | O `.env` só é lido na partida | Pare e rode `npx expo start` de novo |
 | "Project is incompatible with this version of Expo Go" | Expo Go desatualizado | Atualize o Expo Go na loja (o projeto usa o SDK 57) |

@@ -27,6 +27,29 @@ export function listarMovimentacoes(maquinaId: number): Promise<Movimentacao[]> 
   return requisitar<Movimentacao[]>(`/movimentacoes?maquinaId=${maquinaId}`);
 }
 
+// Página inicial do operador: a frota inteira e as máquinas que estão COM ELE agora
+// (saída sem retorno no nome dele). GET /movimentacoes sem filtro traz todas as saídas.
+export interface PainelOperador {
+  maquinas: Maquina[];
+  comigo: { maquina: Maquina; saida: Movimentacao }[];
+}
+
+export async function buscarPainelDoOperador(nome: string): Promise<PainelOperador> {
+  const [maquinas, movimentacoes] = await Promise.all([
+    listarMaquinas(),
+    requisitar<Movimentacao[]>('/movimentacoes'),
+  ]);
+  // "ana" e "Ana " são a mesma pessoa: compara sem espaços nas pontas e sem maiúsculas
+  const mesmoNome = (a: string, b: string) => a.trim().toLocaleLowerCase('pt-BR') === b.trim().toLocaleLowerCase('pt-BR');
+  const comigo = movimentacoes
+    .filter(mov => !mov.dataRetorno && mesmoNome(mov.operador, nome))
+    .flatMap(saida => {
+      const maquina = maquinas.find(m => m.id === saida.maquinaId);
+      return maquina ? [{ maquina, saida }] : [];
+    });
+  return { maquinas, comigo };
+}
+
 // POST /maquinas/:id/saida
 export function registrarSaida(id: number, dados: DadosSaida): Promise<RespostaSaida> {
   return requisitar<RespostaSaida>(`/maquinas/${id}/saida`, { method: 'POST', body: JSON.stringify(dados) });
