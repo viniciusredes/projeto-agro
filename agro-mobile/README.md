@@ -67,11 +67,13 @@ agro-mobile/
 └── src/
     ├── app/            # TELAS: cada arquivo é uma rota (Expo Router)
     │   ├── _layout.tsx # navegação em pilha, com a barra verde da marca
-    │   └── index.tsx   # lista de máquinas
+    │   ├── index.tsx   # lista de máquinas
+    │   └── identificacao.tsx  # "Quem é você?" (nome do operador)
     ├── api.ts          # ponto único de acesso à API e tradução de erros
     ├── config.ts       # API_URL lida do .env.local
     ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
     ├── componentes/    # peças reutilizáveis (ex.: etiqueta de status)
+    ├── contextos/      # valores compartilhados entre telas (ex.: o operador)
     ├── hooks/          # lógica reutilizável com estado (ex.: useRequisicao)
     ├── models/         # tipos copiados do front web (o contrato da API)
     └── servicos/       # uma função por rota da API
@@ -190,6 +192,68 @@ A lista (`src/app/index.tsx`):
 3. Pare a API e abra o app: mensagem de erro e o botão **Tentar novamente**. Suba a API e toque nele: a lista volta.
 4. Troque o tema do celular para escuro: barra verde-floresta, cartões escuros e etiquetas no tom escuro.
 5. `npx tsc --noEmit` e `npx expo lint` sem erros.
+
+---
+
+### M2 — "Quem é você?": o operador salvo no aparelho
+
+🎯 A saída de máquina exige o nome do `operador`, mas o MVP não tem login. O app pergunta o nome **uma vez**, guarda **no aparelho** e o usa nas saídas dali em diante.
+
+🧩 Biblioteca de armazenamento, instalada pelo Expo (versão compatível com o SDK, já incluída no Expo Go):
+
+```bash
+npx expo install @react-native-async-storage/async-storage
+```
+
+`src/contextos/operador.tsx`:
+
+```tsx
+const ContextoOperador = createContext<Operador | null>(null);
+
+export function ProvedorOperador({ children }) {
+  const [nome, setNome] = useState<string | null>(null);
+  const [carregado, setCarregado] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(CHAVE)
+      .then(salvo => setNome(salvo))
+      .finally(() => setCarregado(true));
+  }, []);
+
+  async function definir(novoNome: string) {
+    await AsyncStorage.setItem(CHAVE, novoNome.trim());
+    setNome(novoNome.trim());
+  }
+  ...
+}
+
+export function useOperador() { ... }   // const { nome } = useOperador();
+```
+
+O provedor fica em volta de todas as telas (`_layout.tsx`), e a lista decide para onde ir:
+
+```tsx
+if (!carregado) return <ActivityIndicator />;     // ainda lendo o aparelho
+if (!nome) return <Redirect href="/identificacao" />;
+```
+
+Na identificação, o botão usa `router.replace('/')`: a tela **sai da pilha**, então o Voltar não volta para ela.
+
+📚 **Conceitos**
+- **Contexto (`createContext` + Provider + hook):** um valor que qualquer tela lê sem passar de componente em componente. É o papel de um service global (`@Service()`) no Angular.
+- **`AsyncStorage`:** armazenamento chave-valor **no aparelho**, que sobrevive a fechar o app. Diferente do `localStorage` da web, é **assíncrono**: por isso o `carregado`, para não redirecionar antes de a leitura terminar.
+- **Formulário controlado:** o texto do `TextInput` vive no estado (`value` + `onChangeText`), o papel do `FormControl`. A regra "não aceita só espaços" é a mesma da API.
+- **`Redirect` × `router.replace` × `router.push`:** o `Redirect` desvia durante a renderização; o `replace` troca a tela atual (sem volta); o `push` empilha (com volta).
+- **Regra dos hooks:** sempre chamados na mesma ordem, antes de qualquer `return` antecipado.
+- **`KeyboardAvoidingView`:** no iPhone, sobe o conteúdo quando o teclado abre (senão o botão fica escondido).
+- **Barra por tela:** `<Stack.Screen options={{ headerRight }} />` dentro da tela ajusta só a barra dela (o nome do operador à direita).
+- **Rotas tipadas:** com `typedRoutes`, `href="/identificacao"` é conferido pelo TypeScript; uma rota com erro de digitação não compila.
+
+🧪 **Testes**
+1. Na primeira abertura, aparece **"Quem é você?"**; o botão **Continuar** fica apagado enquanto o nome está vazio ou só com espaços.
+2. Informe o nome: a lista aparece, com o primeiro nome e "trocar" na barra; o Voltar do Android **não** volta para a identificação.
+3. Feche o app de vez e abra de novo: vai direto para a lista (o nome ficou salvo).
+4. Toque em "trocar": a tela vem preenchida com o nome atual; mude e continue.
 
 ---
 

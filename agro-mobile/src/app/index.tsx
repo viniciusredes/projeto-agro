@@ -1,14 +1,71 @@
+import { Link, Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { EtiquetaStatus } from '@/componentes/etiqueta-status';
+import { useOperador } from '@/contextos/operador';
 import { useRequisicao } from '@/hooks/use-requisicao';
 import { Maquina } from '@/models/maquina';
 import { listarMaquinas } from '@/servicos/maquinas';
 import { useTema } from '@/tema';
 
-// M1: lista de máquinas. Um estado de cada vez: carregando, erro, vazio ou lista.
+// Lista de máquinas. Um estado de cada vez: carregando, erro, vazio ou lista.
 export default function ListaDeMaquinas() {
+  // Regra dos hooks: sempre chamados, na MESMA ordem, antes de qualquer "return" antecipado
   const tema = useTema();
+  const { nome, carregado } = useOperador();
   const { dados: maquinas, erro, carregando, atualizando, recarregar } = useRequisicao(listarMaquinas);
+
+  // Ainda lendo o nome salvo no aparelho: não decide nada antes disso
+  if (!carregado) {
+    return (
+      <View style={[estilos.centro, { backgroundColor: tema.fundo }]}>
+        <ActivityIndicator size="large" color={tema.primaria} />
+      </View>
+    );
+  }
+
+  // Ninguém se identificou neste aparelho: vai para "Quem é você?"
+  if (!nome) {
+    return <Redirect href="/identificacao" />;
+  }
+
+  return (
+    <>
+      {/* Uma tela pode ajustar a própria barra: aqui, o nome do operador à direita, que leva à troca */}
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Link href="/identificacao" accessibilityLabel={`Operador: ${nome}. Toque para trocar`} style={estilos.operador}>
+              {nome.split(' ')[0]} · trocar
+            </Link>
+          ),
+        }}
+      />
+      <Conteudo
+        maquinas={maquinas}
+        erro={erro}
+        carregando={carregando}
+        atualizando={atualizando}
+        recarregar={recarregar}
+      />
+    </>
+  );
+}
+
+// O conteúdo da lista (separado para a barra acima valer em todos os estados)
+function Conteudo({
+  maquinas,
+  erro,
+  carregando,
+  atualizando,
+  recarregar,
+}: {
+  maquinas: Maquina[] | null;
+  erro: string | null;
+  carregando: boolean;
+  atualizando: boolean;
+  recarregar: () => void;
+}) {
+  const tema = useTema();
 
   if (carregando) {
     return (
@@ -85,4 +142,5 @@ const estilos = StyleSheet.create({
   avatarTexto: { fontWeight: '800', fontSize: 14 },
   cartaoTexto: { flex: 1 },
   tag: { fontSize: 17, fontWeight: '700' },
+  operador: { color: '#ffffff', fontSize: 15, fontWeight: '600', paddingVertical: 8 },
 });

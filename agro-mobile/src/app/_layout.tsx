@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { ProvedorOperador } from '@/contextos/operador';
 import { useTema } from '@/tema';
 
 // Layout raiz: no Expo Router, cada arquivo em src/app/ é uma tela, e o _layout.tsx diz COMO
@@ -8,7 +9,8 @@ import { useTema } from '@/tema';
 export default function LayoutRaiz() {
   const tema = useTema();
   return (
-    <>
+    // O provedor fica em VOLTA de todas as telas: qualquer uma pode ler o nome do operador
+    <ProvedorOperador>
       {/* Ícones da barra do sistema (hora, bateria) em branco, sobre a barra verde */}
       <StatusBar style="light" />
       <Stack
@@ -20,7 +22,8 @@ export default function LayoutRaiz() {
         }}
       >
         <Stack.Screen name="index" options={{ title: 'Máquinas' }} />
+        <Stack.Screen name="identificacao" options={{ title: 'Identificação' }} />
       </Stack>
-    </>
+    </ProvedorOperador>
   );
 }

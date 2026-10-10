@@ -104,8 +104,8 @@ Mergeada na `main` em dois PRs:
 Pasta `agro-mobile/` · branch `feat/app-movel`. O app cobre o trabalho no **campo** (saída, retorno, QR code da máquina, relato de avaria); a gestão continua no front web. A API continua em memória, sem banco de dados.
 
 - [x] **M0** — Projeto Expo (SDK 57, TypeScript, Expo Router) sem as telas de exemplo; endereço da API no `.env.local` (`EXPO_PUBLIC_API_URL`, IP do computador na rede) com `.env.example` versionado; tela de teste lista as máquinas da API; `tsc`, `expo export` e `expo-doctor` (21/21) sem problemas · `4312794`
-- [x] **M1** — Lista de máquinas em camadas (`api.ts` com tradução de erros, `servicos/`, hook `useRequisicao` com limpeza do efeito, `tema.ts` com as cores da web no claro/escuro), `FlatList` com puxar para atualizar, etiqueta de status, estados de carregando, erro (com "Tentar novamente") e vazio; ESLint configurado (`expo lint`) · *commit: a preencher*
-- [ ] **M2** — "Quem é você?": nome do operador salvo no aparelho (`AsyncStorage`)
+- [x] **M1** — Lista de máquinas em camadas (`api.ts` com tradução de erros, `servicos/`, hook `useRequisicao` com limpeza do efeito, `tema.ts` com as cores da web no claro/escuro), `FlatList` com puxar para atualizar, etiqueta de status, estados de carregando, erro (com "Tentar novamente") e vazio; ESLint configurado (`expo lint`) · `8ff7404`
+- [x] **M2** — "Quem é você?": nome do operador salvo no aparelho (`AsyncStorage`, instalado com `npx expo install`), contexto `ProvedorOperador` + `useOperador`, redirecionamento na primeira abertura (`Redirect`), troca de operador pela barra, `router.replace` para tirar a identificação da pilha · *commit: a preencher*
 - [ ] **M3** — Ficha da máquina (`/maquina/[id]`) e registrar saída
 - [ ] **M4** — Registrar retorno (horímetro mínimo, horas previstas, avarias)
 - [ ] **M5** — QR code: leitura no app (`expo-camera`) e etiqueta imprimível na web
