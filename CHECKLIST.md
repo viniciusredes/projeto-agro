@@ -117,6 +117,22 @@ Pasta `agro-mobile/` · branch `feat/app-movel`. O app cobre o trabalho no **cam
 
 ---
 
+## Etapa 4 — Gestão de abastecimento 🚧
+
+Branch `feat/abastecimento`. O operador **registra** o abastecimento no app (posto, com a foto do recibo, ou tanque da fazenda) e o gestor **confere** na web (aprova ou recusa com motivo). Só os aprovados entram no custo e no consumo (L/h). Tanque da fazenda = diesel do almoxarifado, com baixa no estoque e estorno na recusa.
+
+- [x] **A1 · API** — Abastecimento em posto (Parte AB1): modelo com origem e status, `POST /abastecimentos` com o recibo em base64 no mesmo JSON (operação atômica), horímetro mínimo pelo último abastecimento não recusado, preço/L calculado; listagem com filtros (máquina, status, origem, operador sem maiúsculas), detalhe com a máquina e o recibo como imagem; validação de imagem extraída para `lerImagemBase64` (usada também pelas fotos da O.S.); 17 cenários novos, 120 no total · *commit: a preencher*
+- [ ] **A2 · API** — Tanque da fazenda: diesel no almoxarifado, baixa e kardex, saldo insuficiente
+- [ ] **A3 · API** — Conferência (aprovar, recusar com estorno) e indicadores de combustível da máquina
+- [ ] **A4 · App** — Registrar abastecimento na ficha, com a foto do recibo
+- [ ] **A5 · App** — "Meus abastecimentos" na página inicial, com o status da conferência
+- [ ] **A6 · Web** — Lista de abastecimentos, contador de pendentes no menu e no painel
+- [ ] **A7 · Web** — Conferência com a foto do recibo: aprovar ou recusar com motivo
+- [ ] **A8 · Web** — Combustível no detalhe da máquina e abastecimentos no kardex
+- [ ] **A9** — Documentação, CHECKLIST e PR
+
+---
+
 ## Pendências e decisões em aberto
 
 - [x] **Cadastro de máquinas** — decidido: **entra no sistema** (Passos 8.1 e 8.2).

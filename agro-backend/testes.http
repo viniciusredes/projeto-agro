@@ -869,3 +869,67 @@ GET {{baseUrl}}/ordens-servico/3/fotos/1
 ### F15 — Foto de outra O.S. não aparece por este caminho
 # Esperado: 404, "Foto não encontrada"
 GET {{baseUrl}}/ordens-servico/1/fotos/1
+
+# =====================================================================
+#  ABASTECIMENTO (Etapa 4, Parte AB1). Usa a PV-03 (horímetro 260 depois do F1).
+#  Mesmos códigos do testes.sh.
+# =====================================================================
+
+### AB1 — Abastecimento em posto, com o recibo (PNG de 1x1 pixel)
+# Esperado: 201, "status": "Pendente", "precoLitro": 6.193
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Ana",
+  "origem": "Posto",
+  "litros": 120.5,
+  "horimetro": 262,
+  "posto": "Posto Boa Vista",
+  "valorTotal": 746.3,
+  "comprovante": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+}
+
+### AB3 — Sem o recibo
+# Esperado: 400, "Campo 'comprovante' é obrigatório e deve ser a foto em base64"
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Ana",
+  "origem": "Posto",
+  "litros": 50,
+  "horimetro": 263,
+  "posto": "Posto Boa Vista",
+  "valorTotal": 310
+}
+
+### AB11 — Horímetro menor que o do último abastecimento
+# Esperado: 400, "Horímetro informado (261) é menor que o último registrado (262)"
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Ana",
+  "origem": "Posto",
+  "litros": 50,
+  "horimetro": 261,
+  "posto": "Posto Boa Vista",
+  "valorTotal": 310,
+  "comprovante": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+}
+
+### AB13 — Filtro por operador (ignora maiúsculas e espaços)
+# Esperado: 200, o abastecimento da "Ana"
+GET {{baseUrl}}/abastecimentos?operador=%20ana%20
+
+### AB15 — Detalhe, com os dados da máquina
+# Esperado: 200, "maquina": { "tag": "PV-03", ... }
+GET {{baseUrl}}/abastecimentos/1
+
+### AB17 — O recibo (o REST Client mostra a imagem)
+# Esperado: 200, Content-Type: image/png
+GET {{baseUrl}}/abastecimentos/1/comprovante

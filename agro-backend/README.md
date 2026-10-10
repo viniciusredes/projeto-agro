@@ -119,6 +119,15 @@ Tudo fica num único `server.ts` de propósito, para facilitar o aprendizado. A 
 | `GET` | `/ordens-servico/:id/fotos/:fotoId` | A imagem em si (resposta binária, não JSON) |
 | `GET` | `/maquinas/:id/manutencoes` | Histórico e custo de manutenção de uma máquina |
 
+### Módulo de Abastecimento (Etapa 4)
+
+| Método | Rota | O que faz |
+|---|---|---|
+| `POST` | `/abastecimentos` | Registra um abastecimento (entra `Pendente`); no posto, com a foto do recibo |
+| `GET` | `/abastecimentos` | Lista (filtros opcionais `?maquinaId=`, `?status=`, `?origem=` e `?operador=`) |
+| `GET` | `/abastecimentos/:id` | Detalhe, com os dados da máquina |
+| `GET` | `/abastecimentos/:id/comprovante` | A foto do recibo (resposta binária) |
+
 Toda resposta de erro segue o formato:
 
 ```json
@@ -287,6 +296,7 @@ O projeto foi construído em **partes pequenas**. Cada parte traz: 🎯 o **obje
 | **Uso** (máquinas) | [Ponto de partida](#ponto-de-partida), [Parte 0](#parte-0--script-de-desenvolvimento) a [Parte 6](#parte-6--avarias-no-retorno-campo-opcional) |
 | **Estoque** (peças) | [Parte E1](#parte-e1--modelo-de-peça-e-listagem) a [Parte E6](#parte-e6--estoque-mínimo-e-alerta-de-reposição) |
 | **Manutenção** (O.S.) | [Parte OS1](#parte-os1--modelo-da-ordem-de-serviço-e-listagem) a [Parte OS7](#parte-os7--detalhe-da-os-e-custo-por-máquina), mais a [Parte OS8](#parte-os8--fotos-da-os-para-o-app-do-operador) (fotos, feita na Etapa 3) |
+| **Abastecimento** (Etapa 4) | [Parte AB1](#parte-ab1--abastecimento-em-posto-com-o-recibo) |
 
 > **Dica para os alunos:** reproduzam as partes na ordem, testando cada uma antes de seguir. É assim que se constrói software de forma segura: um passo pequeno e verificado de cada vez.
 
@@ -1406,11 +1416,88 @@ curl -X POST http://localhost:3000/ordens-servico/1/fotos -H "Content-Type: appl
 
 Ou abra `http://localhost:3000/ordens-servico/1/fotos/1` no navegador: a imagem aparece, porque a resposta diz `Content-Type: image/png`.
 
+### Parte AB1 — Abastecimento em posto, com o recibo
+
+🎯 O operador abastece a máquina num posto e registra pelo app: litros, horímetro, posto, valor pago e a **foto do recibo**. O abastecimento entra **Pendente**, à espera da conferência do gestor na web (Parte AB3). Esta é a Etapa 4 do projeto; o tanque da fazenda vem na Parte AB2.
+
+🧩 **1. O modelo.** Origem e status são tipos com poucos valores possíveis, como na O.S.:
+
+```ts
+type OrigemAbastecimento = 'Posto' | 'Tanque';
+type StatusAbastecimento = 'Pendente' | 'Aprovado' | 'Recusado';
+
+interface Abastecimento {
+  id: number;
+  maquinaId: number;
+  operador: string;
+  origem: OrigemAbastecimento;
+  litros: number;
+  horimetro: number;        // leitura no momento do abastecimento (não muda a máquina)
+  posto?: string;
+  valorTotal: number;       // R$ pago no posto
+  precoLitro: number;       // R$/L = valorTotal / litros
+  data: string;
+  status: StatusAbastecimento;
+  comprovante?: Comprovante; // a foto do recibo: tipo, tamanho e os bytes
+}
+```
+
+**2. Recibo no mesmo JSON.** O `POST /abastecimentos` recebe o recibo em base64 no campo `comprovante`. Assim **ou entra tudo, ou nada**: não existe abastecimento em posto sem recibo. As fotos da O.S. (Parte OS8) usam duas chamadas, porque a foto é opcional e pode vir depois. O leitor de corpo grande passa a valer também aqui:
+
+```ts
+app.use('/abastecimentos', express.json({ limit: '3mb' }));
+```
+
+**3. Uma regra, uma função.** A validação da imagem (base64, JPEG ou PNG, até 2 MB) saiu da rota de fotos da O.S. e virou a função `lerImagemBase64`, usada pelas duas rotas:
+
+```ts
+const imagem = lerImagemBase64(comprovante, 'comprovante');
+if (!imagem.ok) {
+  return res.status(imagem.status).json({ erro: imagem.erro });
+}
+```
+
+**4. O horímetro nunca anda para trás.** O mínimo é o **maior** entre o horímetro da máquina e o do último abastecimento dela que não foi recusado:
+
+```ts
+const minimo = Math.max(
+  maquina.horimetro,
+  ...abastecimentos.filter(ab => ab.maquinaId === maquina.id && ab.status !== 'Recusado').map(ab => ab.horimetro)
+);
+```
+
+O abastecimento **não** altera o horímetro da máquina; quem faz isso são a saída e o retorno. Um abastecimento recusado (com o horímetro digitado errado, por exemplo) não "estraga" a máquina.
+
+**5. As rotas:**
+
+| Método | Rota | O que faz |
+|---|---|---|
+| `POST` | `/abastecimentos` | Registra (201, `Pendente`). Valida máquina (404), operador, origem, litros > 0, horímetro, posto, valor pago > 0 e o recibo (400/413) |
+| `GET` | `/abastecimentos` | Lista, com filtros opcionais e combináveis: `?maquinaId=`, `?status=`, `?origem=`, `?operador=` |
+| `GET` | `/abastecimentos/:id` | Detalhe, com a tag e o modelo da máquina |
+| `GET` | `/abastecimentos/:id/comprovante` | A foto do recibo (resposta binária, não JSON) |
+
+📚 **Conceitos**
+- **Operação atômica:** o abastecimento e o recibo entram numa requisição só. Se o recibo estiver errado, nada é gravado. Comparar com as fotos da O.S. mostra quando cada desenho faz sentido.
+- **Refatorar antes de repetir:** antes de escrever a segunda rota com foto, a regra da primeira virou uma função. Os testes F1 a F15 (fotos da O.S.) continuaram passando: é assim que se refatora com segurança.
+- **Valor derivado na gravação:** o `precoLitro` é calculado e guardado no registro, com 3 casas, como nas bombas de combustível (R$ 6,193). Se o gestor quiser saber quanto pagou por litro naquele dia, o número está lá.
+- **Filtro tolerante:** `?operador=%20ana%20` encontra "Ana". O app manda o nome que o operador digitou, com as maiúsculas e espaços que ele usou.
+
+🧪 **Testes** (no Git Bash; a foto é um PNG de 1×1 pixel)
+
+```bash
+PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+curl -X POST http://localhost:3000/abastecimentos -H "Content-Type: application/json" \
+  -d "{\"maquinaId\":1,\"operador\":\"Ana\",\"origem\":\"Posto\",\"litros\":120.5,\"horimetro\":1100,\"posto\":\"Posto Boa Vista\",\"valorTotal\":746.3,\"comprovante\":\"$PNG\"}"   # 201, Pendente, precoLitro 6.193
+curl http://localhost:3000/abastecimentos?status=Pendente
+curl -o recibo.png http://localhost:3000/abastecimentos/1/comprovante
+```
+
 ---
 
 ## 6. Roteiro completo de testes com curl
 
-> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 103 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas e 15 das fotos da O.S.) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
+> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 120 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S. e 17 do abastecimento) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
 >
 > 💡 **Alternativa sem terminal:** o arquivo [testes.http](testes.http) tem este mesmo roteiro para a extensão **REST Client** do VS Code. Basta clicar em "Send Request" acima de cada teste, sem se preocupar com aspas.
 
@@ -1749,6 +1836,38 @@ curl.exe -X POST $B/ordens-servico/1/fotos -H "$H" -d "{\"imagem\":\"$PNG\"}"   
 curl.exe $B/ordens-servico/3/fotos                                                # F13
 curl.exe -I $B/ordens-servico/3/fotos/1                                           # F14 (só os cabeçalhos)
 curl.exe $B/ordens-servico/1/fotos/1                                              # F15
+```
+
+### Abastecimento — `/abastecimentos` (Etapa 4)
+
+Usa a PV-03 (horímetro 260 depois do F1). Os testes montam o corpo com uma função `posto()` do `testes.sh`; aqui fica o corpo completo do AB1.
+
+| # | Cenário | Esperado |
+|---|---|---|
+| AB1 | Posto, 120,5 L, R$ 746,30, com recibo | **201**, `Pendente` |
+| AB2 | Detalhe do nº 1 | **200**, `precoLitro: 6.193` |
+| AB3 | Sem recibo | **400**, `'comprovante' é obrigatório` |
+| AB4 | Recibo que não é imagem | **400**, `JPEG ou PNG` |
+| AB5 | Sem o nome do posto | **400** |
+| AB6 | Valor pago zero | **400** |
+| AB7 | Litros negativos | **400** |
+| AB8 | Origem desconhecida | **400** |
+| AB9 | Sem operador | **400** |
+| AB10 | Máquina 99 | **404** |
+| AB11 | Horímetro 261 (o último foi 262) | **400**, `menor que o último registrado (262)` |
+| AB12 | Lista | **200**, sem os bytes |
+| AB13 | `?operador=%20ana%20` | **200**, encontra "Ana" |
+| AB14 | `?status=aprovado` | **400** |
+| AB15 | Detalhe do nº 1 | **200**, com `"tag": "PV-03"` |
+| AB16 | Abastecimento 99 | **404** |
+| AB17 | Recibo do nº 1 | **200**, `Content-Type: image/png` |
+
+```bash
+PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+curl.exe -X POST $B/abastecimentos -H "$H" -d "{\"maquinaId\":3,\"operador\":\"Ana\",\"origem\":\"Posto\",\"litros\":120.5,\"horimetro\":262,\"posto\":\"Posto Boa Vista\",\"valorTotal\":746.3,\"comprovante\":\"$PNG\"}"   # AB1
+curl.exe $B/abastecimentos/1                                   # AB2 e AB15
+curl.exe "$B/abastecimentos?operador=%20ana%20"                # AB13
+curl.exe -I $B/abastecimentos/1/comprovante                    # AB17
 ```
 
 > **Dica:** para ver só o código HTTP de cada resposta, acrescente `-w "  [%{http_code}]\n"` ao comando.

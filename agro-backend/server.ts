@@ -7,6 +7,7 @@ app.disable('x-powered-by'); // não revela que o servidor usa Express
 // A ORDEM importa: este leitor vem antes do geral. Quando o corpo já foi lido aqui, o
 // express.json() de baixo percebe e passa adiante sem ler de novo.
 app.use('/ordens-servico/:id/fotos', express.json({ limit: '3mb' }));
+app.use('/abastecimentos', express.json({ limit: '3mb' })); // o comprovante vai junto no JSON
 app.use(express.json()); // demais rotas: limite padrão de 100 KB
 
 // Status possíveis de uma máquina (só estes 3 valores são aceitos)
@@ -195,6 +196,30 @@ function tipoDaImagem(bytes: Buffer): TipoFoto | null {
   return null;
 }
 
+// Lê uma imagem enviada em base64 (fotos da O.S. e comprovante do abastecimento).
+// A MESMA regra nos dois lugares: uma função só, em vez de copiar as validações.
+type ResultadoImagem =
+  | { ok: true; conteudo: Buffer; tipo: TipoFoto }
+  | { ok: false; status: number; erro: string };
+
+function lerImagemBase64(texto: unknown, campo: string): ResultadoImagem {
+  // Formato: só letras, números, + e /, com até dois = no fim.
+  // Sem essa conferência, o Buffer.from ignoraria os caracteres estranhos em silêncio.
+  if (typeof texto !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(texto)) {
+    return { ok: false, status: 400, erro: `Campo '${campo}' é obrigatório e deve ser a foto em base64` };
+  }
+  // Conteúdo: é mesmo uma imagem? Do tamanho permitido?
+  const conteudo = Buffer.from(texto, 'base64');
+  const tipo = tipoDaImagem(conteudo);
+  if (!tipo) {
+    return { ok: false, status: 400, erro: 'A foto deve ser JPEG ou PNG' };
+  }
+  if (conteudo.length > TAMANHO_MAXIMO_FOTO) {
+    return { ok: false, status: 413, erro: 'Foto muito grande: o máximo é 2 MB' };
+  }
+  return { ok: true, conteudo, tipo };
+}
+
 // O que a API devolve de uma foto: os dados dela + o endereço da imagem (sem os bytes)
 function resumoDaFoto(foto: FotoOS) {
   const { conteudo, ...dados } = foto;
@@ -273,6 +298,55 @@ function validarPecasDoFechamento(pecasInformadas: unknown): ResultadoValidacaoP
   }
 
   return { ok: true, itens };
+}
+
+// ===================== ABASTECIMENTO =====================
+
+// De onde veio o combustível: posto externo (com recibo) ou tanque da fazenda (A2)
+type OrigemAbastecimento = 'Posto' | 'Tanque';
+// Ciclo de vida: o operador registra (Pendente) e o gestor confere (Aprovado ou Recusado)
+type StatusAbastecimento = 'Pendente' | 'Aprovado' | 'Recusado';
+
+// Origens aceitas no registro (o tanque da fazenda entra no passo A2)
+const ORIGENS_ABASTECIMENTO: OrigemAbastecimento[] = ['Posto'];
+const STATUS_ABASTECIMENTO: StatusAbastecimento[] = ['Pendente', 'Aprovado', 'Recusado'];
+
+// Foto do comprovante (o recibo do posto), guardada junto do abastecimento
+interface Comprovante {
+  tipo: TipoFoto;
+  tamanho: number;   // em bytes
+  conteudo: Buffer;  // os bytes da imagem (nunca vão nas respostas em JSON)
+}
+
+interface Abastecimento {
+  id: number;
+  maquinaId: number;        // "chave estrangeira": aponta para Maquina.id
+  operador: string;
+  origem: OrigemAbastecimento;
+  litros: number;
+  horimetro: number;        // leitura no momento do abastecimento (não muda a máquina)
+  posto?: string;           // só no Posto: nome do posto
+  valorTotal: number;       // R$: o valor pago no posto
+  precoLitro: number;       // R$/L = valorTotal / litros
+  data: string;
+  status: StatusAbastecimento;
+  motivoRecusa?: string;    // preenchidos na conferência (A3)
+  dataConferencia?: string;
+  comprovante?: Comprovante;
+}
+
+let abastecimentos: Abastecimento[] = [];
+let proximoIdAbastecimento = 1;
+
+// O que a API devolve de um abastecimento: os dados + o endereço do comprovante (sem os bytes)
+function resumoDoAbastecimento(abastecimento: Abastecimento) {
+  const { comprovante, ...dados } = abastecimento;
+  return {
+    ...dados,
+    comprovante: comprovante
+      ? { tipo: comprovante.tipo, tamanho: comprovante.tamanho, url: `/abastecimentos/${abastecimento.id}/comprovante` }
+      : null
+  };
 }
 
 // 1. Caminho para VER as máquinas (Listagem)
@@ -851,22 +925,12 @@ app.post('/ordens-servico/:id/fotos', (req, res) => {
     return res.status(409).json({ erro: `A O.S. nº ${id} já tem ${FOTOS_POR_OS} fotos (o máximo)` });
   }
 
-  // Validação 4 (formato): texto em base64 (só letras, números, + e /, com até dois = no fim).
-  // Sem essa conferência, o Buffer.from ignoraria os caracteres estranhos em silêncio.
-  const { imagem } = req.body ?? {};
-  if (typeof imagem !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(imagem)) {
-    return res.status(400).json({ erro: "Campo 'imagem' é obrigatório e deve ser a foto em base64" });
+  // Validações 4 e 5 (formato e conteúdo da imagem): a regra fica em lerImagemBase64
+  const imagem = lerImagemBase64(req.body?.imagem, 'imagem');
+  if (!imagem.ok) {
+    return res.status(imagem.status).json({ erro: imagem.erro });
   }
-
-  // Validação 5 (conteúdo): é mesmo uma imagem? Do tamanho permitido?
-  const conteudo = Buffer.from(imagem, 'base64');
-  const tipo = tipoDaImagem(conteudo);
-  if (!tipo) {
-    return res.status(400).json({ erro: 'A foto deve ser JPEG ou PNG' });
-  }
-  if (conteudo.length > TAMANHO_MAXIMO_FOTO) {
-    return res.status(413).json({ erro: 'Foto muito grande: o máximo é 2 MB' });
-  }
+  const { conteudo, tipo } = imagem;
 
   const foto: FotoOS = {
     id: proximoIdFoto++,
@@ -912,6 +976,159 @@ app.get('/ordens-servico/:id/fotos/:fotoId', (req, res) => {
   res.type(foto.tipo).send(foto.conteudo);
 });
 
+// 18. Caminho para REGISTRAR um abastecimento (pelo app do operador).
+// No posto, o recibo vai NO MESMO JSON (campo "comprovante", em base64): ou entra tudo, ou nada.
+app.post('/abastecimentos', (req, res) => {
+  const { maquinaId, operador, origem, litros, horimetro, posto, valorTotal, comprovante } = req.body ?? {};
+
+  // Validação 1 (formato): qual máquina?
+  if (!Number.isInteger(maquinaId)) {
+    return res.status(400).json({ erro: "Campo 'maquinaId' é obrigatório e deve ser um número inteiro" });
+  }
+
+  // Validação 2: a máquina existe?
+  const maquina = maquinas.find(m => m.id === maquinaId);
+  if (!maquina) {
+    return res.status(404).json({ erro: 'Máquina não encontrada' });
+  }
+
+  // Validação 3 (formato): dados de todo abastecimento
+  if (typeof operador !== 'string' || operador.trim() === '') {
+    return res.status(400).json({ erro: "Campo 'operador' é obrigatório" });
+  }
+  if (!ORIGENS_ABASTECIMENTO.includes(origem)) {
+    return res.status(400).json({ erro: `Campo 'origem' deve ser um destes: ${ORIGENS_ABASTECIMENTO.join(', ')}` });
+  }
+  if (typeof litros !== 'number' || !Number.isFinite(litros) || litros <= 0) {
+    return res.status(400).json({ erro: "Campo 'litros' deve ser um número maior que zero" });
+  }
+  if (typeof horimetro !== 'number' || !Number.isFinite(horimetro)) {
+    return res.status(400).json({ erro: "Campo 'horimetro' é obrigatório e deve ser um número" });
+  }
+
+  // Validação 4 (formato): dados do posto, com o recibo OBRIGATÓRIO (é a prova da despesa)
+  if (typeof posto !== 'string' || posto.trim() === '') {
+    return res.status(400).json({ erro: "Campo 'posto' é obrigatório no abastecimento em posto" });
+  }
+  if (typeof valorTotal !== 'number' || !Number.isFinite(valorTotal) || valorTotal <= 0) {
+    return res.status(400).json({ erro: "Campo 'valorTotal' deve ser um número maior que zero" });
+  }
+  const imagem = lerImagemBase64(comprovante, 'comprovante');
+  if (!imagem.ok) {
+    return res.status(imagem.status).json({ erro: imagem.erro });
+  }
+
+  // Validação 5 (regra de negócio): o horímetro nunca anda para trás. O mínimo é o maior entre
+  // o horímetro da máquina e o do último abastecimento dela que não foi recusado.
+  const minimo = Math.max(
+    maquina.horimetro,
+    ...abastecimentos
+      .filter(ab => ab.maquinaId === maquina.id && ab.status !== 'Recusado')
+      .map(ab => ab.horimetro)
+  );
+  if (horimetro < minimo) {
+    return res.status(400).json({ erro: `Horímetro informado (${horimetro}) é menor que o último registrado (${minimo})` });
+  }
+
+  // Tudo certo: registra, aguardando a conferência do gestor
+  const abastecimento: Abastecimento = {
+    id: proximoIdAbastecimento++,
+    maquinaId: maquina.id,
+    operador: operador.trim(),
+    origem,
+    litros,
+    horimetro,
+    posto: posto.trim(),
+    valorTotal: arredondar(valorTotal, 2),
+    precoLitro: arredondar(valorTotal / litros, 3), // combustível costuma ter 3 casas (R$ 6,199)
+    data: new Date().toISOString(),
+    status: 'Pendente',
+    comprovante: { tipo: imagem.tipo, tamanho: imagem.conteudo.length, conteudo: imagem.conteudo }
+  };
+  abastecimentos.push(abastecimento);
+
+  res.status(201).json({
+    mensagem: 'Abastecimento registrado! Aguardando a conferência do gestor.',
+    abastecimento: resumoDoAbastecimento(abastecimento)
+  });
+});
+
+// 19. Caminho para LISTAR os abastecimentos
+// (filtros opcionais e combináveis: ?maquinaId=1&status=Pendente&origem=Posto&operador=Ana)
+app.get('/abastecimentos', (req, res) => {
+  const { maquinaId, status, origem, operador } = req.query;
+  let resultado = abastecimentos;
+
+  if (maquinaId !== undefined) {
+    const idFiltro = Number(maquinaId);
+    if (!Number.isInteger(idFiltro)) {
+      return res.status(400).json({ erro: "Parâmetro 'maquinaId' deve ser um número inteiro" });
+    }
+    resultado = resultado.filter(ab => ab.maquinaId === idFiltro);
+  }
+
+  if (status !== undefined) {
+    if (!STATUS_ABASTECIMENTO.includes(status as StatusAbastecimento)) {
+      return res.status(400).json({ erro: `Parâmetro 'status' deve ser um destes: ${STATUS_ABASTECIMENTO.join(', ')}` });
+    }
+    resultado = resultado.filter(ab => ab.status === status);
+  }
+
+  if (origem !== undefined) {
+    if (origem !== 'Posto' && origem !== 'Tanque') {
+      return res.status(400).json({ erro: "Parâmetro 'origem' deve ser um destes: Posto, Tanque" });
+    }
+    resultado = resultado.filter(ab => ab.origem === origem);
+  }
+
+  // Operador: "ana" e "Ana " são a mesma pessoa (sem espaços nas pontas, sem maiúsculas)
+  if (typeof operador === 'string') {
+    const nome = operador.trim().toLocaleLowerCase('pt-BR');
+    resultado = resultado.filter(ab => ab.operador.toLocaleLowerCase('pt-BR') === nome);
+  }
+
+  res.json(resultado.map(resumoDoAbastecimento));
+});
+
+// 20. Caminho para VER um abastecimento (com os dados da máquina, como o detalhe da O.S.)
+app.get('/abastecimentos/:id', (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  const abastecimento = abastecimentos.find(ab => ab.id === id);
+  if (!abastecimento) {
+    return res.status(404).json({ erro: 'Abastecimento não encontrado' });
+  }
+
+  const maquina = maquinas.find(m => m.id === abastecimento.maquinaId);
+  res.json({
+    ...resumoDoAbastecimento(abastecimento),
+    maquina: maquina ? { id: maquina.id, tag: maquina.tag, modelo: maquina.modelo } : null
+  });
+});
+
+// 21. Caminho para VER o comprovante: a imagem em si, com o Content-Type certo (não é JSON!)
+app.get('/abastecimentos/:id/comprovante', (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  const abastecimento = abastecimentos.find(ab => ab.id === id);
+  if (!abastecimento) {
+    return res.status(404).json({ erro: 'Abastecimento não encontrado' });
+  }
+  if (!abastecimento.comprovante) {
+    return res.status(404).json({ erro: 'Este abastecimento não tem comprovante' });
+  }
+
+  res.type(abastecimento.comprovante.tipo).send(abastecimento.comprovante.conteudo);
+});
+
 // Rota não encontrada: se a requisição chegou até aqui, nenhuma rota acima atendeu.
 app.use((req: Request, res: Response) => {
   res.status(404).json({ erro: `Rota ${req.method} ${req.path} não existe` });
@@ -925,7 +1142,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     return res.status(400).json({ erro: 'JSON inválido no corpo da requisição' });
   }
 
-  // Corpo maior que o limite do express.json() (100 KB; 3 MB na rota de fotos)
+  // Corpo maior que o limite do express.json() (100 KB; 3 MB nas rotas com foto)
   if (err.type === 'entity.too.large') {
     return res.status(413).json({ erro: 'Corpo da requisição grande demais' });
   }

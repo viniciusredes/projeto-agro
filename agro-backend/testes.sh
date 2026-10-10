@@ -483,6 +483,73 @@ testar F14 "Imagem com o Content-Type certo" 200 "image/png" \
 testar F15 "Foto de outra O.S. não aparece por este caminho" 404 "Foto não encontrada" \
   "$BASE/ordens-servico/1/fotos/1"
 
+# =====================================================================
+#  ABASTECIMENTO (usa a PV-03, com horímetro 260 depois do F1)
+# =====================================================================
+
+# Corpo de um abastecimento em posto; o 1º argumento troca/acrescenta campos (ex.: '"litros":-5')
+posto() {
+  local base="\"maquinaId\":3,\"operador\":\"Ana\",\"origem\":\"Posto\",\"litros\":120.5,\"horimetro\":262,\"posto\":\"Posto Boa Vista\",\"valorTotal\":746.3,\"comprovante\":\"$PNG_1PX\""
+  echo "{${base}${1:+,$1}}"  # num JSON com campo repetido, vale o ÚLTIMO
+}
+
+# ---------------------------------------------------------------------
+secao "POST /abastecimentos (posto)"
+# ---------------------------------------------------------------------
+testar AB1 "Abastecimento em posto (entra Pendente)" 201 '"status":"Pendente"' \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(posto)"
+
+testar AB2 "Preço por litro calculado (746,30 / 120,5)" 200 '"precoLitro":6.193' \
+  "$BASE/abastecimentos/1"
+
+testar AB3 "Sem o recibo" 400 "'comprovante' é obrigatório" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(posto '"comprovante":null')"
+
+testar AB4 "Recibo que não é imagem" 400 "JPEG ou PNG" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(posto '"comprovante":"aGVsbG8="')"
+
+testar AB5 "Sem o nome do posto" 400 "'posto' é obrigatório" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(posto '"posto":" "')"
+
+testar AB6 "Valor pago zero" 400 "'valorTotal' deve ser um número maior que zero" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(posto '"valorTotal":0')"
+
+testar AB7 "Litros negativos" 400 "'litros' deve ser um número maior que zero" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(posto '"litros":-5')"
+
+testar AB8 "Origem desconhecida" 400 "'origem' deve ser um destes" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(posto '"origem":"Galao"')"
+
+testar AB9 "Sem operador" 400 "'operador' é obrigatório" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(posto '"operador":""')"
+
+testar AB10 "Máquina inexistente" 404 "Máquina não encontrada" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(posto '"maquinaId":99')"
+
+testar AB11 "Horímetro menor que o do último abastecimento" 400 "menor que o último registrado (262)" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(posto '"horimetro":261')"
+
+# ---------------------------------------------------------------------
+secao "GET /abastecimentos e o comprovante"
+# ---------------------------------------------------------------------
+testar AB12 "Lista sem os bytes do recibo" 200 '!conteudo' \
+  "$BASE/abastecimentos"
+
+testar AB13 "Filtro por operador ignora maiúsculas e espaços" 200 '"operador":"Ana"' \
+  "$BASE/abastecimentos?operador=%20ana%20"
+
+testar AB14 "Filtro de status inválido" 400 "'status' deve ser um destes" \
+  "$BASE/abastecimentos?status=aprovado"
+
+testar AB15 "Detalhe com os dados da máquina" 200 '"tag":"PV-03"' \
+  "$BASE/abastecimentos/1"
+
+testar AB16 "Abastecimento inexistente" 404 "Abastecimento não encontrado" \
+  "$BASE/abastecimentos/99"
+
+testar AB17 "Recibo com o Content-Type certo" 200 "image/png" \
+  -o /dev/null -D - "$BASE/abastecimentos/1/comprovante"
+
 # ---------------------------------------------------------------------
 # Resumo
 # ---------------------------------------------------------------------
