@@ -123,7 +123,7 @@ Tudo fica num único `server.ts` de propósito, para facilitar o aprendizado. A 
 
 | Método | Rota | O que faz |
 |---|---|---|
-| `POST` | `/abastecimentos` | Registra um abastecimento (entra `Pendente`); no posto, com a foto do recibo |
+| `POST` | `/abastecimentos` | Registra um abastecimento (entra `Pendente`): no posto, com a foto do recibo; pelo tanque da fazenda, com baixa do diesel no almoxarifado |
 | `GET` | `/abastecimentos` | Lista (filtros opcionais `?maquinaId=`, `?status=`, `?origem=` e `?operador=`) |
 | `GET` | `/abastecimentos/:id` | Detalhe, com os dados da máquina |
 | `GET` | `/abastecimentos/:id/comprovante` | A foto do recibo (resposta binária) |
@@ -296,7 +296,7 @@ O projeto foi construído em **partes pequenas**. Cada parte traz: 🎯 o **obje
 | **Uso** (máquinas) | [Ponto de partida](#ponto-de-partida), [Parte 0](#parte-0--script-de-desenvolvimento) a [Parte 6](#parte-6--avarias-no-retorno-campo-opcional) |
 | **Estoque** (peças) | [Parte E1](#parte-e1--modelo-de-peça-e-listagem) a [Parte E6](#parte-e6--estoque-mínimo-e-alerta-de-reposição) |
 | **Manutenção** (O.S.) | [Parte OS1](#parte-os1--modelo-da-ordem-de-serviço-e-listagem) a [Parte OS7](#parte-os7--detalhe-da-os-e-custo-por-máquina), mais a [Parte OS8](#parte-os8--fotos-da-os-para-o-app-do-operador) (fotos, feita na Etapa 3) |
-| **Abastecimento** (Etapa 4) | [Parte AB1](#parte-ab1--abastecimento-em-posto-com-o-recibo) |
+| **Abastecimento** (Etapa 4) | [Parte AB1](#parte-ab1--abastecimento-em-posto-com-o-recibo) e [Parte AB2](#parte-ab2--abastecimento-pelo-tanque-da-fazenda) |
 
 > **Dica para os alunos:** reproduzam as partes na ordem, testando cada uma antes de seguir. É assim que se constrói software de forma segura: um passo pequeno e verificado de cada vez.
 
@@ -1493,11 +1493,69 @@ curl http://localhost:3000/abastecimentos?status=Pendente
 curl -o recibo.png http://localhost:3000/abastecimentos/1/comprovante
 ```
 
+### Parte AB2 — Abastecimento pelo tanque da fazenda
+
+🎯 Muitas fazendas têm um **tanque próprio de diesel**. O diesel do tanque é **estoque**: entra por compra (`POST /pecas/:id/entradas`) e sai quando uma máquina é abastecida. Abastecer pelo tanque dá **baixa no almoxarifado** na hora, com o custo da última compra.
+
+🧩 **1. O diesel no almoxarifado inicial**, como mais uma peça, em litros:
+
+```ts
+{ id: 4, codigo: 'DSL-001', descricao: 'Óleo diesel S10 (tanque da fazenda)', unidade: 'L', saldo: 3000, custoUnitario: 6.05, estoqueMinimo: 1000 }
+```
+
+```ts
+const ORIGENS_ABASTECIMENTO: OrigemAbastecimento[] = ['Posto', 'Tanque'];
+const CODIGO_DIESEL = 'DSL-001'; // o item do almoxarifado que representa o tanque
+```
+
+**2. Cada origem tem as suas regras:**
+
+| | Posto | Tanque |
+|---|---|---|
+| `posto` e `valorTotal` | obrigatórios | **proibidos** (400): o custo vem do almoxarifado |
+| `comprovante` | obrigatório | opcional (ex.: foto do marcador da bomba) |
+| Custo | valor pago | litros × custo do diesel, **congelado** |
+| Estoque | — | saldo suficiente (409, nada é gravado) e **baixa** com saída no kardex |
+
+**3. A baixa**, depois de todas as validações (nada é gravado pela metade):
+
+```ts
+diesel.saldo = arredondar(diesel.saldo - litros, 2);
+movimentosEstoque.push({
+  id: proximoIdMovimentoEstoque++,
+  pecaId: diesel.id,
+  tipo: 'saida',
+  quantidade: litros,
+  custoUnitario: diesel.custoUnitario,
+  valorTotal: abastecimento.valorTotal,
+  saldoApos: diesel.saldo,
+  data,
+  abastecimentoId: abastecimento.id   // o kardex sabe QUEM consumiu o diesel
+});
+```
+
+📚 **Conceitos**
+- **Integração entre módulos:** o abastecimento usa o almoxarifado do jeito que a O.S. já usava: estoque nunca negativo, custo congelado no momento da saída e um movimento no kardex apontando a origem (`ordemServicoId` na O.S., `abastecimentoId` aqui).
+- **O dado vem de quem sabe:** no posto, quem sabe o preço é o recibo. No tanque, é o almoxarifado (última compra). Por isso o tanque **recusa** o `valorTotal` em vez de ignorá-lo em silêncio: o erro ensina o caminho certo, como o "Use a entrada de estoque" do cadastro de peças.
+- **Baixa no registro, não na conferência:** o diesel saiu do tanque de verdade quando a máquina foi abastecida. O estoque precisa mostrar isso já, mesmo com o abastecimento ainda Pendente. Se o gestor recusar, um **estorno** devolve os litros (Parte AB3).
+- **Mudar os dados iniciais mexe nos testes:** com o diesel como peça 4, a primeira peça cadastrada nos testes passou a ser a 5. A verificação de "servidor zerado" e o K3 do `testes.sh` foram ajustados.
+
+🧪 **Testes**
+
+```bash
+curl -X POST http://localhost:3000/abastecimentos -H "Content-Type: application/json" \
+  -d '{"maquinaId":1,"operador":"Bruno","origem":"Tanque","litros":200,"horimetro":1100}'   # 201, valorTotal 1210
+curl http://localhost:3000/pecas/4             # saldo 2800
+curl http://localhost:3000/pecas/4/movimentos  # a saída com "abastecimentoId"
+curl -X POST http://localhost:3000/abastecimentos -H "Content-Type: application/json" \
+  -d '{"maquinaId":1,"operador":"Bruno","origem":"Tanque","litros":5000,"horimetro":1100}'  # 409, diesel insuficiente
+```
+
 ---
 
 ## 6. Roteiro completo de testes com curl
 
-> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 120 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S. e 17 do abastecimento) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
+> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 127 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S. e 24 do abastecimento) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
 >
 > 💡 **Alternativa sem terminal:** o arquivo [testes.http](testes.http) tem este mesmo roteiro para a extensão **REST Client** do VS Code. Basta clicar em "Send Request" acima de cada teste, sem se preocupar com aspas.
 
@@ -1600,7 +1658,7 @@ curl.exe -i $B/maquinas             # G3
 
 | # | Cenário | Esperado |
 |---|---|---|
-| P1 | Listar peças | **200**, as 3 peças iniciais |
+| P1 | Listar peças | **200**, as 4 peças iniciais (com o diesel da Etapa 4) |
 | P2 | Buscar peça 2 | **200**, `OLE-001` |
 | P3 | Peça inexistente | **404**, `Peça não encontrada` |
 | P4 | Id inválido | **400**, `O id deve ser um número inteiro` |
@@ -1659,12 +1717,12 @@ curl.exe -X POST $B/pecas/99/entradas -H "$H" -d '{"quantidade":5,"custoUnitario
 | # | Cenário | Esperado |
 |---|---|---|
 | K1/K2 | Kardex do filtro | **200**, implantação (saldo após 10) + entrada (saldo após 15) |
-| K3 | Kardex da peça nova | **200**, `[]` |
+| K3 | Kardex da peça nova (id 5) | **200**, `[]` |
 | K4 | Peça inexistente | **404** |
 
 ```bash
 curl.exe $B/pecas/1/movimentos     # K1/K2
-curl.exe $B/pecas/4/movimentos     # K3
+curl.exe $B/pecas/5/movimentos     # K3
 curl.exe $B/pecas/99/movimentos    # K4
 ```
 
@@ -1861,6 +1919,13 @@ Usa a PV-03 (horímetro 260 depois do F1). Os testes montam o corpo com uma fun�
 | AB15 | Detalhe do nº 1 | **200**, com `"tag": "PV-03"` |
 | AB16 | Abastecimento 99 | **404** |
 | AB17 | Recibo do nº 1 | **200**, `Content-Type: image/png` |
+| AB18 | Tanque, 200 L, sem foto | **201**, `valorTotal: 1210` (200 × 6,05) |
+| AB19 | Diesel (peça 4) | **200**, saldo 2800 |
+| AB20 | Kardex do diesel | **200**, saída com `abastecimentoId: 2` |
+| AB21 | Tanque com `valorTotal` | **400**, `o custo vem do almoxarifado` |
+| AB22 | Tanque com 5000 L | **409**, `pedido 5000 L, saldo 2800 L` |
+| AB23 | Diesel de novo | **200**, saldo continua 2800 |
+| AB24 | Tanque, 10 L, com foto | **201**, com a `url` do comprovante |
 
 ```bash
 PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
@@ -1868,6 +1933,10 @@ curl.exe -X POST $B/abastecimentos -H "$H" -d "{\"maquinaId\":3,\"operador\":\"A
 curl.exe $B/abastecimentos/1                                   # AB2 e AB15
 curl.exe "$B/abastecimentos?operador=%20ana%20"                # AB13
 curl.exe -I $B/abastecimentos/1/comprovante                    # AB17
+curl.exe -X POST $B/abastecimentos -H "$H" -d '{"maquinaId":3,"operador":"Bruno","origem":"Tanque","litros":200,"horimetro":270}'    # AB18
+curl.exe $B/pecas/4                                            # AB19
+curl.exe $B/pecas/4/movimentos                                 # AB20
+curl.exe -X POST $B/abastecimentos -H "$H" -d '{"maquinaId":3,"operador":"Bruno","origem":"Tanque","litros":5000,"horimetro":270}'   # AB22
 ```
 
 > **Dica:** para ver só o código HTTP de cada resposta, acrescente `-w "  [%{http_code}]\n"` ao comando.

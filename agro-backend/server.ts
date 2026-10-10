@@ -86,9 +86,11 @@ interface Peca {
 let pecas: Peca[] = [
   { id: 1, codigo: 'FLT-001', descricao: 'Filtro de óleo do motor', unidade: 'un', saldo: 10, custoUnitario: 85.9, estoqueMinimo: 5 },
   { id: 2, codigo: 'OLE-001', descricao: 'Óleo hidráulico', unidade: 'L', saldo: 200, custoUnitario: 18.5, estoqueMinimo: 50 },
-  { id: 3, codigo: 'COR-001', descricao: 'Correia do alternador', unidade: 'un', saldo: 4, custoUnitario: 120, estoqueMinimo: 5 }
+  { id: 3, codigo: 'COR-001', descricao: 'Correia do alternador', unidade: 'un', saldo: 4, custoUnitario: 120, estoqueMinimo: 5 },
+  // O tanque de diesel da fazenda também é estoque (Etapa 4): abastecer pelo tanque dá baixa aqui
+  { id: 4, codigo: 'DSL-001', descricao: 'Óleo diesel S10 (tanque da fazenda)', unidade: 'L', saldo: 3000, custoUnitario: 6.05, estoqueMinimo: 1000 }
 ];
-let proximoIdPeca = 4; // as 3 peças iniciais usam os ids 1, 2 e 3
+let proximoIdPeca = 5; // as 4 peças iniciais usam os ids 1 a 4
 
 // Lista de unidades válidas (usada para validar o que chega na requisição)
 const UNIDADES_VALIDAS: UnidadeMedida[] = ['un', 'L'];
@@ -116,6 +118,7 @@ interface MovimentoEstoque {
   saldoApos: number;       // saldo da peça logo depois deste movimento
   data: string;
   ordemServicoId?: number; // só nas saídas: a O.S. que consumiu a peça
+  abastecimentoId?: number; // só no diesel: o abastecimento pelo tanque que o consumiu
 }
 
 // Histórico de movimentos: começa com a implantação do saldo das peças iniciais
@@ -302,13 +305,15 @@ function validarPecasDoFechamento(pecasInformadas: unknown): ResultadoValidacaoP
 
 // ===================== ABASTECIMENTO =====================
 
-// De onde veio o combustível: posto externo (com recibo) ou tanque da fazenda (A2)
+// De onde veio o combustível: posto externo (com recibo) ou tanque da fazenda (diesel do almoxarifado)
 type OrigemAbastecimento = 'Posto' | 'Tanque';
 // Ciclo de vida: o operador registra (Pendente) e o gestor confere (Aprovado ou Recusado)
 type StatusAbastecimento = 'Pendente' | 'Aprovado' | 'Recusado';
 
-// Origens aceitas no registro (o tanque da fazenda entra no passo A2)
-const ORIGENS_ABASTECIMENTO: OrigemAbastecimento[] = ['Posto'];
+const ORIGENS_ABASTECIMENTO: OrigemAbastecimento[] = ['Posto', 'Tanque'];
+
+// O item do almoxarifado que representa o tanque de diesel da fazenda
+const CODIGO_DIESEL = 'DSL-001';
 const STATUS_ABASTECIMENTO: StatusAbastecimento[] = ['Pendente', 'Aprovado', 'Recusado'];
 
 // Foto do comprovante (o recibo do posto), guardada junto do abastecimento
@@ -326,8 +331,9 @@ interface Abastecimento {
   litros: number;
   horimetro: number;        // leitura no momento do abastecimento (não muda a máquina)
   posto?: string;           // só no Posto: nome do posto
-  valorTotal: number;       // R$: o valor pago no posto
-  precoLitro: number;       // R$/L = valorTotal / litros
+  pecaId?: number;          // só no Tanque: o item do almoxarifado baixado (o diesel)
+  valorTotal: number;       // R$: o valor pago no posto, ou litros x custo do diesel no tanque
+  precoLitro: number;       // R$/L: valorTotal / litros (posto) ou custo do diesel, congelado (tanque)
   data: string;
   status: StatusAbastecimento;
   motivoRecusa?: string;    // preenchidos na conferência (A3)
@@ -978,6 +984,7 @@ app.get('/ordens-servico/:id/fotos/:fotoId', (req, res) => {
 
 // 18. Caminho para REGISTRAR um abastecimento (pelo app do operador).
 // No posto, o recibo vai NO MESMO JSON (campo "comprovante", em base64): ou entra tudo, ou nada.
+// Pelo tanque da fazenda, o diesel é baixado do almoxarifado na hora.
 app.post('/abastecimentos', (req, res) => {
   const { maquinaId, operador, origem, litros, horimetro, posto, valorTotal, comprovante } = req.body ?? {};
 
@@ -1006,16 +1013,43 @@ app.post('/abastecimentos', (req, res) => {
     return res.status(400).json({ erro: "Campo 'horimetro' é obrigatório e deve ser um número" });
   }
 
-  // Validação 4 (formato): dados do posto, com o recibo OBRIGATÓRIO (é a prova da despesa)
-  if (typeof posto !== 'string' || posto.trim() === '') {
-    return res.status(400).json({ erro: "Campo 'posto' é obrigatório no abastecimento em posto" });
+  // Validação 4: o que muda com a origem
+  let diesel: Peca | undefined;
+  if (origem === 'Posto') {
+    // Posto: nome e valor pago, com o recibo OBRIGATÓRIO (é a prova da despesa)
+    if (typeof posto !== 'string' || posto.trim() === '') {
+      return res.status(400).json({ erro: "Campo 'posto' é obrigatório no abastecimento em posto" });
+    }
+    if (typeof valorTotal !== 'number' || !Number.isFinite(valorTotal) || valorTotal <= 0) {
+      return res.status(400).json({ erro: "Campo 'valorTotal' deve ser um número maior que zero" });
+    }
+  } else {
+    // Tanque: o custo vem do almoxarifado (última compra do diesel), não de quem registra
+    if (posto !== undefined || valorTotal !== undefined) {
+      return res.status(400).json({
+        erro: "No abastecimento pelo tanque, não informe 'posto' nem 'valorTotal': o custo vem do almoxarifado"
+      });
+    }
+    diesel = pecas.find(peca => peca.codigo === CODIGO_DIESEL);
+    if (!diesel) {
+      return res.status(409).json({ erro: `O diesel (${CODIGO_DIESEL}) não está cadastrado no almoxarifado` });
+    }
+    // Estoque nunca fica negativo (a mesma regra do fechamento da O.S.)
+    if (litros > diesel.saldo) {
+      return res.status(409).json({
+        erro: `Diesel insuficiente no tanque: pedido ${litros} L, saldo ${diesel.saldo} L. Nada foi registrado.`
+      });
+    }
   }
-  if (typeof valorTotal !== 'number' || !Number.isFinite(valorTotal) || valorTotal <= 0) {
-    return res.status(400).json({ erro: "Campo 'valorTotal' deve ser um número maior que zero" });
-  }
-  const imagem = lerImagemBase64(comprovante, 'comprovante');
-  if (!imagem.ok) {
-    return res.status(imagem.status).json({ erro: imagem.erro });
+
+  // Comprovante: obrigatório no posto, opcional no tanque (ex.: foto do marcador da bomba)
+  let foto: Comprovante | undefined;
+  if (origem === 'Posto' || comprovante !== undefined) {
+    const imagem = lerImagemBase64(comprovante, 'comprovante');
+    if (!imagem.ok) {
+      return res.status(imagem.status).json({ erro: imagem.erro });
+    }
+    foto = { tipo: imagem.tipo, tamanho: imagem.conteudo.length, conteudo: imagem.conteudo };
   }
 
   // Validação 5 (regra de negócio): o horímetro nunca anda para trás. O mínimo é o maior entre
@@ -1030,7 +1064,9 @@ app.post('/abastecimentos', (req, res) => {
     return res.status(400).json({ erro: `Horímetro informado (${horimetro}) é menor que o último registrado (${minimo})` });
   }
 
-  // Tudo certo: registra, aguardando a conferência do gestor
+  // Tudo validado. O custo depende da origem: o valor pago no posto, ou o custo do diesel
+  // NESTE momento (congelado: compras futuras não mudam abastecimentos já feitos)
+  const data = new Date().toISOString();
   const abastecimento: Abastecimento = {
     id: proximoIdAbastecimento++,
     maquinaId: maquina.id,
@@ -1038,14 +1074,38 @@ app.post('/abastecimentos', (req, res) => {
     origem,
     litros,
     horimetro,
-    posto: posto.trim(),
-    valorTotal: arredondar(valorTotal, 2),
-    precoLitro: arredondar(valorTotal / litros, 3), // combustível costuma ter 3 casas (R$ 6,199)
-    data: new Date().toISOString(),
+    ...(diesel
+      ? {
+          pecaId: diesel.id,
+          valorTotal: arredondar(litros * diesel.custoUnitario, 2),
+          precoLitro: diesel.custoUnitario
+        }
+      : {
+          posto: posto.trim(),
+          valorTotal: arredondar(valorTotal, 2),
+          precoLitro: arredondar(valorTotal / litros, 3) // combustível costuma ter 3 casas (R$ 6,199)
+        }),
+    data,
     status: 'Pendente',
-    comprovante: { tipo: imagem.tipo, tamanho: imagem.conteudo.length, conteudo: imagem.conteudo }
+    comprovante: foto
   };
   abastecimentos.push(abastecimento);
+
+  // Tanque: o diesel saiu de verdade, então a baixa é AGORA (se o gestor recusar, há estorno - A3)
+  if (diesel) {
+    diesel.saldo = arredondar(diesel.saldo - litros, 2);
+    movimentosEstoque.push({
+      id: proximoIdMovimentoEstoque++,
+      pecaId: diesel.id,
+      tipo: 'saida',
+      quantidade: litros,
+      custoUnitario: diesel.custoUnitario,
+      valorTotal: abastecimento.valorTotal,
+      saldoApos: diesel.saldo,
+      data,
+      abastecimentoId: abastecimento.id
+    });
+  }
 
   res.status(201).json({
     mensagem: 'Abastecimento registrado! Aguardando a conferência do gestor.',

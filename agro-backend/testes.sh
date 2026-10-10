@@ -75,10 +75,10 @@ if ! curl -s -o /dev/null "$BASE/maquinas"; then
 fi
 
 # Os testes dependem do estado inicial: sem movimentações de máquinas,
-# sem peças cadastradas além das 3 iniciais e sem compras registradas.
+# sem peças cadastradas além das 4 iniciais e sem compras registradas.
 if [ "$(curl -s "$BASE/movimentacoes")" != "[]" ] \
    || [ "$(curl -s "$BASE/ordens-servico")" != "[]" ] \
-   || [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/pecas/4")" != "404" ] \
+   || [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/pecas/5")" != "404" ] \
    || curl -s "$BASE/pecas/1/movimentos" | grep -q '"tipo":"entrada"'; then
   echo -e "${AMARELO}Atenção:${NORMAL} o servidor já tem dados de testes anteriores."
   echo "Salve o server.ts (ou reinicie o servidor) para zerar os dados e rode de novo."
@@ -252,7 +252,7 @@ testar K2 "Kardex com a compra (saldo após 15)" 200 '"saldoApos":15' \
   "$BASE/pecas/1/movimentos"
 
 testar K3 "Kardex de peça nova, sem compras" 200 '[]' \
-  "$BASE/pecas/4/movimentos"
+  "$BASE/pecas/5/movimentos"
 
 testar K4 "Kardex de peça inexistente" 404 "Peça não encontrada" \
   "$BASE/pecas/99/movimentos"
@@ -549,6 +549,36 @@ testar AB16 "Abastecimento inexistente" 404 "Abastecimento não encontrado" \
 
 testar AB17 "Recibo com o Content-Type certo" 200 "image/png" \
   -o /dev/null -D - "$BASE/abastecimentos/1/comprovante"
+
+# Corpo de um abastecimento pelo tanque da fazenda (diesel DSL-001, peça 4: 3000 L a R$ 6,05)
+tanque() {
+  local base='"maquinaId":3,"operador":"Bruno","origem":"Tanque","litros":200,"horimetro":270'
+  echo "{${base}${1:+,$1}}"
+}
+
+# ---------------------------------------------------------------------
+secao "POST /abastecimentos (tanque da fazenda)"
+# ---------------------------------------------------------------------
+testar AB18 "Pelo tanque, sem foto: custo do diesel (200 x 6,05)" 201 '"valorTotal":1210' \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(tanque)"
+
+testar AB19 "Diesel baixado do almoxarifado (3000 -> 2800)" 200 '"saldo":2800' \
+  "$BASE/pecas/4"
+
+testar AB20 "Kardex do diesel aponta o abastecimento" 200 '"abastecimentoId":2' \
+  "$BASE/pecas/4/movimentos"
+
+testar AB21 "Tanque com valor pago informado" 400 "o custo vem do almoxarifado" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(tanque '"valorTotal":100')"
+
+testar AB22 "Diesel insuficiente no tanque" 409 "pedido 5000 L, saldo 2800 L" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(tanque '"litros":5000')"
+
+testar AB23 "Nada foi baixado na recusa por saldo" 200 '"saldo":2800' \
+  "$BASE/pecas/4"
+
+testar AB24 "Pelo tanque, com a foto opcional da bomba" 201 '"url":"/abastecimentos/3/comprovante"' \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(tanque "\"litros\":10,\"horimetro\":271,\"comprovante\":\"$PNG_1PX\"")"
 
 # ---------------------------------------------------------------------
 # Resumo

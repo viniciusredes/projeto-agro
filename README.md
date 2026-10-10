@@ -23,7 +23,7 @@ Outros documentos:
 - [context.md](context.md): problema de negócio, decisões técnicas e histórico do projeto.
 - [CHECKLIST.md](CHECKLIST.md): cada etapa e passo concluído, com o commit correspondente.
 
-> ⚠️ **Os dados ficam em memória:** ao reiniciar o back-end, tudo volta ao estado inicial (2 máquinas e 3 peças de exemplo). Não há login nem banco de dados nesta versão.
+> ⚠️ **Os dados ficam em memória:** ao reiniciar o back-end, tudo volta ao estado inicial (2 máquinas e 4 itens de estoque de exemplo, entre eles o diesel do tanque da fazenda). Não há login nem banco de dados nesta versão.
 
 ## Pré-requisitos
 

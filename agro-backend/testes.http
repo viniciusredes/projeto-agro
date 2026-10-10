@@ -232,7 +232,7 @@ GET {{baseUrl}}/maquinas
 # =====================================================================
 
 ### P1 — Listar peças
-# Esperado: 200, as 3 peças iniciais (FLT-001, OLE-001, COR-001)
+# Esperado: 200, as 4 peças iniciais (FLT-001, OLE-001, COR-001 e o diesel DSL-001)
 GET {{baseUrl}}/pecas
 
 ### P2 — Buscar peça existente
@@ -400,7 +400,7 @@ GET {{baseUrl}}/pecas/1/movimentos
 
 ### K3 — Kardex de peça nova, sem compras
 # Esperado: 200, []
-GET {{baseUrl}}/pecas/4/movimentos
+GET {{baseUrl}}/pecas/5/movimentos
 
 ### K4 — Kardex de peça inexistente
 # Esperado: 404, "Peça não encontrada"
@@ -933,3 +933,37 @@ GET {{baseUrl}}/abastecimentos/1
 ### AB17 — O recibo (o REST Client mostra a imagem)
 # Esperado: 200, Content-Type: image/png
 GET {{baseUrl}}/abastecimentos/1/comprovante
+
+### AB18 — Pelo tanque da fazenda, sem foto (o custo vem do almoxarifado)
+# Esperado: 201, "valorTotal": 1210 (200 L x R$ 6,05), "pecaId": 4
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Bruno",
+  "origem": "Tanque",
+  "litros": 200,
+  "horimetro": 270
+}
+
+### AB19 — O diesel foi baixado do almoxarifado
+# Esperado: 200, "saldo": 2800
+GET {{baseUrl}}/pecas/4
+
+### AB20 — Kardex do diesel aponta o abastecimento
+# Esperado: 200, uma saída com "abastecimentoId": 2
+GET {{baseUrl}}/pecas/4/movimentos
+
+### AB22 — Diesel insuficiente no tanque
+# Esperado: 409, "Diesel insuficiente no tanque: pedido 5000 L, saldo 2800 L. Nada foi registrado."
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Bruno",
+  "origem": "Tanque",
+  "litros": 5000,
+  "horimetro": 270
+}
