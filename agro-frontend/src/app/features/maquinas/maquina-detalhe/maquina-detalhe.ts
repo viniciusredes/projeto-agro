@@ -6,10 +6,13 @@ import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaquinaService } from '../../../core/services/maquina.service';
 import { OrdemServicoService } from '../../../core/services/ordem-servico.service';
 import { TIPOS_OS, TipoOS } from '../../../core/models/ordem-servico';
 import { etiquetaStatusMaquina, etiquetaTipoOS } from '../../../core/ui/tons';
+import { conteudoDoQrDaMaquina } from '../../../core/qr';
+import { renderSVG } from 'uqr';
 
 // Um pedaço da barra "custo por tipo": qual tipo, quanto custou e quanto representa do total
 interface SegmentoCusto {
@@ -30,6 +33,7 @@ interface SegmentoCusto {
 export class MaquinaDetalhe {
   private readonly maquinaService = inject(MaquinaService);
   private readonly osService = inject(OrdemServicoService);
+  private readonly snackBar = inject(MatSnackBar);
 
   // /maquinas/:id -> o :id chega como input já convertido em número
   readonly id = input.required({ transform: numberAttribute });
@@ -48,6 +52,62 @@ export class MaquinaDetalhe {
   protected readonly maquina = computed(() =>
     this.maquinas.hasValue() ? this.maquinas.value().find(m => m.id === this.id()) : undefined,
   );
+
+  // Etiqueta QR para colar na máquina (o app móvel lê e abre a ficha).
+  // O uqr gera o QR como TEXTO SVG; virar "data URL" permite usar numa <img> comum, sem
+  // innerHTML (o Angular removeria o SVG por segurança).
+  protected readonly qrDaMaquina = computed(() => {
+    const svg = renderSVG(conteudoDoQrDaMaquina(this.id()));
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  });
+
+  // Imprime a etiqueta numa JANELA PRÓPRIA, só com ela: não depende do layout do app
+  // (esconder "tudo menos a etiqueta" com @media print falhou: o conteúdo do mat-sidenav tem
+  // overflow e transform, e a etiqueta saía cortada fora da página).
+  protected imprimirEtiqueta(): void {
+    const janela = window.open('', '_blank', 'width=420,height=560');
+    if (!janela) {
+      this.snackBar.open('O navegador bloqueou a janela de impressão. Permita pop-ups para este site.', 'OK', {
+        duration: 6000,
+      });
+      return;
+    }
+
+    const maquina = this.maquina();
+    const doc = janela.document;
+    doc.title = `Etiqueta ${maquina?.tag ?? ''}`;
+
+    const estilo = doc.createElement('style');
+    estilo.textContent = `
+      body { margin: 0; display: grid; place-items: center; min-height: 100vh; font-family: sans-serif; }
+      .etiqueta { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 20px;
+                  border: 2px solid #17211b; border-radius: 12px; color: #17211b; }
+      strong { font-size: 22px; } small { color: #5b645e; }`;
+    doc.head.append(estilo);
+
+    // Elementos criados um a um, com textContent: a tag e o modelo vêm do CADASTRO, então nunca
+    // entram como HTML em texto (evita injeção de código numa etiqueta "maliciosa")
+    const etiqueta = doc.createElement('div');
+    etiqueta.className = 'etiqueta';
+    const qr = doc.createElement('img');
+    qr.width = qr.height = 220;
+    qr.alt = 'QR code da máquina';
+    const tag = doc.createElement('strong');
+    tag.textContent = maquina?.tag ?? '';
+    const modelo = doc.createElement('span');
+    modelo.textContent = maquina?.modelo ?? '';
+    const rodape = doc.createElement('small');
+    rodape.textContent = 'Agro Frota · aponte o app do operador';
+    etiqueta.append(qr, tag, modelo, rodape);
+    doc.body.append(etiqueta);
+
+    // Só manda imprimir depois que a imagem do QR carregou (senão sai a etiqueta sem o código)
+    qr.onload = () => {
+      janela.focus();
+      janela.print();
+    };
+    qr.src = this.qrDaMaquina();
+  }
 
   // Segmentos da barra: sempre na MESMA ordem (Preventiva, Corretiva) e com a mesma cor,
   // para a cor identificar o tipo (e não a posição ou o tamanho)

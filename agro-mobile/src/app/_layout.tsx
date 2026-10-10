@@ -25,6 +25,7 @@ export default function LayoutRaiz() {
         <Stack.Screen name="identificacao" options={{ title: 'Identificação' }} />
         {/* Título provisório: a própria ficha troca pela tag da máquina */}
         <Stack.Screen name="maquina/[id]" options={{ title: 'Máquina' }} />
+        <Stack.Screen name="escanear" options={{ title: 'Escanear QR' }} />
       </Stack>
     </ProvedorOperador>
   );

@@ -116,7 +116,17 @@ function Conteudo({
         <RefreshControl refreshing={atualizando} onRefresh={recarregar} colors={[tema.primaria]} tintColor={tema.primaria} />
       }
       ListHeaderComponent={
-        erro ? <Text style={[estilos.aviso, { color: tema.erro }]}>{erro}</Text> : null
+        <View style={estilos.cabecalho}>
+          {/* A ação mais rápida para quem está AO LADO da máquina: apontar a câmera para a etiqueta */}
+          <Pressable
+            onPress={() => router.push('/escanear')}
+            accessibilityRole="button"
+            style={({ pressed }) => [estilos.botaoEscanear, { backgroundColor: tema.primaria, opacity: pressed ? 0.8 : 1 }]}
+          >
+            <Text style={[estilos.botaoTexto, { color: tema.sobrePrimaria }]}>Escanear QR da máquina</Text>
+          </Pressable>
+          {erro && <Text style={[estilos.aviso, { color: tema.erro }]}>{erro}</Text>}
+        </View>
       }
       ListEmptyComponent={
         <Text style={[estilos.mensagem, { color: tema.textoSuave }]}>Nenhuma máquina cadastrada.</Text>
@@ -168,6 +178,8 @@ const estilos = StyleSheet.create({
   avatar: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   avatarTexto: { fontWeight: '800', fontSize: 14 },
   seta: { fontSize: 26, marginLeft: -4 },
+  cabecalho: { gap: 8, marginBottom: 4 },
+  botaoEscanear: { minHeight: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   cartaoTexto: { flex: 1 },
   tag: { fontSize: 17, fontWeight: '700' },
   operador: { color: '#ffffff', fontSize: 15, fontWeight: '600', paddingVertical: 8 },

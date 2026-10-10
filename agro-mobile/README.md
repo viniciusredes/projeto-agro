@@ -69,11 +69,13 @@ agro-mobile/
     │   ├── _layout.tsx # navegação em pilha, com a barra verde da marca
     │   ├── index.tsx   # lista de máquinas
     │   ├── identificacao.tsx  # "Quem é você?" (nome do operador)
-    │   └── maquina/[id].tsx   # ficha da máquina e registrar saída (rota dinâmica)
+    │   ├── escanear.tsx       # câmera que lê o QR da máquina
+    │   └── maquina/[id].tsx   # ficha da máquina, saída e retorno (rota dinâmica)
     ├── api.ts          # ponto único de acesso à API e tradução de erros
     ├── config.ts       # API_URL lida do .env.local
     ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
     ├── validacao.ts    # regras de formulário em funções puras (ex.: horímetro)
+    ├── qr.ts           # formato do QR da etiqueta (contrato com a web)
     ├── componentes/    # peças reutilizáveis (ex.: etiqueta de status)
     ├── contextos/      # valores compartilhados entre telas (ex.: o operador)
     ├── hooks/          # lógica reutilizável com estado (ex.: useRequisicao)
@@ -377,6 +379,78 @@ await registrarRetorno(maquinaId, { horimetro: resultado.valor, avarias: avarias
 3. Digite o atual + `12,5` (com vírgula): aparece "12,5 h trabalhadas nesta saída".
 4. Escreva uma avaria e registre: aviso "Retorno registrado" com as horas, e a máquina volta a **Disponível**.
 5. Na web, em **Movimentações**, a linha mostra as horas e a avaria.
+
+---
+
+### M5 — QR code: etiqueta na web, leitura no app
+
+🎯 Ao lado da máquina, o operador aponta a câmera para a etiqueta colada nela e a ficha abre na hora, sem procurar na lista. A etiqueta é gerada e impressa pela **web**.
+
+🧩 **O contrato do QR:** `agrofrota:maquina:<id>`, gerado pela web (`agro-frontend/src/app/core/qr.ts`) e lido pelo app (`src/qr.ts`):
+
+```ts
+const FORMATO = /^agrofrota:maquina:(\d+)$/;
+export function idDaMaquinaNoQr(texto: string): number | null {
+  const encontrado = FORMATO.exec(texto.trim());
+  return encontrado ? Number(encontrado[1]) : null;
+}
+```
+
+**App:** câmera instalada pelo Expo e permissão explicada no `app.json`:
+
+```bash
+npx expo install expo-camera
+```
+
+```json
+["expo-camera", { "cameraPermission": "O Agro Frota usa a câmera para ler o QR code colado nas máquinas." }]
+```
+
+`src/app/escanear.tsx`:
+
+```tsx
+const [permissao, pedirPermissao] = useCameraPermissions();
+const jaLeu = useRef(false);   // a câmera lê várias vezes por segundo: navega uma vez só
+
+<CameraView
+  barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+  onBarcodeScanned={({ data }) => {
+    const id = idDaMaquinaNoQr(data);
+    if (id !== null && !jaLeu.current) {
+      jaLeu.current = true;
+      router.replace({ pathname: '/maquina/[id]', params: { id } });
+    }
+  }}
+/>
+```
+
+**Web:** o detalhe da máquina ganhou a seção **"Etiqueta QR da máquina"**, com a biblioteca `uqr` (ESM, sem dependências), que gera o QR como SVG:
+
+```ts
+protected readonly qrDaMaquina = computed(() => {
+  const svg = renderSVG(conteudoDoQrDaMaquina(this.id()));
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+});
+```
+
+O botão **Imprimir etiqueta** abre uma **janela própria**, só com a etiqueta, montada com `createElement` e `textContent`, e manda imprimir quando a imagem do QR carrega.
+
+📚 **Conceitos**
+- **Contrato entre dois apps:** o texto do QR é combinado entre quem gera (web) e quem lê (app), como um contrato de API. O prefixo `agrofrota:maquina:` faz o app ignorar QR codes que não são da frota.
+- **Confira a documentação da sua versão:** o `AGENTS.md` do template avisa que o Expo muda a cada SDK. Os nomes (`CameraView`, `useCameraPermissions`, `data`) foram conferidos na documentação do **SDK 57**. Mesmo assim, o TypeScript achou uma API que **não existe mais** no React Native 0.86 (`StyleSheet.absoluteFillObject`): por isso o `tsc` roda a cada passo.
+- **Permissões:** o app explica **por que** quer a câmera antes de pedir. Se o usuário negou de vez (`canAskAgain` falso), o sistema não pergunta de novo, e o caminho é abrir as configurações (`Linking.openSettings()`). A frase do `app.json` é a que o iPhone mostra no pedido.
+- **`useRef` como trava:** guarda um valor **sem** redesenhar a tela. A câmera dispara a leitura muitas vezes por segundo; a trava garante uma navegação só.
+- **`router.replace` depois da leitura:** a câmera sai da pilha; o Voltar da ficha volta para a lista.
+- **Data URL:** o SVG vira `data:image/svg+xml,...` e entra numa `<img>` comum, sem `innerHTML` (o Angular removeria o SVG por segurança).
+- **Imprimir só uma parte da página:** a primeira tentativa (esconder "tudo menos a etiqueta" com `@media print`) **falhou** de verdade: o conteúdo do `mat-sidenav` tem `overflow` e `transform`, e a etiqueta saía cortada. A janela própria não depende do layout do app.
+- **Dados do cadastro nunca viram HTML:** tag e modelo entram na janela com `textContent`, não concatenados num texto HTML: uma tag "maliciosa" não executa nada.
+
+🧪 **Testes**
+1. Na **web**, abra uma máquina: a seção "Etiqueta QR da máquina" mostra o QR, a tag e o modelo. **Imprimir etiqueta** abre a janela só com a etiqueta e o diálogo de impressão (se o navegador bloquear, aparece um aviso pedindo para permitir pop-ups).
+2. No **app**, toque em **Escanear QR da máquina**: na primeira vez, o pedido de permissão da câmera.
+3. Aponte para a etiqueta (na tela do computador ou impressa): a ficha da máquina abre; o Voltar volta para a lista.
+4. Aponte para outro QR qualquer (de um site, por exemplo): aparece "Este QR não é de uma máquina do Agro Frota." e a câmera continua aberta.
+5. Negue a permissão: aparece a explicação e o botão para permitir (ou abrir as configurações).
 
 ---
 
