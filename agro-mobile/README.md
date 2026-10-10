@@ -68,7 +68,8 @@ agro-mobile/
     ├── app/            # TELAS: cada arquivo é uma rota (Expo Router)
     │   ├── _layout.tsx # navegação em pilha, com a barra verde da marca
     │   ├── index.tsx   # lista de máquinas
-    │   └── identificacao.tsx  # "Quem é você?" (nome do operador)
+    │   ├── identificacao.tsx  # "Quem é você?" (nome do operador)
+    │   └── maquina/[id].tsx   # ficha da máquina e registrar saída (rota dinâmica)
     ├── api.ts          # ponto único de acesso à API e tradução de erros
     ├── config.ts       # API_URL lida do .env.local
     ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
@@ -254,6 +255,76 @@ Na identificação, o botão usa `router.replace('/')`: a tela **sai da pilha**,
 2. Informe o nome: a lista aparece, com o primeiro nome e "trocar" na barra; o Voltar do Android **não** volta para a identificação.
 3. Feche o app de vez e abra de novo: vai direto para a lista (o nome ficou salvo).
 4. Toque em "trocar": a tela vem preenchida com o nome atual; mude e continue.
+
+---
+
+### M3 — Ficha da máquina e registrar saída
+
+🎯 Tocar numa máquina abre a ficha dela, e, se estiver disponível, o operador registra a saída informando só a frente de trabalho (o nome já vem do M2).
+
+🧩 **Rota dinâmica:** o arquivo `src/app/maquina/[id].tsx` atende `/maquina/1`, `/maquina/2`...
+
+```tsx
+const { id } = useLocalSearchParams<{ id: string }>();
+const buscar = useCallback(() => buscarFicha(Number(id)), [id]);
+const { dados, erro, carregando, recarregar } = useRequisicao(buscar);
+```
+
+**A ficha em duas chamadas paralelas** (`src/servicos/maquinas.ts`):
+
+```ts
+export async function buscarFicha(id: number) {
+  const [maquina, movimentacoes] = await Promise.all([buscarMaquina(id), listarMovimentacoes(id)]);
+  return { maquina, saidaAberta: movimentacoes.find(mov => !mov.dataRetorno) ?? null };
+}
+```
+
+A API não tem `GET /maquinas/:id` (é o **exercício 1** do back-end), então `buscarMaquina` busca a lista e filtra pelo id.
+
+**Registrar saída:**
+
+```ts
+const resposta = await registrarSaida(maquinaId, { operador: nome, frenteTrabalho: frente.trim() });
+Alert.alert('Saída registrada', resposta.mensagem);
+```
+
+**Cartão inteiro como link** (lista):
+
+```tsx
+<Pressable
+  onPress={() => router.push({ pathname: '/maquina/[id]', params: { id: maquina.id } })}
+  accessibilityRole="link"
+  style={({ pressed }) => [estilos.cartao, { borderColor: pressed ? tema.primaria : tema.borda }]}
+>
+  ...
+</Pressable>
+```
+
+> ⚠️ **Erro que aconteceu de verdade:** a primeira versão usou `<Link href=... asChild><Pressable style={({ pressed }) => ...}>`. O `Link` com `asChild` repassa as propriedades ao filho, mas **não** repassa um `style` em forma de função: o cartão perdeu o fundo, a borda e o layout em linha (tudo ficou empilhado). Com `asChild`, use estilo comum; para estilo que muda ao tocar, use `Pressable` + `router.push`.
+
+**A lista se atualiza ao voltar** da ficha:
+
+```ts
+useFocusEffect(useCallback(() => { recarregar(); }, [recarregar]));
+```
+
+📚 **Conceitos**
+- **Rota dinâmica `[id]`:** o nome do arquivo entre colchetes vira parâmetro (o `:id` do Angular); o valor chega como **texto** e é convertido com `Number`.
+- **`Promise.all`:** dispara as duas chamadas ao mesmo tempo e espera as duas (o `forkJoin` do kardex na web). Se uma falhar, o todo falha.
+- **`useCallback` com dependências:** a função de busca da ficha depende do `id`; com `useCallback`, ela só muda quando o `id` muda, e o `useRequisicao` não busca em ciclo.
+- **`useFocusEffect`:** roda quando a tela **volta a ficar visível** (não só quando é criada). Exige uma função estável: por isso o `recarregar` do hook virou `useCallback`. Sem isso: recarrega → muda o estado → função nova → roda de novo → ciclo infinito.
+- **Ação por situação:** a ficha mostra o formulário só para máquina **Disponível**; em campo, mostra quem está com ela e onde; em manutenção, explica por que não pode sair.
+- **`Alert.alert`:** o aviso **nativo** do Android/iOS. O erro mostra a mensagem da API (ex.: 409 se outro operador tirou a máquina antes).
+- **Cartão inteiro tocável:** `Pressable` + `router.push`, com `accessibilityRole="link"` e um rótulo que descreve a máquina para leitores de tela. O estilo em função (`({ pressed }) => ...`) dá a resposta visual ao toque (a borda fica verde).
+- **`<Link>` × `router.push`:** o `<Link>` é declarativo (ótimo para textos, como o "trocar"); o `router.push` é a navegação "por código", dentro de um evento.
+- **`keyboardShouldPersistTaps="handled"`:** com o teclado aberto, o toque no botão funciona na primeira vez (sem isso, o primeiro toque só fecha o teclado).
+
+🧪 **Testes**
+1. Toque na TR-01: a ficha abre com o título "TR-01", o modelo, o status e o horímetro.
+2. Com a frente vazia, **Registrar saída** fica apagado. Preencha "Talhão 5" e registre: aviso "Saída registrada", e a ficha passa a mostrar "Em campo · seu nome · Talhão 5".
+3. Volte para a lista: a TR-01 aparece "Em campo" sem precisar puxar.
+4. Na web, a TR-01 aparece em campo com o seu nome (o Painel e as Movimentações também).
+5. Abra a mesma máquina em dois celulares (ou registre a saída pela web antes): o segundo recebe a mensagem 409 da API.
 
 ---
 

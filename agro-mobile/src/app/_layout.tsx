@@ -23,6 +23,8 @@ export default function LayoutRaiz() {
       >
         <Stack.Screen name="index" options={{ title: 'Máquinas' }} />
         <Stack.Screen name="identificacao" options={{ title: 'Identificação' }} />
+        {/* Título provisório: a própria ficha troca pela tag da máquina */}
+        <Stack.Screen name="maquina/[id]" options={{ title: 'Máquina' }} />
       </Stack>
     </ProvedorOperador>
   );

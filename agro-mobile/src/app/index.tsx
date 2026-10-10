@@ -1,4 +1,5 @@
-import { Link, Redirect, Stack } from 'expo-router';
+import { Link, Redirect, router, Stack, useFocusEffect } from 'expo-router';
+import { useCallback, useRef } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { EtiquetaStatus } from '@/componentes/etiqueta-status';
 import { useOperador } from '@/contextos/operador';
@@ -13,6 +14,19 @@ export default function ListaDeMaquinas() {
   const tema = useTema();
   const { nome, carregado } = useOperador();
   const { dados: maquinas, erro, carregando, atualizando, recarregar } = useRequisicao(listarMaquinas);
+
+  // Ao VOLTAR para a lista (ex.: depois de registrar uma saída na ficha), busca de novo.
+  // Na primeira vez a tela já buscou (useRequisicao), então pula para não buscar em dobro.
+  const primeiraVez = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (primeiraVez.current) {
+        primeiraVez.current = false;
+        return;
+      }
+      recarregar();
+    }, [recarregar]),
+  );
 
   // Ainda lendo o nome salvo no aparelho: não decide nada antes disso
   if (!carregado) {
@@ -115,7 +129,19 @@ function Conteudo({
 function CartaoMaquina({ maquina }: { maquina: Maquina }) {
   const tema = useTema();
   return (
-    <View style={[estilos.cartao, { backgroundColor: tema.cartao, borderColor: tema.borda }]}>
+    // O cartão INTEIRO leva à ficha (área de toque grande, como a lista de O.S. da web).
+    // Pressable + router.push, e não <Link asChild>: o Link repassa as propriedades ao filho,
+    // mas NÃO repassa um "style" em forma de função ({ pressed }) => ...; o cartão perdia o
+    // fundo, a borda e o layout em linha.
+    <Pressable
+      onPress={() => router.push({ pathname: '/maquina/[id]', params: { id: maquina.id } })}
+      accessibilityRole="link"
+      accessibilityLabel={`${maquina.tag}, ${maquina.modelo}, ${maquina.status}. Abrir ficha`}
+      style={({ pressed }) => [
+        estilos.cartao,
+        { backgroundColor: tema.cartao, borderColor: pressed ? tema.primaria : tema.borda },
+      ]}
+    >
       <View style={[estilos.avatar, { backgroundColor: tema.tons.sucesso.fundo }]}>
         <Text style={[estilos.avatarTexto, { color: tema.tons.sucesso.texto }]}>{maquina.tag.slice(0, 2)}</Text>
       </View>
@@ -126,7 +152,8 @@ function CartaoMaquina({ maquina }: { maquina: Maquina }) {
         </Text>
       </View>
       <EtiquetaStatus status={maquina.status} />
-    </View>
+      <Text style={[estilos.seta, { color: tema.textoSuave }]}>›</Text>
+    </Pressable>
   );
 }
 
@@ -140,6 +167,7 @@ const estilos = StyleSheet.create({
   cartao: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
   avatar: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   avatarTexto: { fontWeight: '800', fontSize: 14 },
+  seta: { fontSize: 26, marginLeft: -4 },
   cartaoTexto: { flex: 1 },
   tag: { fontSize: 17, fontWeight: '700' },
   operador: { color: '#ffffff', fontSize: 15, fontWeight: '600', paddingVertical: 8 },

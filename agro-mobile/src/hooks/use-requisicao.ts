@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { mensagemDeErro } from '@/api';
 
 // Hook = função que guarda ESTADO de componente e pode ser reaproveitada por várias telas.
@@ -38,8 +38,10 @@ export function useRequisicao<T>(buscar: () => Promise<T>) {
   }, [buscar]);
 
   // "Puxar para atualizar" e "Tentar novamente": aqui é um EVENTO do usuário, não um efeito,
-  // então mudar o estado logo no início é o normal
-  async function recarregar() {
+  // então mudar o estado logo no início é o normal.
+  // useCallback: a MESMA função entre renderizações (só muda se "buscar" mudar). Quem a usa
+  // como dependência de um efeito (ex.: recarregar ao voltar para a tela) não entra em ciclo.
+  const recarregar = useCallback(async () => {
     setAtualizando(true);
     try {
       setDados(await buscar());
@@ -50,7 +52,7 @@ export function useRequisicao<T>(buscar: () => Promise<T>) {
       setCarregando(false);
       setAtualizando(false);
     }
-  }
+  }, [buscar]);
 
   return { dados, erro, carregando, atualizando, recarregar };
 }
