@@ -19,7 +19,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { OrdemServicoService } from '../../../core/services/ordem-servico.service';
 import { PecaService } from '../../../core/services/peca.service';
 import { Peca } from '../../../core/models/peca';
-import { PecaUsada } from '../../../core/models/ordem-servico';
+import { FotoOS, PecaUsada } from '../../../core/models/ordem-servico';
 import { etiquetaStatusOS, etiquetaTipoOS } from '../../../core/ui/tons';
 import { ConfirmacaoDialog, DadosConfirmacao } from '../../../shared/confirmacao-dialog/confirmacao-dialog';
 
@@ -68,6 +68,13 @@ export class OsDetalhe {
     params: () => this.id(),
     stream: ({ params }) => this.osService.buscar(params),
   });
+
+  // Fotos da avaria (tiradas no campo pelo app do operador), também recarregadas pelo id
+  protected readonly fotos = rxResource({
+    params: () => this.id(),
+    stream: ({ params }) => this.osService.listarFotos(params),
+  });
+  protected readonly enderecoDaFoto = (foto: FotoOS) => this.osService.enderecoDaFoto(foto);
 
   // Peças do estoque: opções das linhas e saldo disponível de cada uma
   protected readonly pecas = rxResource({

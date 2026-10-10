@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { API_URL, erroTratadoNaTela } from '../api';
 import {
-  DadosAberturaOS, DadosFechamentoOS, FiltrosOS, ManutencoesMaquina, OrdemServico,
+  DadosAberturaOS, DadosFechamentoOS, FiltrosOS, FotoOS, ManutencoesMaquina, OrdemServico,
   OrdemServicoDetalhe, RespostaAberturaOS, RespostaFechamentoOS,
 } from '../models/ordem-servico';
 
@@ -46,6 +46,18 @@ export class OrdemServicoService {
   // POST /api/ordens-servico/:id/fechamento -> fecha a O.S. com baixa das peças
   fechar(id: number, dados: DadosFechamentoOS): Observable<RespostaFechamentoOS> {
     return this.http.post<RespostaFechamentoOS>(`${this.url}/${id}/fechamento`, dados);
+  }
+
+  // GET /api/ordens-servico/:id/fotos -> fotos tiradas pelo app do operador (só os dados).
+  // Erro tratado na tela: se a lista falhar, a própria seção avisa, sem snackbar repetido.
+  listarFotos(id: number): Observable<FotoOS[]> {
+    return this.http.get<FotoOS[]>(`${this.url}/${id}/fotos`, { context: erroTratadoNaTela() });
+  }
+
+  // A API devolve a url SEM o prefixo ("/ordens-servico/3/fotos/1"). Com o /api na frente,
+  // o <img> pede a imagem pelo mesmo proxy do ng serve que as outras chamadas usam.
+  enderecoDaFoto(foto: FotoOS): string {
+    return `${API_URL}${foto.url}`;
   }
 
   // GET /api/maquinas/:id/manutencoes -> histórico e custo de manutenção da máquina

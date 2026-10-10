@@ -1,6 +1,7 @@
 import { ErroApi, requisitar } from '@/api';
 import { DadosRetorno, DadosSaida, Maquina, Movimentacao, RespostaRetorno, RespostaSaida } from '@/models/maquina';
-import { OrdemServico } from '@/models/ordem-servico';
+import { FotoOS, OrdemServico } from '@/models/ordem-servico';
+import { listarFotosOS } from '@/servicos/fotos-os';
 import { listarOrdensAbertas } from '@/servicos/ordens-servico';
 
 // Uma função por rota da API (o papel do MaquinaService do front web).
@@ -43,6 +44,7 @@ export interface Ficha {
   maquina: Maquina;
   saidaAberta: Movimentacao | null;
   osAberta: OrdemServico | null;
+  fotos: FotoOS[]; // fotos da O.S. aberta (vazia sem O.S.)
 }
 
 export async function buscarFicha(id: number): Promise<Ficha> {
@@ -51,9 +53,13 @@ export async function buscarFicha(id: number): Promise<Ficha> {
     listarMovimentacoes(id),
     listarOrdensAbertas(id),
   ]);
+  const osAberta = ordensAbertas[0] ?? null; // a API permite uma O.S. aberta por máquina
+  // As fotos DEPENDEM da O.S. (precisam do id dela): por isso vêm depois, e não no Promise.all
+  const fotos = osAberta ? await listarFotosOS(osAberta.id) : [];
   return {
     maquina,
     saidaAberta: movimentacoes.find(mov => !mov.dataRetorno) ?? null,
-    osAberta: ordensAbertas[0] ?? null, // a API permite uma O.S. aberta por máquina
+    osAberta,
+    fotos,
   };
 }

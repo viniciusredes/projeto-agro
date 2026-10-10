@@ -72,13 +72,14 @@ agro-mobile/
     │   ├── escanear.tsx       # câmera que lê o QR da máquina
     │   └── maquina/[id]/      # rotas da máquina (o [id] vale para as duas)
     │       ├── index.tsx      # ficha, saída e retorno (/maquina/1)
-    │       └── avaria.tsx     # relatar avaria, em modal (/maquina/1/avaria)
+    │       ├── avaria.tsx     # relatar avaria, em modal (/maquina/1/avaria)
+    │       └── foto-avaria.tsx  # foto da avaria para a O.S. aberta
     ├── api.ts          # ponto único de acesso à API e tradução de erros
     ├── config.ts       # API_URL lida do .env.local
     ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
     ├── validacao.ts    # regras de formulário em funções puras (ex.: horímetro)
     ├── qr.ts           # formato do QR da etiqueta (contrato com a web)
-    ├── componentes/    # peças reutilizáveis (ex.: etiqueta de status)
+    ├── componentes/    # peças reutilizáveis (etiqueta de status, câmera, galeria, aviso)
     ├── contextos/      # valores compartilhados entre telas (ex.: o operador)
     ├── hooks/          # lógica reutilizável com estado (ex.: useRequisicao)
     ├── models/         # tipos copiados do front web (o contrato da API)
@@ -515,6 +516,95 @@ Alert.alert('Abrir O.S. corretiva?', consequencia, [
 4. Com uma máquina **Em campo**: o modal avisa "A máquina está em campo com…". Ao confirmar, a mensagem mostra as horas trabalhadas da saída encerrada.
 5. Na **web**, abra a lista de O.S.: a O.S. corretiva aparece aberta, com a descrição do app.
 
+### M7 — Foto da avaria *(opcional)*
+
+🎯 Uma foto vale mais que a descrição: o operador fotografa o vazamento ou a peça quebrada, e a foto fica na O.S. para a oficina.
+
+Este passo teve duas partes:
+- **M7a, back-end:** rotas novas na API (veja a **Parte OS8** do [README do back-end](../agro-backend/README.md)):
+  - `POST /ordens-servico/:id/fotos`, com a foto em base64 dentro do JSON, até 2 MB, 5 por O.S.;
+  - a listagem das fotos;
+  - a imagem em si.
+- **M7b, app:** o que está abaixo.
+
+🧩 **Sem dependência nova:** o `expo-camera` do M5 também tira fotos. A câmera virou um componente reutilizável, `src/componentes/camera.tsx`, com permissão, flash, virar câmera e **prévia** (Refazer / Usar esta foto):
+
+```tsx
+const camera = useRef<CameraView>(null);   // "controle remoto" da câmera
+
+const resultado = await camera.current.takePictureAsync({
+  quality: 0.5,  // JPEG mais comprimido: a foto cheia de um celular passa fácil dos 2 MB
+  base64: true,  // os bytes em texto, que vão no JSON
+});
+```
+
+**Conferir o tamanho sem decodificar** (`src/validacao.ts`): cada 4 caracteres de base64 guardam 3 bytes:
+
+```ts
+export function tamanhoDoBase64(base64: string): number {
+  const enchimento = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  return (base64.length / 4) * 3 - enchimento;
+}
+```
+
+**Serviço** (`src/servicos/fotos-os.ts`):
+
+```ts
+export function enviarFotoOS(ordemServicoId: number, imagemBase64: string): Promise<RespostaFotoOS> {
+  return requisitar<RespostaFotoOS>(`/ordens-servico/${ordemServicoId}/fotos`, {
+    method: 'POST',
+    body: JSON.stringify({ imagem: imagemBase64 }),
+  });
+}
+```
+
+**Dois caminhos até a câmera** (`src/app/maquina/[id]/foto-avaria.tsx`):
+1. Logo depois de abrir a O.S., o aviso oferece **Fotografar avaria**. O `router.replace` faz a câmera tomar o lugar do relato.
+2. Na ficha de uma máquina com O.S. aberta, o botão **Fotografar avaria** permite mandar mais fotos, até 5.
+
+**Feedback e onde ver as fotos** (ajustes depois do primeiro teste no celular: as fotos chegavam à API, mas o operador não tinha retorno nem como vê-las):
+- **Na câmera:**
+  - o título diz qual foto é ("Foto 3 de 5 · O.S. nº 1");
+  - enquanto a foto é processada, aparece "Processando a foto…";
+  - o botão só funciona depois que a câmera avisa que está pronta (`onCameraReady`).
+- **Depois de enviar:** o aviso diz "Foto 3 de 5 anexada…" e oferece **Tirar outra** ou **Concluir**. Para tirar outra, a câmera recomeça do zero trocando a `key` do componente.
+- **Na ficha:** a **galeria** (`src/componentes/galeria-fotos.tsx`) mostra "Fotos da avaria · 3 de 5" e as miniaturas. Um toque abre a foto na tela cheia, num `Modal`. A ficha agora traz as fotos no `buscarFicha`, **depois** do `Promise.all`, porque a busca precisa do id da O.S.
+- **Na web:** o detalhe da O.S. ganhou a seção **Fotos da avaria** (veja o [README do front-end](../agro-frontend/README.md)).
+
+```tsx
+// A API devolve a url sem o servidor: o <Image> precisa do endereço completo
+<Image source={{ uri: `${API_URL}${foto.url}` }} style={{ width: 96, height: 96 }} />
+```
+
+📚 **Conceitos**
+- **`ref` em componente:** o `useRef` também guarda um componente da tela, para chamar métodos dele (`takePictureAsync`). É o jeito React de "apertar o botão" da câmera pelo código.
+- **Leia a documentação da opção:** `skipProcessing: true` deixa a foto mais rápida, mas os tipos do `expo-camera` avisam que ele **ignora o `quality`**. A foto sairia cheia (3 a 6 MB) e a API recusaria. Uma opção "de desempenho" pode desligar outra.
+- **Validar no app × na API:** o app confere só o **tamanho**, para não gastar o 4G do campo à toa. Se é mesmo JPEG ou PNG, quem decide é a API, a autoridade, como no horímetro (M4).
+- **Base64 custa um terço a mais:** 2 MB de foto viram ~2,7 MB de texto. Por isso a API aceita 3 MB de corpo nessa rota.
+- **Prévia antes de enviar:** foto tremida ou cortada é comum no campo. Mostrar a foto e oferecer **Refazer** evita lixo na O.S.
+- **`Alert` com escolhas:** depois de abrir a O.S., o aviso tem dois botões ("Agora não" e "Fotografar avaria"). O `cancelable: false` impede que o operador feche o aviso no Android sem escolher.
+- **Toda ação precisa de retorno visível:** a foto chegava à API, mas sem número, contagem nem galeria o operador achava que nada tinha acontecido. Funcionar não basta: a pessoa precisa **ver** que funcionou.
+- **Buscas que dependem de outra:** o `Promise.all` serve para buscas independentes. As fotos dependem do id da O.S., então vêm num `await` depois dele.
+- **`key` para recomeçar um componente:** com outra `key`, o React descarta o componente antigo, com o estado dele (a prévia), e cria um novo.
+- **`<Image>` com endereço da rede:** a imagem é baixada direto da API pela `url`. O JSON da ficha só traz os dados (tamanho, data), o que mantém a ficha leve.
+- **Foto grande no Android (`resizeMethod="resize"`):** a foto do celular tem ~3000 × 4000 pixels. No primeiro teste, ela aparecia na web mas **não** no app: o Android tentava montar a imagem inteira na memória (~50 MB) e desistia sem avisar. Com `resizeMethod="resize"`, a foto é reduzida ao tamanho da miniatura antes de ser montada. O navegador faz isso sozinho, por isso a web funcionava. O `onError` mostra "Não carregou" se algo ainda falhar.
+- **Aviso com a cara do app (`src/componentes/aviso.tsx`):** o `Alert.alert` usa o diálogo **do sistema**: no Android, botões azuis em maiúsculas, sem as cores da marca e sem tema escuro. O componente `Aviso` é um `Modal` transparente com as cores do tema, um símbolo por tom (✓ sucesso, ! alerta ou erro) e os botões em pílula das telas. O botão principal (cheio) é a ação recomendada. Ele substituiu **todos** os `Alert` do app: um design system só funciona se for usado em tudo.
+- **Onde guardar o estado do aviso:** na ficha, o aviso fica no componente da **ficha**, e não no formulário. Depois de registrar, a ficha recarrega e o formulário some, e um aviso guardado nele sumiria junto. Os formulários recebem uma função `avisar`.
+- **Fechar sem escolher (`aoDispensar`):** pelo Voltar do Android, o aviso fecha sem que nenhum botão seja tocado. Depois de abrir a O.S., isso também leva à ficha. Depois de enviar uma foto, a câmera recomeça na hora, e assim não há como reenviar a mesma foto por engano.
+- **Câmera da frente:** ela não tem flash, e pedir flash a ela travava a captura (tela branca). Agora o botão de flash só aparece na câmera de trás, e virar a câmera desliga o flash. O `animateShutter={false}` tira a animação de clique, que pinta a tela de branco. O `Promise.race` com 15 segundos garante um aviso de erro se a câmera não responder.
+- **Explicar o que sumiu:** no limite de 5 fotos, o botão some e um aviso diz por quê ("Limite de fotos atingido"). Um botão que desaparece sem explicação parece defeito.
+- **Os hooks vêm antes de qualquer `return`:** o React identifica cada hook pela **ordem** em que é chamado. Um `useEffect` depois de um `if (...) return` às vezes roda e às vezes não, e o React quebra a tela. (Esse erro apareceu num rascunho deste passo e foi corrigido.)
+
+🧪 **Testes**
+1. Relate uma avaria (M6). No aviso "O.S. nº X aberta", toque em **Fotografar avaria**.
+2. Na primeira vez, o celular pede a câmera (a frase do `app.json` aparece no iPhone).
+3. O título mostra "Foto 1 de 5 · O.S. nº X". Fotografe: aparece "Processando a foto…" e depois a prévia. Toque em **Refazer**, fotografe de novo e toque em **Usar esta foto**: o aviso diz "Foto 1 de 5 anexada…".
+4. Toque em **Tirar outra**: a câmera volta, e o título passa a "Foto 2 de 5". Depois toque em **Concluir**.
+5. Na ficha, a galeria mostra "Fotos da avaria · 2 de 5" com as miniaturas. Toque numa delas: a foto abre na tela cheia, com data e tamanho.
+6. Mande fotos até completar 5: no lugar do botão **Fotografar avaria**, a ficha mostra o aviso "Limite de fotos atingido".
+7. Teste **Flash** e **Virar câmera**.
+8. Na **web**, abra a O.S.: a seção **Fotos da avaria** mostra as miniaturas. Um clique abre a foto inteira numa aba nova.
+
 ---
 
 ## 4. Problemas comuns
@@ -526,4 +616,5 @@ Alert.alert('Abrir O.S. corretiva?', consequencia, [
 | A API mudou de endereço e o app não percebeu | O `.env` só é lido na partida | Pare e rode `npx expo start` de novo |
 | "Project is incompatible with this version of Expo Go" | Expo Go desatualizado | Atualize o Expo Go na loja (o projeto usa o SDK 57) |
 | O `tsc` diz que uma rota existente não existe (ex.: `'/maquina/[id]'`) | Os tipos de `.expo/types/router.d.ts` ficaram velhos depois de mover telas | Rode `npx expo start` uma vez: o Expo gera os tipos de novo |
+| "Foto grande demais" ao enviar | Câmera de resolução muito alta, mesmo com `quality: 0.5` | Baixe o `quality` em `componentes/camera.tsx` (ex.: 0.3) |
 | `npm audit` mostra vulnerabilidades | Dependências das ferramentas de desenvolvimento do Expo | Não rode `npm audit fix --force`: ele troca versões fixadas pelo SDK e quebra o projeto. Use `npx expo install --fix` |

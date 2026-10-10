@@ -88,3 +88,19 @@ export interface ManutencoesMaquina {
   custoPorTipo: Record<TipoOS, number>;
   ordens: OrdemServico[];
 }
+
+// Foto anexada a uma O.S. pelo app do operador (resumo devolvido pela API, sem os bytes)
+export interface FotoOS {
+  id: number;
+  ordemServicoId: number;
+  tipo: 'image/jpeg' | 'image/png';
+  tamanho: number;        // em bytes
+  data: string;           // ISO 8601
+  url: string;            // ex.: /ordens-servico/1/fotos/3 (a imagem em si)
+}
+
+// Resposta de POST /ordens-servico/:id/fotos (201)
+export interface RespostaFotoOS {
+  mensagem: string;
+  foto: FotoOS;
+}

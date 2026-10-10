@@ -1,12 +1,15 @@
 import { Link, router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { mensagemDeErro } from '@/api';
+import { Aviso, DadosAviso } from '@/componentes/aviso';
 import { EtiquetaStatus } from '@/componentes/etiqueta-status';
+import { GaleriaFotos } from '@/componentes/galeria-fotos';
 import { useOperador } from '@/contextos/operador';
 import { useRequisicao } from '@/hooks/use-requisicao';
+import { MAXIMO_FOTOS_POR_OS } from '@/servicos/fotos-os';
 import { buscarFicha, registrarRetorno, registrarSaida } from '@/servicos/maquinas';
 import { useTema } from '@/tema';
 import { formatarHoras, validarHorimetro } from '@/validacao';
@@ -23,6 +26,9 @@ export default function FichaMaquina() {
   // dispara a busca de novo a cada renderização (a função precisa ser "estável")
   const buscar = useCallback(() => buscarFicha(idNumero), [idNumero]);
   const { dados, erro, carregando, recarregar } = useRequisicao(buscar);
+  // O aviso mora AQUI, e não nos formulários: depois de registrar, a ficha recarrega e o formulário
+  // some (a máquina mudou de situação). Um aviso guardado nele sumiria junto.
+  const [aviso, setAviso] = useState<DadosAviso | null>(null);
 
   // Ao voltar do modal de avaria, a máquina mudou (foi para a oficina): busca de novo.
   // Mesmo padrão da lista (M3): pula a primeira vez, que o useRequisicao já buscou.
@@ -53,7 +59,7 @@ export default function FichaMaquina() {
     );
   }
 
-  const { maquina, saidaAberta, osAberta } = dados;
+  const { maquina, saidaAberta, osAberta, fotos } = dados;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -74,7 +80,7 @@ export default function FichaMaquina() {
         </View>
 
         {/* O que o operador pode fazer depende da situação da máquina */}
-        {maquina.status === 'Disponível' && <FormularioSaida maquinaId={maquina.id} aoRegistrar={recarregar} />}
+        {maquina.status === 'Disponível' && <FormularioSaida maquinaId={maquina.id} aoRegistrar={recarregar} avisar={setAviso} />}
 
         {maquina.status === 'Em Operação' && saidaAberta && (
           <View style={[estilos.cartao, { backgroundColor: tema.tons.info.fundo, borderColor: tema.borda }]}>
@@ -90,7 +96,7 @@ export default function FichaMaquina() {
         )}
 
         {maquina.status === 'Em Operação' && (
-          <FormularioRetorno maquinaId={maquina.id} horimetroAtual={maquina.horimetro} aoRegistrar={recarregar} />
+          <FormularioRetorno maquinaId={maquina.id} horimetroAtual={maquina.horimetro} aoRegistrar={recarregar} avisar={setAviso} />
         )}
 
         {maquina.status === 'Em Manutenção' && (
@@ -120,13 +126,48 @@ export default function FichaMaquina() {
             <Text style={[estilos.botaoTexto, { color: tema.texto }]}>Relatar avaria</Text>
           </Pressable>
         )}
+
+        {/* M7: com a O.S. aberta, as fotos dela e o botão para mandar mais (a API aceita até 5) */}
+        {osAberta && <GaleriaFotos fotos={fotos} />}
+        {osAberta && fotos.length < MAXIMO_FOTOS_POR_OS && (
+          <Pressable
+            onPress={() => router.push({ pathname: '/maquina/[id]/foto-avaria', params: { id: maquina.id } })}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              estilos.botaoSecundario,
+              { borderColor: tema.sinal, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Text style={[estilos.botaoTexto, { color: tema.texto }]}>Fotografar avaria</Text>
+          </Pressable>
+        )}
+        {/* O botão some no limite: dizer POR QUÊ, senão o operador acha que é defeito */}
+        {osAberta && fotos.length >= MAXIMO_FOTOS_POR_OS && (
+          <View style={[estilos.cartao, { backgroundColor: tema.tons.alerta.fundo, borderColor: tema.borda }]}>
+            <Text style={[estilos.texto, { color: tema.tons.alerta.texto, fontWeight: '700' }]}>
+              Limite de fotos atingido
+            </Text>
+            <Text style={[estilos.texto, { color: tema.texto }]}>
+              A O.S. nº {osAberta.id} já tem {MAXIMO_FOTOS_POR_OS} fotos, o máximo permitido. Não é possível enviar outras.
+            </Text>
+          </View>
+        )}
       </ScrollView>
+      <Aviso dados={aviso} aoFechar={() => setAviso(null)} />
     </KeyboardAvoidingView>
   );
 }
 
 // Formulário de saída: o operador já vem do aparelho (M2); só falta a frente de trabalho
-function FormularioSaida({ maquinaId, aoRegistrar }: { maquinaId: number; aoRegistrar: () => void }) {
+function FormularioSaida({
+  maquinaId,
+  aoRegistrar,
+  avisar,
+}: {
+  maquinaId: number;
+  aoRegistrar: () => void;
+  avisar: (aviso: DadosAviso) => void;
+}) {
   const tema = useTema();
   const { nome } = useOperador();
   const [frente, setFrente] = useState('');
@@ -141,11 +182,11 @@ function FormularioSaida({ maquinaId, aoRegistrar }: { maquinaId: number; aoRegi
     setEnviando(true);
     try {
       const resposta = await registrarSaida(maquinaId, { operador: nome!, frenteTrabalho: frente.trim() });
-      Alert.alert('Saída registrada', resposta.mensagem); // aviso nativo do Android/iOS
+      avisar({ tom: 'sucesso', titulo: 'Saída registrada', mensagem: resposta.mensagem, botoes: [{ texto: 'OK', principal: true }] });
       aoRegistrar(); // recarrega a ficha: agora "Em campo"
     } catch (e) {
       // A mensagem é a da API (ex.: 409 se outra pessoa tirou a máquina antes)
-      Alert.alert('Não foi possível registrar', mensagemDeErro(e));
+      avisar({ tom: 'erro', titulo: 'Não foi possível registrar', mensagem: mensagemDeErro(e), botoes: [{ texto: 'OK', principal: true }] });
     } finally {
       setEnviando(false);
     }
@@ -202,10 +243,12 @@ function FormularioRetorno({
   maquinaId,
   horimetroAtual,
   aoRegistrar,
+  avisar,
 }: {
   maquinaId: number;
   horimetroAtual: number;
   aoRegistrar: () => void;
+  avisar: (aviso: DadosAviso) => void;
 }) {
   const tema = useTema();
   const [horimetro, setHorimetro] = useState('');
@@ -227,10 +270,15 @@ function FormularioRetorno({
         avarias: avarias.trim() || undefined, // vazio não vai no corpo (campo opcional)
       });
       const horas = formatarHoras(resposta.movimentacao.horasTrabalhadas ?? resultado.horas);
-      Alert.alert('Retorno registrado', `${resposta.mensagem}\n${horas} h trabalhadas.`);
+      avisar({
+        tom: 'sucesso',
+        titulo: 'Retorno registrado',
+        mensagem: `${resposta.mensagem} ${horas} h trabalhadas.`,
+        botoes: [{ texto: 'OK', principal: true }],
+      });
       aoRegistrar(); // recarrega a ficha: agora "Disponível"
     } catch (e) {
-      Alert.alert('Não foi possível registrar', mensagemDeErro(e));
+      avisar({ tom: 'erro', titulo: 'Não foi possível registrar', mensagem: mensagemDeErro(e), botoes: [{ texto: 'OK', principal: true }] });
     } finally {
       setEnviando(false);
     }

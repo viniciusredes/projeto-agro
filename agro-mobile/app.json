@@ -28,7 +28,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "O Agro Frota usa a câmera para ler o QR code colado nas máquinas.",
+          "cameraPermission": "O Agro Frota usa a câmera para ler o QR code das máquinas e fotografar avarias.",
           "recordAudioAndroid": false
         }
       ],

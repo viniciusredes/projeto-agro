@@ -113,6 +113,64 @@
   grid-column: 1 / -1;
 }
 
+// ===== Fotos da avaria (enviadas pelo app): miniaturas quadradas que se ajustam à largura =====
+.fotos {
+  margin: 0 0 20px;
+
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.fotos__contagem {
+  min-width: 24px;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: var(--agro-borda);
+  font-size: 0.85em;
+  text-align: center;
+}
+
+.fotos__grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fotos__item {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--agro-borda);
+  border-radius: 12px;
+  background: var(--agro-cartao);
+  color: inherit;
+  text-decoration: none;
+
+  img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover; // recorta para o quadrado; a foto inteira abre ao clicar
+    background: var(--agro-borda);
+  }
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--mat-sys-primary);
+  }
+}
+
+.fotos__legenda {
+  padding: 6px 10px;
+  font-size: 0.85em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
 // ===== Fechamento: peças | resumo (uma coluna só em telas estreitas) =====
 .fechamento {
   display: grid;

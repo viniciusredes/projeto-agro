@@ -119,7 +119,7 @@ Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.
 | `/estoque` | Lista de peças com busca, filtro "para repor" (`?filtro=repor`), barra de nível do saldo e ação principal + diálogos Nova peça e Entrada | `GET /pecas`, `POST /pecas`, `POST /pecas/:id/entradas` |
 | `/estoque/:id` | Kardex da peça | `GET /pecas/:id`, `GET /pecas/:id/movimentos` |
 | `/ordens-servico` | Abertas em cartões e fechadas em lista (cada O.S. inteira é um link), filtros de máquina e status na URL + diálogo de abertura | `GET /ordens-servico?maquinaId=`, `POST /ordens-servico` |
-| `/ordens-servico/:id` | Detalhe e fechamento da O.S. | `GET /ordens-servico/:id`, `POST /ordens-servico/:id/fechamento` |
+| `/ordens-servico/:id` | Detalhe e fechamento da O.S., com as **fotos da avaria** tiradas pelo app do operador (miniaturas; o clique abre a foto inteira numa aba nova; veja o [README do app](../agro-mobile/README.md), passo M7) | `GET /ordens-servico/:id`, `GET /ordens-servico/:id/fotos`, `POST /ordens-servico/:id/fechamento` |
 | qualquer outra | Volta para o início | — |
 
 As telas se ligam por **links**:

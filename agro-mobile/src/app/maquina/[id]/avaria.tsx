@@ -1,9 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { mensagemDeErro } from '@/api';
+import { Aviso, DadosAviso } from '@/componentes/aviso';
 import { useRequisicao } from '@/hooks/use-requisicao';
 import { buscarFicha } from '@/servicos/maquinas';
 import { abrirOS } from '@/servicos/ordens-servico';
@@ -22,6 +23,7 @@ export default function RelatarAvaria() {
   const [descricao, setDescricao] = useState('');
   const [horimetro, setHorimetro] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [aviso, setAviso] = useState<DadosAviso | null>(null);
 
   if (carregando) {
     return (
@@ -39,6 +41,7 @@ export default function RelatarAvaria() {
   }
 
   const { maquina, saidaAberta } = dados;
+
   // A mesma validação do retorno (M4): reaproveitar a função pura, não copiar a regra
   const resultado = validarHorimetro(horimetro, maquina.horimetro);
   const valido = descricao.trim().length > 0 && resultado.valido;
@@ -51,10 +54,16 @@ export default function RelatarAvaria() {
     const consequencia = saidaAberta
       ? `A saída de ${saidaAberta.operador} será encerrada e a ${maquina.tag} irá para a oficina.`
       : `A ${maquina.tag} irá para a oficina e não poderá sair até a O.S. ser fechada.`;
-    Alert.alert('Abrir O.S. corretiva?', consequencia, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Abrir O.S.', style: 'destructive', onPress: () => enviar(resultado.valor) },
-    ]);
+    const valorHorimetro = resultado.valor;
+    setAviso({
+      tom: 'alerta',
+      titulo: 'Abrir O.S. corretiva?',
+      mensagem: consequencia,
+      botoes: [
+        { texto: 'Abrir O.S.', principal: true, aoTocar: () => enviar(valorHorimetro) },
+        { texto: 'Cancelar' },
+      ],
+    });
   }
 
   async function enviar(valorHorimetro: number) {
@@ -67,16 +76,34 @@ export default function RelatarAvaria() {
         horimetro: valorHorimetro,
       });
       const saida = resposta.movimentacaoEncerrada;
-      Alert.alert(
-        `O.S. nº ${resposta.ordemServico.id} aberta`,
-        saida
-          ? `Saída encerrada automaticamente (${formatarHoras(saida.horasTrabalhadas ?? 0)} h trabalhadas).`
-          : 'A máquina está na oficina.',
-      );
-      router.back(); // volta para a ficha, que se atualiza ao ganhar o foco
+      // M7: aproveita que o operador está ao lado da máquina e já oferece a foto da avaria
+      setAviso({
+        tom: 'sucesso',
+        titulo: `O.S. nº ${resposta.ordemServico.id} aberta`,
+        mensagem: saida
+          ? `Saída encerrada automaticamente (${formatarHoras(saida.horasTrabalhadas ?? 0)} h trabalhadas). Quer fotografar a avaria?`
+          : 'A máquina está na oficina. Quer fotografar a avaria?',
+        botoes: [
+          // replace: a câmera TOMA o lugar do relato; o Voltar dela vai para a ficha
+          {
+            texto: 'Fotografar avaria',
+            principal: true,
+            aoTocar: () => router.replace({ pathname: '/maquina/[id]/foto-avaria', params: { id: maquina.id } }),
+          },
+          // back: volta para a ficha, que se atualiza ao ganhar o foco
+          { texto: 'Agora não', aoTocar: () => router.back() },
+        ],
+        // A O.S. já foi aberta: fechar pelo Voltar também leva à ficha (o formulário não serve mais)
+        aoDispensar: () => router.back(),
+      });
     } catch (e) {
       // Ex.: 409 se outra pessoa já abriu uma O.S. para esta máquina
-      Alert.alert('Não foi possível abrir a O.S.', mensagemDeErro(e));
+      setAviso({
+        tom: 'erro',
+        titulo: 'Não foi possível abrir a O.S.',
+        mensagem: mensagemDeErro(e),
+        botoes: [{ texto: 'OK', principal: true }],
+      });
     } finally {
       setEnviando(false);
     }
@@ -159,6 +186,7 @@ export default function RelatarAvaria() {
           )}
         </Pressable>
       </ScrollView>
+      <Aviso dados={aviso} aoFechar={() => setAviso(null)} />
     </KeyboardAvoidingView>
   );
 }
