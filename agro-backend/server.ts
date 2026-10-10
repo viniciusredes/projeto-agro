@@ -2,7 +2,12 @@ import express, { Request, Response, NextFunction } from 'express';
 
 const app = express();
 app.disable('x-powered-by'); // não revela que o servidor usa Express
-app.use(express.json());
+
+// As fotos de O.S. chegam em base64 dentro do JSON, e só ESSA rota aceita um corpo grande.
+// A ORDEM importa: este leitor vem antes do geral. Quando o corpo já foi lido aqui, o
+// express.json() de baixo percebe e passa adiante sem ler de novo.
+app.use('/ordens-servico/:id/fotos', express.json({ limit: '3mb' }));
+app.use(express.json()); // demais rotas: limite padrão de 100 KB
 
 // Status possíveis de uma máquina (só estes 3 valores são aceitos)
 type StatusMaquina = 'Disponível' | 'Em Operação' | 'Em Manutenção';
@@ -159,6 +164,42 @@ interface OrdemServico {
 // Ordens de serviço em memória
 let ordensServico: OrdemServico[] = [];
 let proximoIdOS = 1;
+
+// Foto anexada a uma O.S. (ex.: a avaria fotografada no campo pelo app do operador).
+// Fica numa lista À PARTE: listar O.S. não carrega o peso das imagens.
+type TipoFoto = 'image/jpeg' | 'image/png';
+
+interface FotoOS {
+  id: number;
+  ordemServicoId: number;  // "chave estrangeira": aponta para OrdemServico.id
+  tipo: TipoFoto;          // descoberto pelos bytes do arquivo, não pelo que o cliente diz
+  tamanho: number;         // em bytes
+  data: string;
+  conteudo: Buffer;        // os bytes da imagem (em memória, como os demais dados)
+}
+
+let fotosOS: FotoOS[] = [];
+let proximoIdFoto = 1;
+
+const TAMANHO_MAXIMO_FOTO = 2 * 1024 * 1024; // 2 MB
+const FOTOS_POR_OS = 5;
+
+// Todo JPEG começa com os bytes FF D8 FF, e todo PNG com 89 50 4E 47 ("assinatura" do arquivo)
+function tipoDaImagem(bytes: Buffer): TipoFoto | null {
+  if (bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (bytes.length > 4 && bytes.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))) {
+    return 'image/png';
+  }
+  return null;
+}
+
+// O que a API devolve de uma foto: os dados dela + o endereço da imagem (sem os bytes)
+function resumoDaFoto(foto: FotoOS) {
+  const { conteudo, ...dados } = foto;
+  return { ...dados, url: `/ordens-servico/${foto.ordemServicoId}/fotos/${foto.id}` };
+}
 
 // Resultado da validação das peças do fechamento: OU deu certo (com os itens
 // já conferidos), OU deu erro (com o código HTTP e a mensagem)
@@ -787,6 +828,90 @@ app.post('/ordens-servico/:id/fechamento', (req, res) => {
   res.json({ mensagem: 'Ordem de serviço fechada! Máquina liberada.', ordemServico, maquina });
 });
 
+// 15. Caminho para ANEXAR uma foto a uma O.S. aberta (corpo: { "imagem": "<base64>" })
+app.post('/ordens-servico/:id/fotos', (req, res) => {
+  const id = Number(req.params.id);
+
+  // Validação 1 (formato): o id é um número inteiro?
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  // Validação 2: a O.S. existe?
+  const ordemServico = ordensServico.find(os => os.id === id);
+  if (!ordemServico) {
+    return res.status(404).json({ erro: 'Ordem de serviço não encontrada' });
+  }
+
+  // Validação 3 (estado): só O.S. aberta recebe foto, e com um limite por O.S.
+  if (ordemServico.status !== 'Aberta') {
+    return res.status(409).json({ erro: `O.S. nº ${ordemServico.id} já está fechada` });
+  }
+  if (fotosOS.filter(foto => foto.ordemServicoId === id).length >= FOTOS_POR_OS) {
+    return res.status(409).json({ erro: `A O.S. nº ${id} já tem ${FOTOS_POR_OS} fotos (o máximo)` });
+  }
+
+  // Validação 4 (formato): texto em base64 (só letras, números, + e /, com até dois = no fim).
+  // Sem essa conferência, o Buffer.from ignoraria os caracteres estranhos em silêncio.
+  const { imagem } = req.body ?? {};
+  if (typeof imagem !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(imagem)) {
+    return res.status(400).json({ erro: "Campo 'imagem' é obrigatório e deve ser a foto em base64" });
+  }
+
+  // Validação 5 (conteúdo): é mesmo uma imagem? Do tamanho permitido?
+  const conteudo = Buffer.from(imagem, 'base64');
+  const tipo = tipoDaImagem(conteudo);
+  if (!tipo) {
+    return res.status(400).json({ erro: 'A foto deve ser JPEG ou PNG' });
+  }
+  if (conteudo.length > TAMANHO_MAXIMO_FOTO) {
+    return res.status(413).json({ erro: 'Foto muito grande: o máximo é 2 MB' });
+  }
+
+  const foto: FotoOS = {
+    id: proximoIdFoto++,
+    ordemServicoId: id,
+    tipo,
+    tamanho: conteudo.length,
+    data: new Date().toISOString(),
+    conteudo
+  };
+  fotosOS.push(foto);
+
+  res.status(201).json({ mensagem: 'Foto anexada!', foto: resumoDaFoto(foto) });
+});
+
+// 16. Caminho para LISTAR as fotos de uma O.S. (só os dados; a imagem vem pela url de cada uma)
+app.get('/ordens-servico/:id/fotos', (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+  if (!ordensServico.some(os => os.id === id)) {
+    return res.status(404).json({ erro: 'Ordem de serviço não encontrada' });
+  }
+
+  res.json(fotosOS.filter(foto => foto.ordemServicoId === id).map(resumoDaFoto));
+});
+
+// 17. Caminho para VER a imagem: devolve os bytes com o Content-Type certo (não é JSON!)
+app.get('/ordens-servico/:id/fotos/:fotoId', (req, res) => {
+  const id = Number(req.params.id);
+  const fotoId = Number(req.params.fotoId);
+
+  if (!Number.isInteger(id) || !Number.isInteger(fotoId)) {
+    return res.status(400).json({ erro: 'Os ids devem ser números inteiros' });
+  }
+
+  const foto = fotosOS.find(f => f.id === fotoId && f.ordemServicoId === id);
+  if (!foto) {
+    return res.status(404).json({ erro: 'Foto não encontrada' });
+  }
+
+  res.type(foto.tipo).send(foto.conteudo);
+});
+
 // Rota não encontrada: se a requisição chegou até aqui, nenhuma rota acima atendeu.
 app.use((req: Request, res: Response) => {
   res.status(404).json({ erro: `Rota ${req.method} ${req.path} não existe` });
@@ -798,6 +923,11 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   // JSON mal formado no corpo da requisição (erro lançado pelo express.json())
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json({ erro: 'JSON inválido no corpo da requisição' });
+  }
+
+  // Corpo maior que o limite do express.json() (100 KB; 3 MB na rota de fotos)
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ erro: 'Corpo da requisição grande demais' });
   }
 
   // Qualquer outro erro inesperado: registra o detalhe só no console do servidor

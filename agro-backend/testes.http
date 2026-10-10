@@ -777,3 +777,95 @@ Content-Type: application/json
   "operador": "Ana",
   "frenteTrabalho": "Talhão 2"
 }
+
+
+# =====================================================================
+#  FOTOS DA O.S. (Parte OS8, feita para o app móvel)
+#  Usa a O.S. nº 3, aberta no F1 para a PV-03 (em campo desde o N6).
+#  Os cenários com arquivos grandes (F9 a F11) só existem no testes.sh.
+# =====================================================================
+
+### F1 — Avaria relatada no campo (preparação: abre a O.S. nº 3)
+# Esperado: 201, O.S. nº 3; a saída da PV-03 é encerrada automaticamente
+POST {{baseUrl}}/ordens-servico
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "tipo": "Corretiva",
+  "descricao": "Bico entupido",
+  "horimetro": 260
+}
+
+### F2 — Foto PNG (uma imagem real de 1x1 pixel, em base64)
+# Esperado: 201, "tipo": "image/png", com a url e SEM os bytes
+POST {{baseUrl}}/ordens-servico/3/fotos
+Content-Type: application/json
+
+{
+  "imagem": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+}
+
+### F3 — Foto JPEG (só o começo de um JPEG: a API confere a "assinatura" FF D8 FF)
+# Esperado: 201, "url": "/ordens-servico/3/fotos/2"
+POST {{baseUrl}}/ordens-servico/3/fotos
+Content-Type: application/json
+
+{
+  "imagem": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA=="
+}
+
+### F4 — Sem imagem
+# Esperado: 400, "Campo 'imagem' é obrigatório e deve ser a foto em base64"
+POST {{baseUrl}}/ordens-servico/3/fotos
+Content-Type: application/json
+
+{}
+
+### F5 — Texto que não é base64
+# Esperado: 400, "... deve ser a foto em base64"
+POST {{baseUrl}}/ordens-servico/3/fotos
+Content-Type: application/json
+
+{
+  "imagem": "isto nao e base64!"
+}
+
+### F6 — Base64 que não é imagem ("aGVsbG8=" é a palavra "hello")
+# Esperado: 400, "A foto deve ser JPEG ou PNG"
+POST {{baseUrl}}/ordens-servico/3/fotos
+Content-Type: application/json
+
+{
+  "imagem": "aGVsbG8="
+}
+
+### F7 — O.S. fechada
+# Esperado: 409, "O.S. nº 1 já está fechada"
+POST {{baseUrl}}/ordens-servico/1/fotos
+Content-Type: application/json
+
+{
+  "imagem": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+}
+
+### F8 — O.S. inexistente
+# Esperado: 404, "Ordem de serviço não encontrada"
+POST {{baseUrl}}/ordens-servico/99/fotos
+Content-Type: application/json
+
+{
+  "imagem": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+}
+
+### F13 — Lista das fotos da O.S. nº 3
+# Esperado: 200, só os dados de cada foto (sem o campo "conteudo")
+GET {{baseUrl}}/ordens-servico/3/fotos
+
+### F14 — A imagem em si
+# Esperado: 200, Content-Type: image/png (o REST Client mostra a imagem)
+GET {{baseUrl}}/ordens-servico/3/fotos/1
+
+### F15 — Foto de outra O.S. não aparece por este caminho
+# Esperado: 404, "Foto não encontrada"
+GET {{baseUrl}}/ordens-servico/1/fotos/1

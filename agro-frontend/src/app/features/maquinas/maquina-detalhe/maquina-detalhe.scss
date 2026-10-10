@@ -123,4 +123,46 @@
   color: var(--mat-sys-on-surface-variant);
 }
 
+// ===== Etiqueta QR (a impressão abre uma janela própria: veja imprimirEtiqueta() no .ts) =====
+.etiqueta-secao {
+  margin-top: 24px;
+}
+
+.etiqueta-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+}
+
+// A etiqueta como ela sai impressa: fundo BRANCO sempre (o leitor de QR precisa de contraste)
+.etiqueta-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 20px;
+  border: 2px solid #17211b;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #17211b;
+
+  strong {
+    font-size: 1.4em;
+  }
+
+  small {
+    color: #5b645e;
+  }
+}
+
+.etiqueta-instrucoes {
+  flex: 1 1 260px;
+
+  p {
+    margin: 0 0 12px;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
 // .tabela, .numero, .aviso e .etiqueta (e seus tons) vêm de src/estilos/_comuns.scss

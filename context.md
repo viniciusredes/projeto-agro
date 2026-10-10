@@ -44,6 +44,17 @@ O escopo do MVP foi intencionalmente reduzido para focar em três pilares essenc
 - **Validação duplicada de propósito:** o front valida para ajudar o usuário (mesmas regras da API), e a API continua sendo a autoridade (ex.: o 409 "tudo ou nada" do fechamento da O.S.).
 - **Filtros da lista de O.S. na URL** (query params), para permitir links compartilháveis e o botão Voltar.
 - **Identidade visual:** paleta gerada a partir das cores da logo (verde `#0f633e` + laranja `#f38302`) pelo schematic `theme-color`, e tema escuro com `color-scheme` + `light-dark()` e escolha Claro/Escuro salva no navegador.
+**Decisões da Etapa 3 (app móvel do operador):**
+- **React Native com Expo (SDK 57) e Expo Router:** um ecossistema novo para o treinamento, que reaproveita os contratos da API (não o código Angular). Teste no celular real pelo Expo Go, sem build nativo.
+- **Escopo "app do operador":** o app cobre o trabalho no **campo** (saída, retorno, QR code da máquina, relato de avaria com fotos); a gestão (estoque, custos, fechamento de O.S.) continua no painel web.
+- **Sem banco de dados e sem login:** a API continua em memória. O nome do operador é informado uma vez e salvo no aparelho (`AsyncStorage`).
+- **API direta, sem proxy:** o celular chama a API pelo IP do computador na rede (`EXPO_PUBLIC_API_URL` no `.env.local`). O `fetch` nativo não aplica CORS, e o back-end não precisou de CORS.
+- **Models copiados do front web**, como o front copiou do back-end; camadas `api.ts` → `servicos/` → hook `useRequisicao` → telas, no espelho da web.
+- **QR code com contrato próprio** (`agrofrota:maquina:<id>`): a web gera a etiqueta imprimível e o app lê com a câmera (`expo-camera`).
+- **Fotos da avaria em base64 no JSON** (`POST /ordens-servico/:id/fotos`), com limite de corpo só nessa rota (3 MB), até 2 MB e 5 fotos por O.S., tipo conferido pelos bytes. Guardadas em memória, como o resto.
+- **Componentes próprios no lugar dos nativos quando o visual importa:** avisos (`Aviso`) com as cores do tema em vez do `Alert` do sistema.
+- **Tema:** segue o celular por padrão, com escolha Sistema/Claro/Escuro salva no aparelho (`Appearance.setColorScheme`).
+
 - **Dinâmica do treinamento:** nas Fases 0 a 2, o usuário escreveu o código com orientação; da Fase 3 em diante, o Claude implementou com edições visíveis para os alunos, e o usuário fez os commits. Um commit por passo, com o acompanhamento no `CHECKLIST.md`.
 
 ## 4. O Que Já Foi Implementado
@@ -103,9 +114,21 @@ Projeto `agro-frontend/` (detalhes, conceitos e testes no [README do front-end](
 - **Polimento e identidade visual:** estilos globais e tons semânticos das etiquetas, página inicial com a logo e os números da frota, paleta da marca, tipografia Montserrat e tema escuro.
 - `ng build` sem erros nem avisos.
 
+### Atualização: Etapa 3 (app móvel do operador) concluída
+
+Projeto `agro-mobile/` (detalhes, conceitos e testes no [README do app](agro-mobile/README.md)), passos M0 a M8:
+
+- **Base (M0 e M1):** projeto Expo, endereço da API no `.env.local`, lista de máquinas em camadas, tema claro e escuro com as cores da web, puxar para atualizar, ESLint.
+- **Operador (M2):** nome salvo no aparelho, contexto React e redirecionamento na primeira abertura.
+- **Campo (M3 e M4):** ficha da máquina, saída com o operador do aparelho, retorno com horímetro validado (mesma regra da API) e horas previstas.
+- **QR code (M5):** etiqueta imprimível no detalhe da máquina na web e leitura pela câmera no app.
+- **Avaria (M6 e M7):** relato que abre O.S. corretiva (e encerra a saída em aberto); fotos da avaria com câmera, prévia, contagem, galeria e tela cheia; rotas de fotos na API (Parte OS8, 15 cenários novos no `testes.sh`, 103 no total) e fotos no detalhe da O.S. na web.
+- **Acabamento (M8):** nome "Agro Frota", ícone e splash com a logo (claro e escuro), página inicial do operador (máquinas com ele, números da frota, atalhos) e escolha de tema.
+- Lições registradas no README do app: o `Link asChild` perdia o estilo, a foto cheia do celular não aparecia no Android sem `resizeMethod="resize"`, a câmera da frente travava com flash e um rascunho feito com outra ferramenta usava APIs de outra biblioteca de câmera.
+
 ## 5. O Que Ficou Pendente / Próximos Passos Combinados
 
-> **Status:** a **Etapa 1 (back-end em memória)** e a **Etapa 2 (front-end Angular)** estão concluídas. O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
+> **Status:** a **Etapa 1 (back-end em memória)**, a **Etapa 2 (front-end Angular)** e a **Etapa 3 (app móvel do operador)** estão concluídas. O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
 
 - **Redesign do front-end (concluído e mergeado na `main` pelo PR #3):** Passo 16 (16.2 confirmação antes de fechar a O.S.; 16.3 responsividade com navegação inferior no celular) e R5.1 a R5.4 (identidade com menu verde-escuro e contador de O.S., Painel com pendências e ações diretas, Máquinas com filtros e cartões, fechamento de O.S. com etapas e resumo), a partir do canvas de design aprovado.
 - **Redesign 2 (mergeado na `main` pelo PR #4):** R6.1 paleta escura revista (menu verde-floresta, camadas mais distintas, verde-menta mais calmo), R6.2 Estoque no padrão do redesign (barra de nível do saldo, filtro para repor) e R6.3 lista de O.S. com cada O.S. inteira como link (abertas em cartões, fechadas em lista).
@@ -113,6 +136,7 @@ Projeto `agro-frontend/` (detalhes, conceitos e testes no [README do front-end](
 - **Material do back-end:** atualizado. O `testes.http` cobre o cadastro de máquinas, e o exercício 4 virou "Editar máquina" (`PATCH /maquinas/:id`), com gabarito testado.
 - **Tamanho do pacote inicial:** 603,5 kB depois do Passo 19 (era 685,6 kB), com aviso configurado em 650 kB no `angular.json`.
 - **Services com `@Service()`:** os quatro services usam o decorador do Angular 22 (Passo 20).
+- **App móvel:** ver o ícone e o splash exige um APK (EAS Build ou Android Studio), ainda não gerado; o Expo Go mostra os dele. Testes unitários do app (`jest-expo`) para as funções puras ficaram como próximo passo.
 - **Evolução Futura:** Substituir as variáveis em memória por um banco de dados relacional (provavelmente PostgreSQL utilizando Prisma ORM), autenticação com perfis e publicação (build do front servido na mesma origem da API).
 
 ## 6. Ideias Descartadas e Por Quê
@@ -137,7 +161,7 @@ Projeto `agro-frontend/` (detalhes, conceitos e testes no [README do front-end](
 - **Peça repetida no fechamento:** recusada com 400; cada peça deve aparecer uma única vez, com a quantidade total.
 - **Persistência:** o banco de dados (PostgreSQL + Prisma) não será implementado neste momento; os dados seguem em memória.
 - **Cadastro de máquinas:** entra no sistema (rota `POST /maquinas` + diálogo no front), decidido durante a Etapa 2.
-- **Tema:** apenas Claro e Escuro no seletor; na primeira visita, o sistema segue o tema do sistema operacional.
+- **Tema:** na web, apenas Claro e Escuro no seletor; na primeira visita, segue o tema do sistema operacional. No app, Sistema (padrão), Claro e Escuro.
 
 **Perguntas originais:**
 

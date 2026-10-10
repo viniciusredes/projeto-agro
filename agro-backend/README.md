@@ -114,6 +114,9 @@ Tudo fica num único `server.ts` de propósito, para facilitar o aprendizado. A 
 | `GET` | `/ordens-servico/:id` | Detalhe da O.S., com os dados da máquina |
 | `POST` | `/ordens-servico` | Abre uma O.S. (a máquina vai para `Em Manutenção`) |
 | `POST` | `/ordens-servico/:id/fechamento` | Fecha a O.S., com baixa automática das peças |
+| `POST` | `/ordens-servico/:id/fotos` | Anexa uma foto (JPEG/PNG em base64) a uma O.S. aberta |
+| `GET` | `/ordens-servico/:id/fotos` | Lista as fotos da O.S. (só os dados, com a `url` de cada uma) |
+| `GET` | `/ordens-servico/:id/fotos/:fotoId` | A imagem em si (resposta binária, não JSON) |
 | `GET` | `/maquinas/:id/manutencoes` | Histórico e custo de manutenção de uma máquina |
 
 Toda resposta de erro segue o formato:
@@ -283,7 +286,7 @@ O projeto foi construído em **partes pequenas**. Cada parte traz: 🎯 o **obje
 |---|---|
 | **Uso** (máquinas) | [Ponto de partida](#ponto-de-partida), [Parte 0](#parte-0--script-de-desenvolvimento) a [Parte 6](#parte-6--avarias-no-retorno-campo-opcional) |
 | **Estoque** (peças) | [Parte E1](#parte-e1--modelo-de-peça-e-listagem) a [Parte E6](#parte-e6--estoque-mínimo-e-alerta-de-reposição) |
-| **Manutenção** (O.S.) | [Parte OS1](#parte-os1--modelo-da-ordem-de-serviço-e-listagem) a [Parte OS7](#parte-os7--detalhe-da-os-e-custo-por-máquina) |
+| **Manutenção** (O.S.) | [Parte OS1](#parte-os1--modelo-da-ordem-de-serviço-e-listagem) a [Parte OS7](#parte-os7--detalhe-da-os-e-custo-por-máquina), mais a [Parte OS8](#parte-os8--fotos-da-os-para-o-app-do-operador) (fotos, feita na Etapa 3) |
 
 > **Dica para os alunos:** reproduzam as partes na ordem, testando cada uma antes de seguir. É assim que se constrói software de forma segura: um passo pequeno e verificado de cada vez.
 
@@ -1334,11 +1337,80 @@ curl.exe http://localhost:3000/maquinas/1/manutencoes
 curl.exe -i http://localhost:3000/maquinas/99/manutencoes   # 404
 ```
 
+### Parte OS8 — Fotos da O.S. (para o app do operador)
+
+🎯 O operador fotografa a avaria no campo, pelo app móvel (Etapa 3, passo M7), e a foto fica anexada à O.S. Os dados continuam em memória, como todo o resto.
+
+🧩 **1. Um limite de corpo só para esta rota.** O `express.json()` aceita até **100 KB** por padrão, pouco para uma foto. Em vez de aumentar o limite da API inteira, a rota de fotos ganha um leitor próprio, registrado **antes** do geral:
+
+```ts
+app.use('/ordens-servico/:id/fotos', express.json({ limit: '3mb' }));
+app.use(express.json()); // demais rotas: limite padrão de 100 KB
+```
+
+Quando o primeiro leitor já leu o corpo, o segundo percebe e passa adiante. Corpo acima do limite vira **413** no tratador de erros (`err.type === 'entity.too.large'`).
+
+**2. A foto fica numa lista à parte**, com os bytes num `Buffer`:
+
+```ts
+interface FotoOS {
+  id: number;
+  ordemServicoId: number;  // "chave estrangeira": aponta para OrdemServico.id
+  tipo: TipoFoto;          // 'image/jpeg' | 'image/png'
+  tamanho: number;         // em bytes
+  data: string;
+  conteudo: Buffer;
+}
+```
+
+**3. O tipo vem dos bytes, não do cliente.** Todo JPEG começa com `FF D8 FF`, e todo PNG com `89 50 4E 47`:
+
+```ts
+function tipoDaImagem(bytes: Buffer): TipoFoto | null {
+  if (bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (bytes.length > 4 && bytes.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))) {
+    return 'image/png';
+  }
+  return null;
+}
+```
+
+**4. As validações de `POST /ordens-servico/:id/fotos`**, na ordem de sempre: id inteiro (400), O.S. existe (404), O.S. aberta e com menos de 5 fotos (409), `imagem` em base64 (400), é JPEG ou PNG (400), até 2 MB (413).
+
+**5. A imagem tem rota própria.** As respostas com dados nunca levam os bytes, só a `url`. A imagem sai com o `Content-Type` certo:
+
+```ts
+res.type(foto.tipo).send(foto.conteudo);
+```
+
+📚 **Conceitos**
+- **Base64:** transforma bytes em texto (letras, números, `+` e `/`) para a imagem viajar dentro do JSON. O preço: o texto fica **um terço maior**. 2 MB de foto viram ~2,7 MB de texto, e por isso o limite da rota (3 MB) é maior que o da foto (2 MB).
+- **Ordem dos middlewares:** o Express executa os `app.use` na ordem em que foram registrados. Um leitor específico antes do geral muda o limite de **uma** rota só.
+- **Validar o conteúdo, não o rótulo:** o cliente poderia mandar um texto qualquer dizendo que é imagem. A "assinatura" dos bytes (os *magic numbers*) é bem mais difícil de enganar. O `Buffer.from(texto, 'base64')` ignora caracteres estranhos em silêncio, e por isso o formato é conferido antes, com a regex.
+- **Separar dados e conteúdo binário:** a listagem devolve só os dados, e cada imagem é baixada pela sua `url`. Listar O.S. continua leve.
+- **Limites protegem o servidor:** sem banco nem disco, tudo fica na memória do processo. O limite de tamanho e o de quantidade (5 por O.S.) impedem um cliente de encher a memória.
+- **413 Payload Too Large:** o código HTTP para "o corpo é grande demais".
+
+🧪 **Testes** (no Git Bash; a foto é um PNG real de 1×1 pixel)
+
+```bash
+PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+# Com uma O.S. aberta (por exemplo, a nº 1):
+curl -X POST http://localhost:3000/ordens-servico/1/fotos -H "Content-Type: application/json" -d "{\"imagem\":\"$PNG\"}"   # 201
+curl http://localhost:3000/ordens-servico/1/fotos                          # lista, com a url
+curl -o foto.png http://localhost:3000/ordens-servico/1/fotos/1            # baixa a imagem
+curl -X POST http://localhost:3000/ordens-servico/1/fotos -H "Content-Type: application/json" -d '{"imagem":"aGVsbG8="}'  # 400: "hello" não é imagem
+```
+
+Ou abra `http://localhost:3000/ordens-servico/1/fotos/1` no navegador: a imagem aparece, porque a resposta diz `Content-Type: image/png`.
+
 ---
 
 ## 6. Roteiro completo de testes com curl
 
-> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 88 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção e 6 do cadastro de máquinas) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
+> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 103 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas e 15 das fotos da O.S.) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
 >
 > 💡 **Alternativa sem terminal:** o arquivo [testes.http](testes.http) tem este mesmo roteiro para a extensão **REST Client** do VS Code. Basta clicar em "Send Request" acima de cada teste, sem se preocupar com aspas.
 
@@ -1645,6 +1717,40 @@ curl.exe -X POST $B/maquinas -H "$H" -d '{"tag":"X-01","horimetro":10}'         
 curl.exe -X POST $B/maquinas/3/saida -H "$H" -d '{"operador":"Ana","frenteTrabalho":"Talhao 2"}'   # N6
 ```
 
+### Manutenção — fotos da O.S. (`/ordens-servico/:id/fotos`)
+
+Usa a O.S. nº 3, aberta no F1 para a PV-03 (em campo desde o N6). Os cenários com arquivos grandes (F9 a F11) são gerados pelo `testes.sh`; aqui ficam os que cabem numa linha.
+
+| # | Cenário | Esperado |
+|---|---|---|
+| F1 | O.S. corretiva para a PV-03 (preparação) | **201**, O.S. nº 3 |
+| F2 | Foto PNG | **201**, `"tipo": "image/png"` |
+| F3 | Foto JPEG | **201**, `"url": "/ordens-servico/3/fotos/2"`, sem os bytes |
+| F4 | Sem `imagem` | **400** |
+| F5 | Texto que não é base64 | **400** |
+| F6 | Base64 de `hello` | **400**, `A foto deve ser JPEG ou PNG` |
+| F7 | Foto na O.S. nº 1 (fechada) | **409** |
+| F8 | O.S. 99 | **404** |
+| F9 | Foto de ~2,1 MB | **413**, `o máximo é 2 MB` |
+| F10 | Corpo de ~3,2 MB | **413**, barrado pelo `express.json({ limit: '3mb' })` |
+| F11 | Corpo de ~200 KB em `POST /maquinas` | **413**: as outras rotas seguem com 100 KB |
+| F12 | Sexta foto na O.S. nº 3 | **409**, `já tem 5 fotos` |
+| F13 | Lista das fotos | **200**, sem o campo `conteudo` |
+| F14 | A imagem nº 1 | **200**, `Content-Type: image/png` |
+| F15 | Foto nº 1 pelo caminho da O.S. nº 1 | **404** |
+
+```bash
+PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+curl.exe -X POST $B/ordens-servico -H "$H" -d '{"maquinaId":3,"tipo":"Corretiva","descricao":"Bico entupido","horimetro":260}'   # F1
+curl.exe -X POST $B/ordens-servico/3/fotos -H "$H" -d "{\"imagem\":\"$PNG\"}"   # F2
+curl.exe -X POST $B/ordens-servico/3/fotos -H "$H" -d '{}'                        # F4
+curl.exe -X POST $B/ordens-servico/3/fotos -H "$H" -d '{"imagem":"aGVsbG8="}'     # F6
+curl.exe -X POST $B/ordens-servico/1/fotos -H "$H" -d "{\"imagem\":\"$PNG\"}"   # F7
+curl.exe $B/ordens-servico/3/fotos                                                # F13
+curl.exe -I $B/ordens-servico/3/fotos/1                                           # F14 (só os cabeçalhos)
+curl.exe $B/ordens-servico/1/fotos/1                                              # F15
+```
+
 > **Dica:** para ver só o código HTTP de cada resposta, acrescente `-w "  [%{http_code}]\n"` ao comando.
 
 ---
@@ -1660,6 +1766,7 @@ curl.exe -X POST $B/maquinas/3/saida -H "$H" -d '{"operador":"Ana","frenteTrabal
 | **400 Bad Request** | O cliente enviou dados inválidos | Campo faltando, tipo errado, JSON quebrado |
 | **404 Not Found** | Recurso ou rota inexistente | Máquina 99, `GET /xyz` |
 | **409 Conflict** | O estado atual impede a ação | Saída de máquina já em operação, estoque insuficiente, O.S. já fechada |
+| **413 Payload Too Large** | O corpo ou o arquivo passou do limite | Foto acima de 2 MB, corpo acima de 100 KB (3 MB na rota de fotos) |
 | **500 Internal Server Error** | Erro inesperado no servidor | Mensagem genérica, detalhe só no log |
 
 ### Regras de negócio
@@ -1698,6 +1805,9 @@ curl.exe -X POST $B/maquinas/3/saida -H "$H" -d '{"operador":"Ana","frenteTrabal
 | Fechamento de O.S. | Saldo suficiente de **todas** as peças (tudo ou nada) | 409 |
 | Fechamento de O.S. | Custo de cada peça congelado no item | — |
 | Consultas de O.S. | `status`, se informado, é `Aberta` ou `Fechada` | 400 |
+| Foto da O.S. | O.S. existe e está `Aberta`, com menos de 5 fotos | 404 / 409 |
+| Foto da O.S. | `imagem` em base64, com bytes de JPEG ou PNG | 400 |
+| Foto da O.S. | Foto até 2 MB; corpo até 3 MB (demais rotas: 100 KB) | 413 |
 
 ### Anatomia de uma rota com validação
 
@@ -1871,6 +1981,8 @@ Antes de começar um projeto do zero, resolva os [exercícios](docs/exercicios.m
 3. ✅ **Módulo de Manutenção:** abertura e fechamento de O.S., baixa automática no estoque, custo congelado e custo por máquina.
 
 **Etapa 2, front-end em Angular: ✅ concluída.** Veja o [README do front-end](../agro-frontend/README.md). Durante ela, a API ganhou o cadastro de máquinas (`POST /maquinas`, 6 cenários novos no `testes.sh`).
+
+**Etapa 3, app móvel do operador (React Native + Expo): 🚧 em andamento.** Veja o [README do app](../agro-mobile/README.md). No passo M7, a API ganhou as fotos da O.S. (Parte OS8, 15 cenários novos no `testes.sh`).
 
 **Futuro:** trocar os arrays em memória por PostgreSQL com Prisma ORM.
 

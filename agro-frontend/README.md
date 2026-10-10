@@ -114,12 +114,12 @@ Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.
 |---|---|---|
 | `/` | Painel: indicadores da frota, "Precisa de atenção" com ações diretas e custo de manutenção | `GET /maquinas`, `GET /pecas`, `GET /ordens-servico`, `GET /movimentacoes` |
 | `/maquinas` | Lista de máquinas com busca, filtros por situação (`?situacao=`) e uma ação principal por máquina + diálogos Nova máquina, Saída, Retorno e O.S. | `GET /maquinas`, `GET /movimentacoes`, `GET /ordens-servico?status=Aberta`, `POST /maquinas`, `POST /maquinas/:id/saida`, `POST /maquinas/:id/retorno` |
-| `/maquinas/:id` | Detalhe da máquina: indicadores e custo por tipo de O.S. | `GET /maquinas/:id/manutencoes` |
+| `/maquinas/:id` | Detalhe da máquina: indicadores, custo por tipo de O.S. e **etiqueta QR** imprimível (lida pelo app do operador: veja o [README do app](../agro-mobile/README.md), passo M5) | `GET /maquinas/:id/manutencoes` |
 | `/movimentacoes` | Histórico de saídas e retornos, com filtro por máquina | `GET /movimentacoes?maquinaId=` |
 | `/estoque` | Lista de peças com busca, filtro "para repor" (`?filtro=repor`), barra de nível do saldo e ação principal + diálogos Nova peça e Entrada | `GET /pecas`, `POST /pecas`, `POST /pecas/:id/entradas` |
 | `/estoque/:id` | Kardex da peça | `GET /pecas/:id`, `GET /pecas/:id/movimentos` |
 | `/ordens-servico` | Abertas em cartões e fechadas em lista (cada O.S. inteira é um link), filtros de máquina e status na URL + diálogo de abertura | `GET /ordens-servico?maquinaId=`, `POST /ordens-servico` |
-| `/ordens-servico/:id` | Detalhe e fechamento da O.S. | `GET /ordens-servico/:id`, `POST /ordens-servico/:id/fechamento` |
+| `/ordens-servico/:id` | Detalhe e fechamento da O.S., com as **fotos da avaria** tiradas pelo app do operador (miniaturas; o clique abre a foto inteira numa aba nova; veja o [README do app](../agro-mobile/README.md), passo M7) | `GET /ordens-servico/:id`, `GET /ordens-servico/:id/fotos`, `POST /ordens-servico/:id/fechamento` |
 | qualquer outra | Volta para o início | — |
 
 As telas se ligam por **links**:

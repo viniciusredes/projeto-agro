@@ -115,4 +115,27 @@
       <tr mat-row *matRowDef="let linha; columns: colunas"></tr>
     </table>
   }
+
+  <!-- ===== Etiqueta QR: impressa e colada na máquina; o app do operador lê e abre a ficha ===== -->
+  <section class="etiqueta-secao" aria-labelledby="titulo-etiqueta">
+    <h3 id="titulo-etiqueta">Etiqueta QR da máquina</h3>
+    <div class="etiqueta-linha">
+      <!-- Prévia da etiqueta; a impressão abre uma janela só com ela (imprimirEtiqueta) -->
+      <div class="etiqueta-qr">
+        <img [src]="qrDaMaquina()" [alt]="'QR code da máquina ' + dados.maquina" width="160" height="160" />
+        <strong>{{ dados.maquina }}</strong>
+        @if (maquina(); as m) {
+          <span>{{ m.modelo }}</span>
+        }
+        <small>Agro Frota · aponte o app do operador</small>
+      </div>
+      <div class="etiqueta-instrucoes">
+        <p>Imprima, plastifique e cole num lugar visível da máquina. No campo, o operador aponta a câmera do app e a ficha abre na hora.</p>
+        <button mat-flat-button type="button" (click)="imprimirEtiqueta()">
+          <mat-icon>print</mat-icon>
+          Imprimir etiqueta
+        </button>
+      </div>
+    </div>
+  </section>
 }

@@ -412,6 +412,77 @@ testar N5 "Sem modelo" 400 "'modelo' é obrigatório" \
 testar N6 "Máquina nova aparece na lista e já pode sair" 200 '"status":"Em Operação"' \
   -X POST "$BASE/maquinas/3/saida" -H "$JSON" -d '{"operador":"Ana","frenteTrabalho":"Talhao 2"}'
 
+# =====================================================================
+#  FOTOS DA O.S. (usa a O.S. 3, aberta aqui para a PV-03 que está em campo)
+# =====================================================================
+
+# Uma imagem PNG real de 1x1 pixel, e o começo de um JPEG (a API confere a "assinatura" dos bytes)
+PNG_1PX='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+JPEG_INICIO='/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA=='
+GRANDE=$(mktemp)  # arquivo temporário para os corpos grandes
+
+# ---------------------------------------------------------------------
+secao "POST /ordens-servico/:id/fotos"
+# ---------------------------------------------------------------------
+testar F1 "Avaria relatada no campo (preparação: abre a O.S. 3)" 201 '"id":3' \
+  -X POST "$BASE/ordens-servico" -H "$JSON" -d '{"maquinaId":3,"tipo":"Corretiva","descricao":"Bico entupido","horimetro":260}'
+
+testar F2 "Foto PNG" 201 '"tipo":"image/png"' \
+  -X POST "$BASE/ordens-servico/3/fotos" -H "$JSON" -d "{\"imagem\":\"$PNG_1PX\"}"
+
+testar F3 "Foto JPEG (resposta com a url, sem os bytes)" 201 '"url":"/ordens-servico/3/fotos/2"' \
+  -X POST "$BASE/ordens-servico/3/fotos" -H "$JSON" -d "{\"imagem\":\"$JPEG_INICIO\"}"
+
+testar F4 "Sem imagem" 400 "'imagem' é obrigatório" \
+  -X POST "$BASE/ordens-servico/3/fotos" -H "$JSON" -d '{}'
+
+testar F5 "Texto que não é base64" 400 "deve ser a foto em base64" \
+  -X POST "$BASE/ordens-servico/3/fotos" -H "$JSON" -d '{"imagem":"isto nao e base64!"}'
+
+testar F6 "Base64 que não é imagem (\"hello\")" 400 "JPEG ou PNG" \
+  -X POST "$BASE/ordens-servico/3/fotos" -H "$JSON" -d '{"imagem":"aGVsbG8="}'
+
+testar F7 "O.S. fechada" 409 "já está fechada" \
+  -X POST "$BASE/ordens-servico/1/fotos" -H "$JSON" -d "{\"imagem\":\"$PNG_1PX\"}"
+
+testar F8 "O.S. inexistente" 404 "Ordem de serviço não encontrada" \
+  -X POST "$BASE/ordens-servico/99/fotos" -H "$JSON" -d "{\"imagem\":\"$PNG_1PX\"}"
+
+# PNG de ~2,1 MB: o corpo (~2,8 MB) passa no limite da rota, mas a foto passa dos 2 MB
+printf '{"imagem":"iVBORw0K%s"}' "$(head -c 2900000 /dev/zero | tr '\0' 'A')" > "$GRANDE"
+testar F9 "Foto maior que 2 MB" 413 "o máximo é 2 MB" \
+  -X POST "$BASE/ordens-servico/3/fotos" -H "$JSON" --data-binary "@$GRANDE"
+
+# Corpo de ~3,2 MB: barrado pelo express.json({ limit: '3mb' }) antes de chegar à rota
+printf '{"imagem":"%s"}' "$(head -c 3200000 /dev/zero | tr '\0' 'A')" > "$GRANDE"
+testar F10 "Corpo maior que o limite da rota de fotos" 413 "grande demais" \
+  -X POST "$BASE/ordens-servico/3/fotos" -H "$JSON" --data-binary "@$GRANDE"
+
+# Corpo de ~200 KB numa rota comum: o limite geral (100 KB) continua valendo
+printf '{"tag":"%s"}' "$(head -c 200000 /dev/zero | tr '\0' 'A')" > "$GRANDE"
+testar F11 "Outras rotas continuam com o limite de 100 KB" 413 "grande demais" \
+  -X POST "$BASE/maquinas" -H "$JSON" --data-binary "@$GRANDE"
+rm -f "$GRANDE"
+
+# Completa 5 fotos na O.S. 3 (já tem 2) e tenta a sexta
+for _ in 1 2 3; do
+  curl -s -o /dev/null -X POST "$BASE/ordens-servico/3/fotos" -H "$JSON" -d "{\"imagem\":\"$PNG_1PX\"}"
+done
+testar F12 "Sexta foto na mesma O.S." 409 "já tem 5 fotos" \
+  -X POST "$BASE/ordens-servico/3/fotos" -H "$JSON" -d "{\"imagem\":\"$PNG_1PX\"}"
+
+# ---------------------------------------------------------------------
+secao "GET /ordens-servico/:id/fotos e a imagem"
+# ---------------------------------------------------------------------
+testar F13 "Lista das fotos (sem os bytes)" 200 '!conteudo' \
+  "$BASE/ordens-servico/3/fotos"
+
+testar F14 "Imagem com o Content-Type certo" 200 "image/png" \
+  -o /dev/null -D - "$BASE/ordens-servico/3/fotos/1"
+
+testar F15 "Foto de outra O.S. não aparece por este caminho" 404 "Foto não encontrada" \
+  "$BASE/ordens-servico/1/fotos/1"
+
 # ---------------------------------------------------------------------
 # Resumo
 # ---------------------------------------------------------------------

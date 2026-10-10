@@ -71,6 +71,40 @@
     </div>
   </dl>
 
+  <!-- ===== Fotos da avaria: enviadas pelo app do operador (Etapa 3, M7) ===== -->
+  <section class="fotos" aria-labelledby="titulo-fotos">
+    <h3 id="titulo-fotos">
+      Fotos da avaria
+      @if (fotos.hasValue()) {
+        <span class="fotos__contagem">{{ fotos.value().length }}</span>
+      }
+    </h3>
+    @if (fotos.error()) {
+      <p class="aviso aviso--erro">
+        <mat-icon>error</mat-icon>
+        Não foi possível carregar as fotos.
+      </p>
+    } @else if (fotos.hasValue()) {
+      @if (fotos.value().length === 0) {
+        <p class="info">Nenhuma foto. O operador pode fotografar a avaria pelo app, com a O.S. aberta.</p>
+      } @else {
+        <ul class="fotos__grade">
+          @for (foto of fotos.value(); track foto.id; let i = $index) {
+            <li>
+              <!-- Abre a foto em tamanho real numa aba nova (o próprio navegador mostra a imagem) -->
+              <a [href]="enderecoDaFoto(foto)" target="_blank" rel="noopener" class="fotos__item">
+                <img [src]="enderecoDaFoto(foto)" [alt]="'Foto ' + (i + 1) + ' da avaria'" loading="lazy" />
+                <span class="fotos__legenda">
+                  {{ foto.data | date: 'dd/MM HH:mm' }} · {{ foto.tamanho / 1024 | number: '1.0-0' }} KB
+                </span>
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    }
+  </section>
+
   @if (ordem.status === 'Fechada') {
     <!-- ===== O.S. fechada: itens com o custo CONGELADO no fechamento ===== -->
     <h3>Peças utilizadas</h3>
