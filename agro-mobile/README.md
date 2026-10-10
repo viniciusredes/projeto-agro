@@ -67,9 +67,14 @@ agro-mobile/
 └── src/
     ├── app/            # TELAS: cada arquivo é uma rota (Expo Router)
     │   ├── _layout.tsx # navegação em pilha, com a barra verde da marca
-    │   └── index.tsx   # tela inicial
+    │   └── index.tsx   # lista de máquinas
+    ├── api.ts          # ponto único de acesso à API e tradução de erros
     ├── config.ts       # API_URL lida do .env.local
-    └── models/         # tipos copiados do front web (o contrato da API)
+    ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
+    ├── componentes/    # peças reutilizáveis (ex.: etiqueta de status)
+    ├── hooks/          # lógica reutilizável com estado (ex.: useRequisicao)
+    ├── models/         # tipos copiados do front web (o contrato da API)
+    └── servicos/       # uma função por rota da API
 ```
 
 ---
@@ -117,6 +122,74 @@ useEffect(() => {
 1. `npx tsc --noEmit` sem erros.
 2. Com a API no ar, abra no Expo Go: "Conectado! 2 máquinas na API", com TR-01 e CO-02.
 3. Pare a API e recarregue (no terminal do Expo, tecla `r`): aparece a mensagem de erro com o endereço usado.
+
+---
+
+### M1 — Lista de máquinas
+
+🎯 Trocar a tela de teste por uma lista de verdade, organizada em camadas como no front web: acesso à API, busca de dados, tema e tela.
+
+🧩 **Camadas** (o paralelo com o Angular):
+
+| App móvel | Front web | Papel |
+|---|---|---|
+| `src/api.ts` (`requisitar`, `mensagemDeErro`) | `HttpClient` + `erro-api-interceptor` | Monta a URL, manda/recebe JSON, traduz erros |
+| `src/servicos/maquinas.ts` (`listarMaquinas`) | `MaquinaService` | Uma função por rota da API |
+| `src/hooks/use-requisicao.ts` | `rxResource` | Estados de carregando, erro, dados e atualizando |
+| `src/tema.ts` (`useTema`) | `light-dark()` no CSS | Cores da marca no claro e no escuro |
+
+`src/api.ts`:
+
+```ts
+// Diferente do HttpClient, o fetch NÃO trata 4xx/5xx como erro: é preciso olhar o "ok"
+const corpo = await resposta.json().catch(() => null);
+if (!resposta.ok) {
+  const mensagem = typeof corpo?.erro === 'string' ? corpo.erro : `Erro inesperado (HTTP ${resposta.status}).`;
+  throw new ErroApi(mensagem, resposta.status);
+}
+```
+
+`src/hooks/use-requisicao.ts` (a primeira busca, com a limpeza):
+
+```ts
+useEffect(() => {
+  let ativo = true;
+  buscar()
+    .then(resultado => ativo && setDados(resultado))
+    .catch(e => ativo && setErro(mensagemDeErro(e)))
+    .finally(() => ativo && setCarregando(false));
+  return () => { ativo = false; };   // a tela saiu: ignora a resposta atrasada
+}, [buscar]);
+```
+
+A lista (`src/app/index.tsx`):
+
+```tsx
+<FlatList
+  data={maquinas ?? []}
+  keyExtractor={maquina => String(maquina.id)}
+  renderItem={({ item }) => <CartaoMaquina maquina={item} />}
+  refreshControl={<RefreshControl refreshing={atualizando} onRefresh={recarregar} />}
+  ListEmptyComponent={<Text>Nenhuma máquina cadastrada.</Text>}
+/>
+```
+
+📚 **Conceitos**
+- **`fetch` × `HttpClient`:** o `fetch` só lança erro quando **não há resposta** (rede, API parada). Um 409 ou 400 chega como resposta "normal", e o código precisa conferir `resposta.ok`.
+- **Hook customizado:** `useRequisicao` guarda estado e é reaproveitado por qualquer tela que busca dados. Recebe uma função **estável** (declarada fora do componente), senão o efeito rodaria a cada renderização.
+- **Efeito × evento:** no `useEffect`, o estado só muda quando a resposta chega (o lint do React acusa `setState` direto no corpo do efeito). No "puxar para atualizar", que é um **evento** do usuário, mudar o estado logo é o normal.
+- **Limpeza do efeito:** o `return () => { ativo = false }` roda quando a tela sai; sem ela, uma resposta atrasada atualizaria uma tela que já fechou (o papel do `takeUntilDestroyed`).
+- **`FlatList`:** só desenha os itens visíveis e reaproveita as linhas ao rolar (importante numa frota grande). `keyExtractor` faz o papel do `track` do `@for`.
+- **`RefreshControl`:** o gesto de "puxar para atualizar", nativo em Android e iOS.
+- **Props:** `<EtiquetaStatus status={...} />` recebe dados como o `input()` do Angular.
+- **Tema pelo sistema:** `useColorScheme()` diz se o celular está no claro ou no escuro; as cores são **as mesmas** da web (incluindo o escuro revisto no R6).
+
+🧪 **Testes**
+1. As máquinas aparecem em cartões, com a etiqueta de status colorida e o horímetro em pt-BR (`1.000 h`).
+2. Registre uma saída pela web e **puxe a lista para baixo** no celular: o status muda para "Em campo".
+3. Pare a API e abra o app: mensagem de erro e o botão **Tentar novamente**. Suba a API e toque nele: a lista volta.
+4. Troque o tema do celular para escuro: barra verde-floresta, cartões escuros e etiquetas no tom escuro.
+5. `npx tsc --noEmit` e `npx expo lint` sem erros.
 
 ---
 

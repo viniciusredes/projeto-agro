@@ -103,8 +103,8 @@ Mergeada na `main` em dois PRs:
 
 Pasta `agro-mobile/` · branch `feat/app-movel`. O app cobre o trabalho no **campo** (saída, retorno, QR code da máquina, relato de avaria); a gestão continua no front web. A API continua em memória, sem banco de dados.
 
-- [x] **M0** — Projeto Expo (SDK 57, TypeScript, Expo Router) sem as telas de exemplo; endereço da API no `.env.local` (`EXPO_PUBLIC_API_URL`, IP do computador na rede) com `.env.example` versionado; tela de teste lista as máquinas da API; `tsc`, `expo export` e `expo-doctor` (21/21) sem problemas · *commit: a preencher*
-- [ ] **M1** — Lista de máquinas (`FlatList`, puxar para atualizar, etiqueta de status), estados de carregando, erro e vazio
+- [x] **M0** — Projeto Expo (SDK 57, TypeScript, Expo Router) sem as telas de exemplo; endereço da API no `.env.local` (`EXPO_PUBLIC_API_URL`, IP do computador na rede) com `.env.example` versionado; tela de teste lista as máquinas da API; `tsc`, `expo export` e `expo-doctor` (21/21) sem problemas · `4312794`
+- [x] **M1** — Lista de máquinas em camadas (`api.ts` com tradução de erros, `servicos/`, hook `useRequisicao` com limpeza do efeito, `tema.ts` com as cores da web no claro/escuro), `FlatList` com puxar para atualizar, etiqueta de status, estados de carregando, erro (com "Tentar novamente") e vazio; ESLint configurado (`expo lint`) · *commit: a preencher*
 - [ ] **M2** — "Quem é você?": nome do operador salvo no aparelho (`AsyncStorage`)
 - [ ] **M3** — Ficha da máquina (`/maquina/[id]`) e registrar saída
 - [ ] **M4** — Registrar retorno (horímetro mínimo, horas previstas, avarias)
