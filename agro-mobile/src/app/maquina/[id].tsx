@@ -7,8 +7,9 @@ import { mensagemDeErro } from '@/api';
 import { EtiquetaStatus } from '@/componentes/etiqueta-status';
 import { useOperador } from '@/contextos/operador';
 import { useRequisicao } from '@/hooks/use-requisicao';
-import { buscarFicha, registrarSaida } from '@/servicos/maquinas';
+import { buscarFicha, registrarRetorno, registrarSaida } from '@/servicos/maquinas';
 import { useTema } from '@/tema';
+import { formatarHoras, validarHorimetro } from '@/validacao';
 
 // Ficha da máquina: /maquina/1, /maquina/2... O nome do arquivo [id].tsx cria a rota DINÂMICA
 // (o ":id" das rotas do Angular), e o valor chega por useLocalSearchParams.
@@ -72,6 +73,10 @@ export default function FichaMaquina() {
               com {saidaAberta.horimetroSaida.toLocaleString('pt-BR')} h
             </Text>
           </View>
+        )}
+
+        {maquina.status === 'Em Operação' && (
+          <FormularioRetorno maquinaId={maquina.id} horimetroAtual={maquina.horimetro} aoRegistrar={recarregar} />
         )}
 
         {maquina.status === 'Em Manutenção' && (
@@ -159,6 +164,113 @@ function FormularioSaida({ maquinaId, aoRegistrar }: { maquinaId: number; aoRegi
   );
 }
 
+// Formulário de retorno: horímetro (obrigatório, >= atual) e avarias (opcional)
+function FormularioRetorno({
+  maquinaId,
+  horimetroAtual,
+  aoRegistrar,
+}: {
+  maquinaId: number;
+  horimetroAtual: number;
+  aoRegistrar: () => void;
+}) {
+  const tema = useTema();
+  const [horimetro, setHorimetro] = useState('');
+  const [avarias, setAvarias] = useState('');
+  const [enviando, setEnviando] = useState(false);
+
+  // Valor DERIVADO: recalculado a cada tecla, sem estado próprio (o papel do computed do Angular).
+  // A mesma regra da API, avisada ANTES de enviar; a API continua sendo a autoridade.
+  const resultado = validarHorimetro(horimetro, horimetroAtual);
+
+  async function registrar() {
+    if (!resultado.valido || enviando) {
+      return;
+    }
+    setEnviando(true);
+    try {
+      const resposta = await registrarRetorno(maquinaId, {
+        horimetro: resultado.valor,
+        avarias: avarias.trim() || undefined, // vazio não vai no corpo (campo opcional)
+      });
+      const horas = formatarHoras(resposta.movimentacao.horasTrabalhadas ?? resultado.horas);
+      Alert.alert('Retorno registrado', `${resposta.mensagem}\n${horas} h trabalhadas.`);
+      aoRegistrar(); // recarrega a ficha: agora "Disponível"
+    } catch (e) {
+      Alert.alert('Não foi possível registrar', mensagemDeErro(e));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <View style={[estilos.cartao, { backgroundColor: tema.cartao, borderColor: tema.borda }]}>
+      <Text style={[estilos.subtitulo, { color: tema.texto }]}>Registrar retorno</Text>
+
+      <Text style={[estilos.rotulo, { color: tema.texto }]} nativeID="rotulo-horimetro">
+        Horímetro agora (h)
+      </Text>
+      <TextInput
+        value={horimetro}
+        onChangeText={setHorimetro}
+        placeholder={`Mínimo ${formatarHoras(horimetroAtual)}`}
+        placeholderTextColor={tema.textoSuave}
+        keyboardType="decimal-pad" // teclado numérico com vírgula
+        accessibilityLabelledBy="rotulo-horimetro"
+        style={[
+          estilos.campo,
+          {
+            color: tema.texto,
+            backgroundColor: tema.fundo,
+            borderColor: !resultado.valido && resultado.erro ? tema.erro : tema.borda,
+          },
+        ]}
+      />
+      {/* Embaixo do campo: o erro OU as horas previstas, enquanto o operador digita */}
+      {!resultado.valido && resultado.erro && (
+        <Text style={[estilos.dica, { color: tema.erro }]} accessibilityLiveRegion="polite">
+          {resultado.erro}
+        </Text>
+      )}
+      {resultado.valido && (
+        <Text style={[estilos.dica, { color: tema.tons.sucesso.texto }]} accessibilityLiveRegion="polite">
+          {formatarHoras(resultado.horas)} h trabalhadas nesta saída
+        </Text>
+      )}
+
+      <Text style={[estilos.rotulo, { color: tema.texto }]} nativeID="rotulo-avarias">
+        Avarias (opcional)
+      </Text>
+      <TextInput
+        value={avarias}
+        onChangeText={setAvarias}
+        placeholder="Ex.: farol dianteiro trincado"
+        placeholderTextColor={tema.textoSuave}
+        multiline
+        accessibilityLabelledBy="rotulo-avarias"
+        style={[estilos.campo, estilos.campoLongo, { color: tema.texto, backgroundColor: tema.fundo, borderColor: tema.borda }]}
+      />
+
+      <Pressable
+        onPress={registrar}
+        disabled={!resultado.valido || enviando}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !resultado.valido || enviando, busy: enviando }}
+        style={({ pressed }) => [
+          estilos.botao,
+          { backgroundColor: tema.primaria, opacity: !resultado.valido ? 0.4 : pressed ? 0.8 : 1 },
+        ]}
+      >
+        {enviando ? (
+          <ActivityIndicator color={tema.sobrePrimaria} />
+        ) : (
+          <Text style={[estilos.botaoTexto, { color: tema.sobrePrimaria }]}>Registrar retorno</Text>
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
 const estilos = StyleSheet.create({
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   tela: { padding: 16, gap: 12 },
@@ -170,6 +282,8 @@ const estilos = StyleSheet.create({
   link: { fontSize: 15, fontWeight: '600', paddingVertical: 8, paddingLeft: 12 },
   rotulo: { marginTop: 4, fontSize: 15, fontWeight: '600' },
   campo: { minHeight: 52, paddingHorizontal: 14, borderWidth: 1, borderRadius: 12, fontSize: 17 },
+  campoLongo: { minHeight: 88, paddingTop: 12, textAlignVertical: 'top' },
+  dica: { fontSize: 14, fontWeight: '600' },
   botao: { minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   botaoTexto: { fontSize: 17, fontWeight: '700' },
 });

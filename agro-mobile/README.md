@@ -73,6 +73,7 @@ agro-mobile/
     ├── api.ts          # ponto único de acesso à API e tradução de erros
     ├── config.ts       # API_URL lida do .env.local
     ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
+    ├── validacao.ts    # regras de formulário em funções puras (ex.: horímetro)
     ├── componentes/    # peças reutilizáveis (ex.: etiqueta de status)
     ├── contextos/      # valores compartilhados entre telas (ex.: o operador)
     ├── hooks/          # lógica reutilizável com estado (ex.: useRequisicao)
@@ -325,6 +326,57 @@ useFocusEffect(useCallback(() => { recarregar(); }, [recarregar]));
 3. Volte para a lista: a TR-01 aparece "Em campo" sem precisar puxar.
 4. Na web, a TR-01 aparece em campo com o seu nome (o Painel e as Movimentações também).
 5. Abra a mesma máquina em dois celulares (ou registre a saída pela web antes): o segundo recebe a mensagem 409 da API.
+
+---
+
+### M4 — Registrar retorno
+
+🎯 Com a máquina em campo, o operador informa o horímetro de agora (e as avarias, se houver) e devolve a máquina. O app mostra as horas trabalhadas **enquanto ele digita** e barra horímetro menor que o atual antes de enviar.
+
+🧩 A regra numa **função pura** (`src/validacao.ts`):
+
+```ts
+export function validarHorimetro(texto: string, atual: number): ResultadoHorimetro {
+  const limpo = texto.trim().replace(',', '.');   // o teclado brasileiro usa vírgula
+  if (limpo === '') return { valido: false, erro: null };
+  const valor = Number(limpo);
+  if (!Number.isFinite(valor)) return { valido: false, erro: 'Digite só números (ex.: 1012,5).' };
+  if (valor < atual) return { valido: false, erro: `Não pode ser menor que o atual (${formatarHoras(atual)} h).` };
+  return { valido: true, valor, horas: Math.round((valor - atual) * 10) / 10 };
+}
+```
+
+Na tela, o resultado é um **valor derivado**, recalculado a cada tecla:
+
+```tsx
+const resultado = validarHorimetro(horimetro, horimetroAtual);
+...
+<TextInput value={horimetro} onChangeText={setHorimetro} keyboardType="decimal-pad" />
+{resultado.valido && <Text>{formatarHoras(resultado.horas)} h trabalhadas nesta saída</Text>}
+```
+
+Envio, com o campo opcional fora do corpo quando vazio:
+
+```ts
+await registrarRetorno(maquinaId, { horimetro: resultado.valor, avarias: avarias.trim() || undefined });
+```
+
+📚 **Conceitos**
+- **`keyboardType="decimal-pad"`:** abre o teclado numérico, que no Brasil traz **vírgula**. O app converte para ponto antes de usar `Number` (o `Number('1012,5')` daria `NaN`).
+- **Valor derivado sem estado:** `resultado` não é um `useState`: é calculado de novo a cada renderização a partir do texto digitado (o papel do `computed`). Guardar em estado seria duplicar a informação e arriscar ficar desatualizado.
+- **União discriminada:** `{ valido: true; valor; horas } | { valido: false; erro }`. Depois de testar `resultado.valido`, o TypeScript sabe quais campos existem.
+- **Função pura:** sem tela e sem estado, testável com uma linha (`validarHorimetro('1012,5', 1000)`), como o `core/validacao.ts` do Passo 18 da web.
+- **Validação no app × na API:** o app avisa **antes** de enviar (rápido, sem rede); a API continua recusando com 400. Quem chama a API por outro caminho não escapa da regra.
+- **Ponto flutuante:** `1012.3 - 1000` dá `12.299999999999955`; o arredondamento para 1 casa (o mesmo da API) mostra 12,3.
+- **`accessibilityLiveRegion="polite"`:** no Android, o leitor de tela anuncia o erro ou as horas quando o texto muda, sem o operador precisar procurar.
+- **Campo opcional:** `avarias: texto || undefined` faz o campo **sumir** do JSON quando vazio (o `JSON.stringify` ignora `undefined`).
+
+🧪 **Testes**
+1. Com uma máquina em campo, abra a ficha: o quadro "Em campo" e o formulário **Registrar retorno**.
+2. Digite um horímetro **menor** que o atual: a borda fica vermelha, aparece "Não pode ser menor que o atual" e o botão fica apagado.
+3. Digite o atual + `12,5` (com vírgula): aparece "12,5 h trabalhadas nesta saída".
+4. Escreva uma avaria e registre: aviso "Retorno registrado" com as horas, e a máquina volta a **Disponível**.
+5. Na web, em **Movimentações**, a linha mostra as horas e a avaria.
 
 ---
 

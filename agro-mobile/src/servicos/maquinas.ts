@@ -1,5 +1,5 @@
 import { ErroApi, requisitar } from '@/api';
-import { DadosSaida, Maquina, Movimentacao, RespostaSaida } from '@/models/maquina';
+import { DadosRetorno, DadosSaida, Maquina, Movimentacao, RespostaRetorno, RespostaSaida } from '@/models/maquina';
 
 // Uma função por rota da API (o papel do MaquinaService do front web).
 // Funções declaradas FORA dos componentes são estáveis: podem ir direto para o useRequisicao.
@@ -27,6 +27,11 @@ export function listarMovimentacoes(maquinaId: number): Promise<Movimentacao[]> 
 // POST /maquinas/:id/saida
 export function registrarSaida(id: number, dados: DadosSaida): Promise<RespostaSaida> {
   return requisitar<RespostaSaida>(`/maquinas/${id}/saida`, { method: 'POST', body: JSON.stringify(dados) });
+}
+
+// POST /maquinas/:id/retorno (avarias é opcional: só vai no corpo se tiver texto)
+export function registrarRetorno(id: number, dados: DadosRetorno): Promise<RespostaRetorno> {
+  return requisitar<RespostaRetorno>(`/maquinas/${id}/retorno`, { method: 'POST', body: JSON.stringify(dados) });
 }
 
 // Tudo o que a FICHA mostra: a máquina e, se estiver em campo, a saída em aberto (quem e onde).
