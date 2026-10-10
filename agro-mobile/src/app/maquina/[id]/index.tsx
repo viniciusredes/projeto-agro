@@ -1,5 +1,5 @@
-import { Link, Stack, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { Link, router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -11,8 +11,9 @@ import { buscarFicha, registrarRetorno, registrarSaida } from '@/servicos/maquin
 import { useTema } from '@/tema';
 import { formatarHoras, validarHorimetro } from '@/validacao';
 
-// Ficha da máquina: /maquina/1, /maquina/2... O nome do arquivo [id].tsx cria a rota DINÂMICA
-// (o ":id" das rotas do Angular), e o valor chega por useLocalSearchParams.
+// Ficha da máquina: /maquina/1, /maquina/2... A pasta [id]/ cria a rota DINÂMICA (o ":id" das
+// rotas do Angular), e o valor chega por useLocalSearchParams. O index.tsx é a própria /maquina/1;
+// o avaria.tsx, ao lado, é a /maquina/1/avaria (rota ANINHADA, com o mesmo [id]).
 export default function FichaMaquina() {
   const tema = useTema();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,6 +23,19 @@ export default function FichaMaquina() {
   // dispara a busca de novo a cada renderização (a função precisa ser "estável")
   const buscar = useCallback(() => buscarFicha(idNumero), [idNumero]);
   const { dados, erro, carregando, recarregar } = useRequisicao(buscar);
+
+  // Ao voltar do modal de avaria, a máquina mudou (foi para a oficina): busca de novo.
+  // Mesmo padrão da lista (M3): pula a primeira vez, que o useRequisicao já buscou.
+  const primeiraVez = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (primeiraVez.current) {
+        primeiraVez.current = false;
+        return;
+      }
+      recarregar();
+    }, [recarregar]),
+  );
 
   if (carregando) {
     return (
@@ -39,7 +53,7 @@ export default function FichaMaquina() {
     );
   }
 
-  const { maquina, saidaAberta } = dados;
+  const { maquina, saidaAberta, osAberta } = dados;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -82,10 +96,29 @@ export default function FichaMaquina() {
         {maquina.status === 'Em Manutenção' && (
           <View style={[estilos.cartao, { backgroundColor: tema.tons.alerta.fundo, borderColor: tema.borda }]}>
             <Text style={[estilos.subtitulo, { color: tema.tons.alerta.texto }]}>Em manutenção</Text>
+            {osAberta && (
+              <Text style={[estilos.texto, { color: tema.texto, fontWeight: '700' }]}>
+                O.S. nº {osAberta.id} · {osAberta.tipo} · {osAberta.descricao}
+              </Text>
+            )}
             <Text style={[estilos.texto, { color: tema.texto }]}>
               A máquina está na oficina e não pode sair até a O.S. ser fechada.
             </Text>
           </View>
+        )}
+
+        {/* Relatar avaria: para máquina disponível ou em campo (em manutenção já tem O.S. aberta) */}
+        {maquina.status !== 'Em Manutenção' && (
+          <Pressable
+            onPress={() => router.push({ pathname: '/maquina/[id]/avaria', params: { id: maquina.id } })}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              estilos.botaoSecundario,
+              { borderColor: tema.sinal, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Text style={[estilos.botaoTexto, { color: tema.texto }]}>Relatar avaria</Text>
+          </Pressable>
         )}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -286,4 +319,6 @@ const estilos = StyleSheet.create({
   dica: { fontSize: 14, fontWeight: '600' },
   botao: { minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   botaoTexto: { fontSize: 17, fontWeight: '700' },
+  // Contornado em laranja: ação séria, mas secundária na ficha (não compete com a saída/retorno)
+  botaoSecundario: { minHeight: 52, borderRadius: 26, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 });

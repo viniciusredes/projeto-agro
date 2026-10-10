@@ -1,5 +1,7 @@
 import { ErroApi, requisitar } from '@/api';
 import { DadosRetorno, DadosSaida, Maquina, Movimentacao, RespostaRetorno, RespostaSaida } from '@/models/maquina';
+import { OrdemServico } from '@/models/ordem-servico';
+import { listarOrdensAbertas } from '@/servicos/ordens-servico';
 
 // Uma função por rota da API (o papel do MaquinaService do front web).
 // Funções declaradas FORA dos componentes são estáveis: podem ir direto para o useRequisicao.
@@ -34,9 +36,24 @@ export function registrarRetorno(id: number, dados: DadosRetorno): Promise<Respo
   return requisitar<RespostaRetorno>(`/maquinas/${id}/retorno`, { method: 'POST', body: JSON.stringify(dados) });
 }
 
-// Tudo o que a FICHA mostra: a máquina e, se estiver em campo, a saída em aberto (quem e onde).
-// Promise.all dispara as duas chamadas AO MESMO TEMPO e espera as duas (o forkJoin do kardex na web).
-export async function buscarFicha(id: number): Promise<{ maquina: Maquina; saidaAberta: Movimentacao | null }> {
-  const [maquina, movimentacoes] = await Promise.all([buscarMaquina(id), listarMovimentacoes(id)]);
-  return { maquina, saidaAberta: movimentacoes.find(mov => !mov.dataRetorno) ?? null };
+// Tudo o que a FICHA mostra: a máquina, a saída em aberto (quem e onde, se estiver em campo)
+// e a O.S. aberta (se estiver na oficina).
+// Promise.all dispara as chamadas AO MESMO TEMPO e espera todas (o forkJoin do kardex na web).
+export interface Ficha {
+  maquina: Maquina;
+  saidaAberta: Movimentacao | null;
+  osAberta: OrdemServico | null;
+}
+
+export async function buscarFicha(id: number): Promise<Ficha> {
+  const [maquina, movimentacoes, ordensAbertas] = await Promise.all([
+    buscarMaquina(id),
+    listarMovimentacoes(id),
+    listarOrdensAbertas(id),
+  ]);
+  return {
+    maquina,
+    saidaAberta: movimentacoes.find(mov => !mov.dataRetorno) ?? null,
+    osAberta: ordensAbertas[0] ?? null, // a API permite uma O.S. aberta por máquina
+  };
 }

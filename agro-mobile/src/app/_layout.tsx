@@ -24,7 +24,9 @@ export default function LayoutRaiz() {
         <Stack.Screen name="index" options={{ title: 'Máquinas' }} />
         <Stack.Screen name="identificacao" options={{ title: 'Identificação' }} />
         {/* Título provisório: a própria ficha troca pela tag da máquina */}
-        <Stack.Screen name="maquina/[id]" options={{ title: 'Máquina' }} />
+        <Stack.Screen name="maquina/[id]/index" options={{ title: 'Máquina' }} />
+        {/* modal: no iPhone sobe de baixo para cima; deixa claro que é uma ação à parte da ficha */}
+        <Stack.Screen name="maquina/[id]/avaria" options={{ title: 'Relatar avaria', presentation: 'modal' }} />
         <Stack.Screen name="escanear" options={{ title: 'Escanear QR' }} />
       </Stack>
     </ProvedorOperador>

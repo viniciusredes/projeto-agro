@@ -70,7 +70,9 @@ agro-mobile/
     │   ├── index.tsx   # lista de máquinas
     │   ├── identificacao.tsx  # "Quem é você?" (nome do operador)
     │   ├── escanear.tsx       # câmera que lê o QR da máquina
-    │   └── maquina/[id].tsx   # ficha da máquina, saída e retorno (rota dinâmica)
+    │   └── maquina/[id]/      # rotas da máquina (o [id] vale para as duas)
+    │       ├── index.tsx      # ficha, saída e retorno (/maquina/1)
+    │       └── avaria.tsx     # relatar avaria, em modal (/maquina/1/avaria)
     ├── api.ts          # ponto único de acesso à API e tradução de erros
     ├── config.ts       # API_URL lida do .env.local
     ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
@@ -452,6 +454,67 @@ O botão **Imprimir etiqueta** abre uma **janela própria**, só com a etiqueta,
 4. Aponte para outro QR qualquer (de um site, por exemplo): aparece "Este QR não é de uma máquina do Agro Frota." e a câmera continua aberta.
 5. Negue a permissão: aparece a explicação e o botão para permitir (ou abrir as configurações).
 
+### M6 — Relatar avaria: abrir O.S. corretiva pelo app
+
+🎯 A máquina quebrou no campo: o operador relata a avaria na hora, pelo celular. O app abre uma **O.S. corretiva** e a máquina vai para a oficina. Nenhuma rota nova no back-end: o app usa o `POST /ordens-servico` que a web já usa.
+
+🧩 **Rotas aninhadas:** a ficha saiu de `maquina/[id].tsx` e foi para uma **pasta** (`git mv`, para o Git entender que é o mesmo arquivo):
+
+```
+src/app/maquina/[id]/index.tsx   →  /maquina/1          (a ficha)
+src/app/maquina/[id]/avaria.tsx  →  /maquina/1/avaria   (o relato, em modal)
+```
+
+No `_layout.tsx`, o relato abre como **modal**:
+
+```tsx
+<Stack.Screen name="maquina/[id]/avaria" options={{ title: 'Relatar avaria', presentation: 'modal' }} />
+```
+
+**Serviço novo**, `src/servicos/ordens-servico.ts` (tipos copiados do front em `src/models/ordem-servico.ts`):
+
+```ts
+export function abrirOS(dados: DadosAberturaOS): Promise<RespostaAberturaOS> {
+  return requisitar<RespostaAberturaOS>('/ordens-servico', { method: 'POST', body: JSON.stringify(dados) });
+}
+```
+
+**A ficha agora sabe da O.S. aberta:** o `buscarFicha` faz **três** chamadas ao mesmo tempo:
+
+```ts
+const [maquina, movimentacoes, ordensAbertas] = await Promise.all([
+  buscarMaquina(id),
+  listarMovimentacoes(id),
+  listarOrdensAbertas(id),   // GET /ordens-servico?maquinaId=1&status=Aberta
+]);
+```
+
+**Confirmação antes de tirar a máquina de operação** (`avaria.tsx`):
+
+```tsx
+Alert.alert('Abrir O.S. corretiva?', consequencia, [
+  { text: 'Cancelar', style: 'cancel' },
+  { text: 'Abrir O.S.', style: 'destructive', onPress: () => enviar(resultado.valor) },
+]);
+```
+
+📚 **Conceitos**
+- **Rotas aninhadas:** o `[id]` da pasta vale para todos os arquivos dentro dela. A tela de avaria lê o mesmo `useLocalSearchParams<{ id: string }>()` da ficha.
+- **Modal:** `presentation: 'modal'` mostra que é uma ação **à parte**. No iPhone, a tela sobe de baixo; no Android, o efeito é discreto. O `router.back()` fecha o modal e volta para a ficha.
+- **`Alert` com botões:** é o diálogo nativo do sistema. A mensagem diz **o que vai acontecer** ("A saída de Ana será encerrada…"), não um genérico "Tem certeza?". O `style: 'destructive'` deixa o botão vermelho no iPhone.
+- **Reaproveitar a regra, não copiar:** o horímetro do relato segue a mesma regra do retorno (M4). Por isso a validação é a mesma função pura, `validarHorimetro`.
+- **A regra mora na API:** se a máquina está em campo, a API encerra a saída sozinha (regra OS3 do back-end) e devolve `movimentacaoEncerrada`. O app só **avisa antes** e **mostra depois** as horas trabalhadas. Se outra pessoa já abriu uma O.S. para a máquina, a API responde **409**, e o app mostra a mensagem dela.
+- **Recarregar ao voltar:** a ficha usa `useFocusEffect` para buscar de novo quando o modal fecha. A ref `primeiraVez` evita uma busca dupla na abertura.
+- **Cor com significado:** o botão do relato é **laranja** (o sinal da marca), não verde. Ação que tira a máquina de operação pede atenção.
+- **Rotas tipadas são geradas:** com `typedRoutes`, o Expo gera os tipos das rotas em `.expo/types/router.d.ts`. Depois de mover a ficha, o `tsc` acusou `'/maquina/[id]'` como rota inexistente: o arquivo de tipos estava velho. Basta rodar `npx expo start` uma vez para gerar de novo.
+
+🧪 **Testes**
+1. Abra a ficha de uma máquina **Disponível**: aparece o botão **Relatar avaria** (contorno laranja).
+2. Toque nele: o modal abre com o cursor na descrição. O botão **Abrir O.S. corretiva** só acende com a descrição preenchida e um horímetro válido. Um horímetro menor que o atual mostra o erro em vermelho.
+3. Toque em **Abrir O.S. corretiva** e depois em **Cancelar**: nada acontece. Repita e confirme: aparece "O.S. nº X aberta", e a ficha volta mostrando **Em manutenção** com o número, o tipo e a descrição da O.S. O botão de relato some.
+4. Com uma máquina **Em campo**: o modal avisa "A máquina está em campo com…". Ao confirmar, a mensagem mostra as horas trabalhadas da saída encerrada.
+5. Na **web**, abra a lista de O.S.: a O.S. corretiva aparece aberta, com a descrição do app.
+
 ---
 
 ## 4. Problemas comuns
@@ -462,4 +525,5 @@ O botão **Imprimir etiqueta** abre uma **janela própria**, só com a etiqueta,
 | O Expo Go não abre o projeto (fica carregando) | O celular não alcança a porta 8081 | Mesma rede Wi-Fi, rede **privada** no Windows e porta 8081 liberada; ou `npx expo start --tunnel` |
 | A API mudou de endereço e o app não percebeu | O `.env` só é lido na partida | Pare e rode `npx expo start` de novo |
 | "Project is incompatible with this version of Expo Go" | Expo Go desatualizado | Atualize o Expo Go na loja (o projeto usa o SDK 57) |
+| O `tsc` diz que uma rota existente não existe (ex.: `'/maquina/[id]'`) | Os tipos de `.expo/types/router.d.ts` ficaram velhos depois de mover telas | Rode `npx expo start` uma vez: o Expo gera os tipos de novo |
 | `npm audit` mostra vulnerabilidades | Dependências das ferramentas de desenvolvimento do Expo | Não rode `npm audit fix --force`: ele troca versões fixadas pelo SDK e quebra o projeto. Use `npx expo install --fix` |
