@@ -10,8 +10,13 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaquinaService } from '../../../core/services/maquina.service';
 import { OrdemServicoService } from '../../../core/services/ordem-servico.service';
 import { TIPOS_OS, TipoOS } from '../../../core/models/ordem-servico';
+import { Maquina } from '../../../core/models/maquina';
+import { AcoesMaquina } from '../acoes-maquina';
 import { AbastecimentoService } from '../../../core/services/abastecimento.service';
-import { etiquetaStatusAbastecimento, etiquetaStatusMaquina, etiquetaTipoOS } from '../../../core/ui/tons';
+import {
+  etiquetaStatusAbastecimento, etiquetaStatusMaquina, etiquetaTipoOS, rotuloStatusAbastecimento,
+} from '../../../core/ui/tons';
+import { resumoSemZeros } from '../../../core/ui/textos';
 import { conteudoDoQrDaMaquina } from '../../../core/qr';
 import { renderSVG } from 'uqr';
 
@@ -54,6 +59,43 @@ export class MaquinaDetalhe {
     this.maquinas.hasValue() ? this.maquinas.value().find(m => m.id === this.id()) : undefined,
   );
 
+  // ===== Ações (as mesmas da lista): o gestor resolve a máquina daqui, sem voltar à lista =====
+  private readonly acoes = inject(AcoesMaquina);
+
+  // A O.S. aberta, para o "Ver O.S." quando a máquina está na oficina
+  protected readonly osAberta = computed(() => this.ordens().find(os => os.status === 'Aberta') ?? null);
+
+  protected registrarSaida(maquina: Maquina): void {
+    this.acoes.registrarSaida(maquina).subscribe(() => this.carregar());
+  }
+
+  protected registrarRetorno(maquina: Maquina): void {
+    this.acoes.registrarRetorno(maquina).subscribe(() => this.carregar());
+  }
+
+  protected abrirOs(maquina: Maquina): void {
+    this.acoes.abrirOs(maquina).subscribe(() => this.carregar());
+  }
+
+  // Depois de uma ação mudam o status, o horímetro, as O.S. e o histórico
+  private carregar(): void {
+    this.maquinas.reload();
+    this.resumo.reload();
+    this.combustivel.reload();
+    this.movimentacoes.reload();
+  }
+
+  // ===== Saídas e retornos da máquina (antes só na tela de Movimentações) =====
+  protected readonly movimentacoes = rxResource({
+    params: () => this.id(),
+    stream: ({ params }) => this.maquinaService.listarMovimentacoes(params),
+  });
+
+  // As mais recentes primeiro; a tela mostra as 5 últimas
+  protected readonly ultimasMovimentacoes = computed(() =>
+    this.movimentacoes.hasValue() ? [...this.movimentacoes.value()].sort((a, b) => b.id - a.id).slice(0, 5) : [],
+  );
+
   // ===== Combustível (Etapa 4): consumo, custo e abastecimentos, calculados pela API =====
   private readonly abastecimentoService = inject(AbastecimentoService);
   protected readonly combustivel = rxResource({
@@ -70,14 +112,39 @@ export class MaquinaDetalhe {
 
   protected readonly ultimoAbastecimento = computed(() => this.abastecimentosRecentes()[0] ?? null);
 
-  // Quanto a máquina trabalhou desde o último abastecimento (horímetro atual - o do abastecimento)
+  // Quanto a máquina trabalhou desde o último abastecimento (horímetro atual - o do abastecimento).
+  // O horímetro da máquina só muda na saída e no retorno: se ela abasteceu DEPOIS do último retorno,
+  // o abastecimento tem horímetro maior e ainda não dá para saber (null; a tela explica).
   protected readonly horasDesdeUltimo = computed(() => {
     const ultimo = this.ultimoAbastecimento();
     const maquina = this.maquina();
-    return ultimo && maquina ? Math.max(0, maquina.horimetro - ultimo.horimetro) : null;
+    return ultimo && maquina && maquina.horimetro >= ultimo.horimetro ? maquina.horimetro - ultimo.horimetro : null;
   });
 
   protected readonly etiquetaStatusAbastecimento = etiquetaStatusAbastecimento;
+  protected readonly rotuloStatusAbastecimento = rotuloStatusAbastecimento;
+
+  // "1 aguardando conferência" (sem "e 0 em correção"): só o que existe
+  protected readonly resumoNaoConferidos = computed(() => {
+    const c = this.combustivel.hasValue() ? this.combustivel.value() : null;
+    return c
+      ? resumoSemZeros(
+          [
+            [c.pendentes, 'aguardando conferência', 'aguardando conferência'],
+            [c.emCorrecao, 'em correção', 'em correção'],
+          ],
+          '',
+        )
+      : '';
+  });
+
+  // "1 aberta e 2 fechadas" no lugar de "1 aberta(s) · 2 fechada(s)"
+  protected readonly resumoOrdens = computed(() => {
+    const r = this.resumo.hasValue() ? this.resumo.value() : null;
+    return r
+      ? resumoSemZeros([[r.abertas, 'aberta', 'abertas'], [r.fechadas, 'fechada', 'fechadas']], 'nenhuma ainda')
+      : '';
+  });
 
   // Etiqueta QR para colar na máquina (o app móvel lê e abre a ficha).
   // O uqr gera o QR como TEXTO SVG; virar "data URL" permite usar numa <img> comum, sem

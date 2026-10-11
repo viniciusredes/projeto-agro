@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { rxResource, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { finalize } from 'rxjs';
+import { filter, finalize, startWith, switchMap } from 'rxjs';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -12,16 +12,18 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MaquinaService } from '../../../core/services/maquina.service';
 import { OrdemServicoService } from '../../../core/services/ordem-servico.service';
-import { Maquina } from '../../../core/models/maquina';
+import { LimitesHorimetro, Maquina } from '../../../core/models/maquina';
 import { RespostaAberturaOS, TIPOS_OS, TipoOS } from '../../../core/models/ordem-servico';
 import { NAO_VAZIO } from '../../../core/validacao';
+import { validadoresDoHorimetro } from '../../../core/horimetro';
+import { AtalhosHorimetro } from '../../../shared/atalhos-horimetro/atalhos-horimetro';
 
 @Component({
   selector: 'app-abrir-os-dialog',
   imports: [
     DecimalPipe, ReactiveFormsModule,
     MatDialogModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatButtonToggleModule,
-    MatButtonModule, MatIconModule,
+    MatButtonModule, MatIconModule, AtalhosHorimetro,
   ],
   templateUrl: './abrir-os-dialog.html',
   styleUrl: './abrir-os-dialog.scss',
@@ -46,7 +48,7 @@ export class AbrirOsDialog {
     maquinaId: [this.maquinaInicial?.id ?? (null as number | null), Validators.required],
     tipo: ['Corretiva' as TipoOS, Validators.required],
     descricao: ['', [Validators.required, Validators.pattern(NAO_VAZIO)]],
-    horimetro: [this.maquinaInicial?.horimetro ?? 0, Validators.required],
+    horimetro: [null as number | null, Validators.required],
   });
 
   // O id escolhido no select, como signal (para alimentar o computed abaixo)
@@ -63,22 +65,27 @@ export class AbrirOsDialog {
 
   protected readonly salvando = signal(false);
 
-  constructor() {
-    // Validador dinâmico (mesmo padrão do Passo 10): o horímetro mínimo depende da máquina.
-    // Ao trocar a máquina, o campo recebe o horímetro atual dela e o novo "min".
-    this.form.controls.maquinaId.valueChanges
-      .pipe(takeUntilDestroyed())
-      .subscribe(id => {
-        const maquina = this.maquinas.hasValue() ? this.maquinas.value().find(m => m.id === id) : undefined;
-        if (maquina) {
-          this.aplicarHorimetroMinimo(maquina.horimetro);
-        }
-      });
+  // A faixa válida do horímetro da máquina escolhida (a mesma que a API aplica, Etapa 5)
+  protected readonly limites = signal<LimitesHorimetro | null>(null);
 
-    // Máquina já escolhida ao abrir (vinda da tela Máquinas): aplica a regra desde o início
-    if (this.maquinaInicial) {
-      this.aplicarHorimetroMinimo(this.maquinaInicial.horimetro);
-    }
+  constructor() {
+    // Validador dinâmico (mesmo padrão do Passo 10): a faixa do horímetro depende da máquina.
+    // startWith: a máquina já escolhida ao abrir (vinda da tela Máquinas) também busca os limites.
+    // switchMap: trocou de máquina antes da resposta? A busca anterior é cancelada.
+    this.form.controls.maquinaId.valueChanges
+      .pipe(
+        startWith(this.form.controls.maquinaId.value),
+        filter((id): id is number => id !== null),
+        switchMap(id => this.maquinaService.limitesDoHorimetro(id)),
+        takeUntilDestroyed(),
+      )
+      .subscribe(limites => this.aplicarLimites(limites));
+  }
+
+  // Botão rápido (+4 h...): preenche o campo como se o usuário tivesse digitado
+  protected escolherHorimetro(valor: number): void {
+    this.form.controls.horimetro.setValue(valor);
+    this.form.controls.horimetro.markAsTouched();
   }
 
   // Uma máquina já em manutenção não pode receber outra O.S. (a API responderia 409)
@@ -93,7 +100,7 @@ export class AbrirOsDialog {
     }
 
     const { maquinaId, tipo, descricao, horimetro } = this.form.getRawValue();
-    if (maquinaId === null) {
+    if (maquinaId === null || horimetro === null) {
       return; // não acontece com o formulário válido, mas deixa o TypeScript seguro do tipo
     }
 
@@ -109,10 +116,11 @@ export class AbrirOsDialog {
       });
   }
 
-  private aplicarHorimetroMinimo(minimo: number): void {
+  private aplicarLimites(limites: LimitesHorimetro): void {
+    this.limites.set(limites);
     const horimetro = this.form.controls.horimetro;
-    horimetro.setValidators([Validators.required, Validators.min(minimo)]);
-    horimetro.setValue(minimo); // começa preenchido com o horímetro atual da máquina
+    horimetro.setValidators(validadoresDoHorimetro(limites));
+    horimetro.setValue(null); // começa VAZIO: a leitura vem do painel da máquina, não do sistema
     horimetro.updateValueAndValidity();
   }
 }

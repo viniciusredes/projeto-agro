@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_URL } from '../api';
 import {
-  DadosNovaMaquina, DadosRetorno, DadosSaida, Maquina, Movimentacao, RespostaRetorno, RespostaSaida,
+  DadosNovaMaquina, DadosRetorno, DadosSaida, LimitesHorimetro, Maquina, Movimentacao, RespostaRetorno, RespostaSaida,
 } from '../models/maquina';
 
 
@@ -22,6 +22,11 @@ export class MaquinaService {
     // POST /api/maquinas -> cadastra uma máquina (a API responde 201 com a máquina criada)
   cadastrar(dados: DadosNovaMaquina): Observable<Maquina> {
     return this.http.post<Maquina>(this.url, dados);
+  }
+
+  // GET /api/maquinas/:id/horimetro -> mínimo e máximo aceitos para a próxima leitura (Etapa 5)
+  limitesDoHorimetro(id: number): Observable<LimitesHorimetro> {
+    return this.http.get<LimitesHorimetro>(`${this.url}/${id}/horimetro`);
   }
 
   // POST /api/maquinas/:id/saida -> registra a saída para o campo

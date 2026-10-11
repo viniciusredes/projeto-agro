@@ -1,0 +1,18 @@
+@let l = limites();
+<p class="faixa">
+  @if (l.maximo !== null) {
+    Entre <strong>{{ l.minimo | number: '1.0-1' }} h</strong> e <strong>{{ l.maximo | number: '1.0-1' }} h</strong>
+  } @else {
+    A partir de <strong>{{ l.minimo | number: '1.0-1' }} h</strong>
+  }
+  @if (l.origemMinimo) {
+    <span class="origem">(o mínimo vem do {{ l.origemMinimo }})</span>
+  }
+</p>
+
+<div class="atalhos" role="group" aria-label="Horas trabalhadas desde a última leitura">
+  @for (atalho of atalhos(); track atalho.valor) {
+    <!-- type="button": dentro de um <form>, um botão sem tipo ENVIARIA o formulário -->
+    <button mat-stroked-button type="button" (click)="escolher.emit(atalho.valor)">{{ atalho.rotulo }}</button>
+  }
+</div>

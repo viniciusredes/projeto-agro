@@ -110,6 +110,13 @@
   color: var(--agro-info-texto);
 }
 
+// Consumo longe da média: o tom de alerta das pendências (pares já validados nos dois temas)
+.comparacao--alerta {
+  margin-top: 8px;
+  background: var(--agro-alerta-fundo);
+  color: var(--agro-alerta-texto);
+}
+
 // "Conferir o próximo": alinhado à direita, como os botões de decisão (sem esticar no cartão)
 .decisao > a {
   align-self: flex-end;

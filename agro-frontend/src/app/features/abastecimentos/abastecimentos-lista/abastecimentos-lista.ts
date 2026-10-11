@@ -13,7 +13,7 @@ import { MaquinaService } from '../../../core/services/maquina.service';
 import {
   Abastecimento, ORIGENS_ABASTECIMENTO, OrigemAbastecimento, STATUS_ABASTECIMENTO, StatusAbastecimento,
 } from '../../../core/models/abastecimento';
-import { etiquetaOrigemAbastecimento, etiquetaStatusAbastecimento } from '../../../core/ui/tons';
+import { etiquetaOrigemAbastecimento, etiquetaStatusAbastecimento, rotuloStatusAbastecimento } from '../../../core/ui/tons';
 
 // Converte o texto da URL (?maquinaId=2) em número; valor ausente ou inválido = sem filtro
 function paraMaquinaId(valor: string | undefined): number | undefined {
@@ -107,6 +107,7 @@ export class AbastecimentosLista {
   );
 
   protected readonly etiquetaStatus = etiquetaStatusAbastecimento;
+  protected readonly rotuloStatus = rotuloStatusAbastecimento;
   protected readonly etiquetaOrigem = etiquetaOrigemAbastecimento;
 
   protected nomeDaMaquina(maquinaId: number): string {

@@ -184,6 +184,7 @@
   font-family: var(--mat-sys-headline-small-font);
   font-size: 30px;
   font-weight: 800;
+  line-height: 1.2; // sem isso, herda a altura de linha do texto comum e invade a nota de baixo
 }
 
 .barra {

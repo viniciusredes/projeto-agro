@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { EtiquetaAbastecimento } from '@/componentes/etiqueta-abastecimento';
 import { CombustivelMaquina } from '@/models/abastecimento';
 import { useTema } from '@/tema';
-import { formatarHoras, formatarReais } from '@/validacao';
+import { formatarHoras, formatarReais, horasDesdeAbastecimento } from '@/validacao';
 
 // Combustível na ficha da máquina (Etapa 4): quando foi o último abastecimento, quanto a máquina
 // trabalhou desde então e o consumo médio. Os números vêm da API (só os aprovados contam).
@@ -11,7 +11,7 @@ export function CartaoCombustivel({ combustivel, horimetroAtual }: { combustivel
 
   // O último que vale (os recusados ficam de fora), pelo número: o mais recente
   const ultimo = [...combustivel.abastecimentos].filter(ab => ab.status !== 'Recusado').sort((a, b) => b.id - a.id)[0];
-  const horasDesde = ultimo ? Math.max(0, horimetroAtual - ultimo.horimetro) : null;
+  const horasDesde = ultimo ? horasDesdeAbastecimento(horimetroAtual, ultimo.horimetro) : null;
 
   return (
     <View style={[estilos.cartao, { backgroundColor: tema.cartao, borderColor: tema.borda }]}>
@@ -30,9 +30,14 @@ export function CartaoCombustivel({ combustivel, horimetroAtual }: { combustivel
             {formatarHoras(ultimo.litros)} L · {ultimo.origem === 'Tanque' ? 'tanque da fazenda' : ultimo.posto} · com{' '}
             {formatarHoras(ultimo.horimetro)} h
           </Text>
-          {horasDesde !== null && (
+          {horasDesde !== null ? (
             <Text style={[estilos.texto, { color: tema.texto, fontWeight: '700' }]}>
               {formatarHoras(horasDesde)} h trabalhadas desde então
+            </Text>
+          ) : (
+            // Abasteceu depois do último retorno: as horas aparecem quando a máquina voltar
+            <Text style={[estilos.dica, { color: tema.textoSuave }]}>
+              Abastecida depois do último retorno: as horas desde então aparecem no próximo retorno.
             </Text>
           )}
         </>

@@ -82,7 +82,7 @@ agro-mobile/
     ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
     ├── validacao.ts    # regras de formulário em funções puras (ex.: horímetro)
     ├── qr.ts           # formato do QR da etiqueta (contrato com a web)
-    ├── componentes/    # peças reutilizáveis (etiqueta de status, câmera, galeria, aviso, escolha segmentada, seletor de tema)
+    ├── componentes/    # peças reutilizáveis (etiqueta de status, câmera, galeria, aviso, escolha segmentada, seletor de tema, atalhos do horímetro)
     ├── contextos/      # valores compartilhados entre telas (o operador, a preferência de tema)
     ├── hooks/          # lógica reutilizável com estado (ex.: useRequisicao)
     ├── models/         # tipos copiados do front web (o contrato da API)
@@ -735,7 +735,7 @@ export function EscolhaSegmentada<T extends string>({ opcoes, valor, aoEscolher,
 </Modal>
 ```
 
-**O horímetro mínimo vem da mesma regra da API**: o maior entre o da máquina e o do último abastecimento não recusado (`buscarDadosParaAbastecer`, em `src/servicos/abastecimentos.ts`, com `Promise.all`).
+**O horímetro mínimo vem da mesma regra da API**: o maior entre o da máquina e o do último abastecimento não recusado (`buscarDadosParaAbastecer`, em `src/servicos/abastecimentos.ts`, com `Promise.all`). *(Na Etapa 5, J6, o app deixou de calcular: pergunta a faixa à API em `GET /maquinas/:id/horimetro`, que também traz um máximo.)*
 
 **Funções puras novas** em `src/validacao.ts`: `validarPositivo` (litros e valor pago, com vírgula) e `formatarReais` (`R$ 746,30`; com 3 casas para o preço do litro, `R$ 6,193`).
 
@@ -855,6 +855,53 @@ function Formulario({ dados }: { dados: DadosParaAbastecer }) {
 1. Abra a ficha de uma máquina com abastecimentos: o cartão mostra o último, as horas desde então e o consumo (ou "Sem dados").
 2. Registre um retorno com o horímetro maior e volte à ficha: as horas desde o último abastecimento aumentam.
 3. Registre um abastecimento: ao voltar, ele aparece como o último, com a etiqueta "Aguardando conferência".
+
+---
+
+## Etapa 5 — Jornada do usuário
+
+Revisão das telas reais do operador (capturas pelo Expo web). Detalhes de cada passo no [CHECKLIST](../CHECKLIST.md).
+
+### J4 — Horímetro do abastecimento explicado
+
+🎯 Uma máquina abastecida **depois** do último retorno tem um abastecimento com horímetro maior que o da ficha (o abastecimento não muda o horímetro da máquina). O cartão Combustível mostrava "0 h trabalhadas desde então", o que confundia.
+
+🧩 A função pura `horasDesdeAbastecimento(horimetroMaquina, horimetroAbastecimento)`, em `validacao.ts`, devolve `null` nesse caso, e o cartão explica: "Abastecida depois do último retorno: as horas desde então aparecem no próximo retorno."
+
+🧪 **Testes:** abasteça uma máquina com horímetro maior que o da ficha e volte à ficha: o cartão mostra a explicação em vez de "0 h".
+
+### J6 — Horímetro travado, com a faixa e botões rápidos
+
+🎯 Dois erros que passavam: voltar com um horímetro **abaixo** de um abastecimento feito em campo, e digitar um **zero a mais** ("10000" no lugar de "1000"). Agora a API tem mínimo e máximo ([Parte H1 do back-end](../agro-backend/README.md)), e o app mostra a faixa antes de enviar.
+
+🧩 **1. A faixa vem da API:** `buscarLimitesHorimetro(id)` (`GET /maquinas/:id/horimetro`) responde `{ minimo, origemMinimo, maximo }`. A ficha busca no mesmo `Promise.all` (agora com cinco chamadas), e o registro de abastecimento também usa os limites dela.
+
+**2. Uma função pura para a regra** (`validacao.ts`):
+
+```ts
+validarHorimetroNaFaixa('1020', { minimo: 1050, origemMinimo: 'abastecimento nº 5', maximo: 1074.5 })
+// -> { valido: false, erro: 'Não pode ser menor que 1.050 h (abastecimento nº 5).' }
+validarHorimetroNaFaixa('10500', ...)  // -> 'Passa do máximo possível (1.074,5 h). Confira o painel da máquina.'
+```
+
+Usada no retorno, na avaria e no registro de abastecimento. A correção de um devolvido continua com `validarHorimetroEntre` (entre o abastecimento anterior e o seguinte).
+
+**3. Botões rápidos no lugar de um seletor:** o componente `AtalhosHorimetro` (`src/componentes/atalhos-horimetro.tsx`) mostra a faixa ("Entre 1.050 h e 1.074,5 h", e de onde vem o mínimo) e os botões **+1 h**, **+4 h** e **+8 h**, que somam ao mínimo e não passam do máximo (`atalhosDoHorimetro`). Os botões têm 48 dp de altura, para tocar com luva. O valor vai para o campo com vírgula ("1058,5"), como se o operador tivesse digitado.
+
+**4. O campo começa vazio** ("Leia no painel da máquina"): preenchido com o mínimo, era fácil confirmar sem olhar o painel.
+
+**5. As horas da saída continuam certas:** no retorno, o mínimo pode vir de um abastecimento, mas as "horas trabalhadas nesta saída" contam a partir do horímetro da **saída**.
+
+📚 **Conceitos**
+- **A regra mora na API:** o app pergunta a faixa em vez de recalcular. Se a regra mudar, o app acompanha sem mudar código.
+- **Teclado + atalhos > seletor de rolagem:** para números como 1.012,5, uma roda de dígitos é lenta e difícil com luva. O teclado numérico fica, e os atalhos cobrem o caso comum ("trabalhei umas 8 h").
+- **Campo vazio é diferente de erro:** `Number('')` vale 0, que é "menor que o mínimo". A validação só mostra mensagem depois que o operador digita (`erro: null` = vazio).
+
+🧪 **Testes**
+1. Dê saída numa máquina e registre um abastecimento com horímetro maior. Na ficha, o retorno mostra "o mínimo vem do abastecimento nº …".
+2. Digite um valor abaixo desse mínimo: erro em vermelho, com o número do abastecimento.
+3. Digite um zero a mais: "Passa do máximo possível".
+4. Toque em **+8 h**: o campo é preenchido e aparecem as horas trabalhadas nesta saída.
 
 ---
 

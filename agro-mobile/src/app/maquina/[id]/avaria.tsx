@@ -9,7 +9,8 @@ import { useRequisicao } from '@/hooks/use-requisicao';
 import { buscarFicha } from '@/servicos/maquinas';
 import { abrirOS } from '@/servicos/ordens-servico';
 import { useTema } from '@/tema';
-import { formatarHoras, validarHorimetro } from '@/validacao';
+import { formatarHoras, validarHorimetroNaFaixa } from '@/validacao';
+import { AtalhosHorimetro } from '@/componentes/atalhos-horimetro';
 
 // Relatar avaria: abre uma O.S. CORRETIVA para a máquina (/maquina/1/avaria).
 // Rota ANINHADA: o arquivo fica em maquina/[id]/, então o mesmo [id] da ficha vale aqui.
@@ -40,10 +41,10 @@ export default function RelatarAvaria() {
     );
   }
 
-  const { maquina, saidaAberta } = dados;
+  const { maquina, saidaAberta, limites } = dados;
 
-  // A mesma validação do retorno (M4): reaproveitar a função pura, não copiar a regra
-  const resultado = validarHorimetro(horimetro, maquina.horimetro);
+  // A mesma validação do retorno: a faixa da API (Etapa 5), na mesma função pura
+  const resultado = validarHorimetroNaFaixa(horimetro, limites);
   const valido = descricao.trim().length > 0 && resultado.valido;
 
   // Ação que TIRA a máquina de operação: confirma antes, dizendo o que vai acontecer
@@ -150,7 +151,7 @@ export default function RelatarAvaria() {
         <TextInput
           value={horimetro}
           onChangeText={setHorimetro}
-          placeholder={`Mínimo ${formatarHoras(maquina.horimetro)}`}
+          placeholder="Leia no painel da máquina"
           placeholderTextColor={tema.textoSuave}
           keyboardType="decimal-pad"
           accessibilityLabelledBy="rotulo-horimetro-avaria"
@@ -168,6 +169,7 @@ export default function RelatarAvaria() {
             {resultado.erro}
           </Text>
         )}
+        <AtalhosHorimetro limites={limites} aoEscolher={setHorimetro} />
 
         <Pressable
           onPress={confirmar}

@@ -10,14 +10,10 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaquinaService } from '../../../core/services/maquina.service';
 import { OrdemServicoService } from '../../../core/services/ordem-servico.service';
-import { Maquina, RespostaRetorno, RespostaSaida, StatusMaquina } from '../../../core/models/maquina';
-import { RespostaAberturaOS } from '../../../core/models/ordem-servico';
+import { Maquina, StatusMaquina } from '../../../core/models/maquina';
 import { etiquetaStatusMaquina } from '../../../core/ui/tons';
-import { SaidaDialog } from '../saida-dialog/saida-dialog';
-import { RetornoDialog } from '../retorno-dialog/retorno-dialog';
 import { NovaMaquinaDialog } from '../nova-maquina-dialog/nova-maquina-dialog';
-import { AbrirOsDialog } from '../../ordens-servico/abrir-os-dialog/abrir-os-dialog';
-import { mensagemAberturaOS } from '../../ordens-servico/mensagens';
+import { AcoesMaquina } from '../acoes-maquina';
 
 // Os filtros rápidos: um por situação, na ordem em que aparecem
 const SITUACOES: StatusMaquina[] = ['Disponível', 'Em Operação', 'Em Manutenção'];
@@ -52,6 +48,7 @@ export class MaquinasLista {
   private readonly osService = inject(OrdemServicoService);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly acoes = inject(AcoesMaquina);
   private readonly router = inject(Router);
   private readonly rota = inject(ActivatedRoute);
 
@@ -146,45 +143,17 @@ export class MaquinasLista {
       });
   }
 
-  // Abre a O.S. com a máquina JÁ escolhida (o mesmo diálogo da tela de O.S., reaproveitado)
+  // Saída, retorno e abertura de O.S.: o diálogo e o aviso ficam no AcoesMaquina (também usado
+  // pelo detalhe da máquina); aqui só recarregamos a lista quando a ação deu certo
   protected abrirOs(maquina: Maquina): void {
-    this.dialog
-      .open<AbrirOsDialog, Maquina, RespostaAberturaOS>(AbrirOsDialog, { data: maquina, width: '520px' })
-      .afterClosed()
-      .subscribe(resposta => {
-        if (resposta) {
-          this.snackBar.open(mensagemAberturaOS(resposta), 'OK', { duration: 6000 });
-          this.carregar(); // a máquina foi para "Em Manutenção"
-        }
-      });
+    this.acoes.abrirOs(maquina).subscribe(() => this.carregar()); // a máquina foi para "Em Manutenção"
   }
 
-  // Abre o diálogo de saída; se a saída for registrada, avisa e recarrega a lista
   protected abrirSaida(maquina: Maquina): void {
-    this.dialog
-      .open<SaidaDialog, Maquina, RespostaSaida>(SaidaDialog, { data: maquina, width: '440px' })
-      .afterClosed()
-      .subscribe(resposta => {
-        // resposta é undefined quando o usuário cancela
-        if (resposta) {
-          this.snackBar.open(resposta.mensagem, 'OK', { duration: 4000 });
-          this.carregar();
-        }
-      });
+    this.acoes.registrarSaida(maquina).subscribe(() => this.carregar());
   }
 
-  // Abre o diálogo de retorno; se o retorno for registrado, mostra as horas e recarrega a lista
   protected abrirRetorno(maquina: Maquina): void {
-    this.dialog
-      .open<RetornoDialog, Maquina, RespostaRetorno>(RetornoDialog, { data: maquina, width: '440px' })
-      .afterClosed()
-      .subscribe(resposta => {
-        if (resposta) {
-          // Fora do template não há pipe: toLocaleString formata no padrão brasileiro (11,5)
-          const horas = resposta.movimentacao.horasTrabalhadas?.toLocaleString('pt-BR');
-          this.snackBar.open(`${resposta.mensagem} Horas trabalhadas: ${horas} h`, 'OK', { duration: 5000 });
-          this.carregar();
-        }
-      });
+    this.acoes.registrarRetorno(maquina).subscribe(() => this.carregar());
   }
 }

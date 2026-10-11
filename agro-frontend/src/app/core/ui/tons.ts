@@ -54,6 +54,19 @@ export function etiquetaStatusAbastecimento(status: StatusAbastecimento): string
   return `etiqueta--${TOM_STATUS_ABASTECIMENTO[status]}`;
 }
 
+// Glossário do status do abastecimento: o MESMO texto do app (agro-mobile/src/componentes/
+// etiqueta-abastecimento.tsx). Só "Em correção" muda lá ("Corrigir"), porque lá a vez é do operador.
+const ROTULO_STATUS_ABASTECIMENTO: Record<StatusAbastecimento, string> = {
+  Pendente: 'Aguardando conferência',
+  'Em correção': 'Em correção',
+  Aprovado: 'Aprovado',
+  Recusado: 'Recusado',
+};
+
+export function rotuloStatusAbastecimento(status: StatusAbastecimento): string {
+  return ROTULO_STATUS_ABASTECIMENTO[status];
+}
+
 export function etiquetaOrigemAbastecimento(origem: OrigemAbastecimento): string {
   return `etiqueta--${TOM_ORIGEM_ABASTECIMENTO[origem]}`;
 }

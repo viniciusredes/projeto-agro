@@ -45,7 +45,7 @@
     </button>
     <button type="button" class="chip" [class.chip--ativo]="status() === 'Pendente'" [attr.aria-pressed]="status() === 'Pendente'" (click)="filtrarStatus('Pendente')">
       <span class="chip__ponto" aria-hidden="true"></span>
-      Pendentes · {{ totais().pendentes }}
+      Aguardando conferência · {{ totais().pendentes }}
     </button>
     <button type="button" class="chip" [class.chip--ativo]="status() === 'Em correção'" [attr.aria-pressed]="status() === 'Em correção'" (click)="filtrarStatus('Em correção')">
       Em correção · {{ totais().emCorrecao }}
@@ -156,7 +156,7 @@
             <span class="ab-linha__detalhe">{{ ab.operador }} · {{ ab.origem === 'Tanque' ? 'Tanque' : ab.posto }}</span>
             <span class="numero">{{ ab.litros | number: '1.0-1' }} L</span>
             <strong class="numero">{{ ab.valorTotal | currency }}</strong>
-            <span><span class="etiqueta" [class]="etiquetaStatus(ab.status)">{{ ab.status }}</span></span>
+            <span><span class="etiqueta" [class]="etiquetaStatus(ab.status)">{{ rotuloStatus(ab.status) }}</span></span>
             <span class="ab-linha__detalhe">{{ ab.dataConferencia | date: 'dd/MM HH:mm' }}</span>
             @if (ab.status === 'Recusado' && ab.motivoRecusa) {
               <span class="ab-linha__motivo">Motivo: {{ ab.motivoRecusa }}</span>

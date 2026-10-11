@@ -1039,3 +1039,77 @@ Content-Type: application/json
   "posto": "Posto Boa Vista",
   "valorTotal": 660
 }
+
+# =====================================================================
+#  LIMITES DO HORÍMETRO (Parte H1, Etapa 5) — máquina nova, a nº 4
+#  Mínimo: a maior leitura (máquina ou abastecimento não recusado).
+#  Máximo: o mínimo + as horas desde a última leitura + 24 h de folga.
+# =====================================================================
+
+### H1 — Máquina nova com 100 h
+# Esperado: 201, "id": 4
+POST {{baseUrl}}/maquinas
+Content-Type: application/json
+
+{
+  "tag": "HZ-04",
+  "modelo": "Trator",
+  "horimetro": 100
+}
+
+### H2 — Limites sem nenhuma leitura com data
+# Esperado: 200, "maximo": null
+GET {{baseUrl}}/maquinas/4/horimetro
+
+### Preparação — saída da HZ-04
+POST {{baseUrl}}/maquinas/4/saida
+Content-Type: application/json
+
+{
+  "operador": "Ana",
+  "frenteTrabalho": "Talhão 9"
+}
+
+### H4 — Limites depois da saída
+# Esperado: 200, "minimo": 100, "maximo": 124 (100 + 24 h de folga)
+GET {{baseUrl}}/maquinas/4/horimetro
+
+### H5 — Abastecimento em campo com 110 h
+# Esperado: 201
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 4,
+  "operador": "Ana",
+  "origem": "Tanque",
+  "litros": 40,
+  "horimetro": 110
+}
+
+### H7 — Retorno abaixo do abastecimento feito em campo
+# Esperado: 400, "é menor que o último registrado (110) no abastecimento nº ..."
+POST {{baseUrl}}/maquinas/4/retorno
+Content-Type: application/json
+
+{
+  "horimetro": 105
+}
+
+### H8 — Retorno com um zero a mais
+# Esperado: 400, "é maior que o máximo possível"
+POST {{baseUrl}}/maquinas/4/retorno
+Content-Type: application/json
+
+{
+  "horimetro": 1100
+}
+
+### H10 — Retorno dentro dos limites
+# Esperado: 200, "horasTrabalhadas": 12
+POST {{baseUrl}}/maquinas/4/retorno
+Content-Type: application/json
+
+{
+  "horimetro": 112
+}

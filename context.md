@@ -64,6 +64,15 @@ O escopo do MVP foi intencionalmente reduzido para focar em três pilares essenc
 - **Consumo médio:** litros abastecidos depois do primeiro aprovado ÷ horas entre o primeiro e o último (o primeiro é o ponto de partida); `null` ("sem dados") com menos de 2 aprovados.
 - **Estorno e ajustes como movimentos de entrada** no kardex, com `abastecimentoId` (um tipo novo quebraria o kardex da web).
 
+**Decisões da Etapa 5 (jornada do usuário):**
+- **Revisão pelas telas reais, não pela documentação:** as melhorias foram confirmadas com capturas (web e app pelo Expo web, nos dois temas); cinco ideias já existiam e saíram da lista.
+- **Mesmo glossário de status no app e na web:** `Pendente` aparece como "Aguardando conferência" nos dois; só "Em correção" muda no app ("Corrigir"), porque lá a vez é do operador.
+- **O abastecimento continua sem alterar o horímetro da máquina:** a tela passou a explicar a diferença (abastecida depois do último retorno) em vez de mostrar "0 h".
+- **Horímetro travado nos dois lados (J6, pedido do usuário):** mínimo = a maior leitura conhecida (máquina ou abastecimento não recusado; o pendente conta, e o gestor pode devolver um errado); máximo = mínimo + horas desde a última leitura + 24 h de folga (pega o zero a mais e tolera o registro atrasado). A regra fica numa função da API, usada pelo retorno, pela O.S. e pelo abastecimento, e é exposta em `GET /maquinas/:id/horimetro` para as telas.
+- **Sem seletor de rolagem para o horímetro:** teclado numérico, a faixa válida embaixo do campo e botões rápidos (+1, +4, +8 h a partir do mínimo). O campo começa vazio, para a leitura vir do painel da máquina e não do sistema.
+- **Consumo fora da média:** a conferência avisa quando o consumo sugerido fica mais de 30% acima ou abaixo da média aprovada da máquina; o gestor decide, o sistema não bloqueia.
+- **Ações da máquina num service (`AcoesMaquina`):** saída, retorno e abertura de O.S. servem à lista e ao detalhe sem código repetido.
+
 - **Dinâmica do treinamento:** nas Fases 0 a 2, o usuário escreveu o código com orientação; da Fase 3 em diante, o Claude implementou com edições visíveis para os alunos, e o usuário fez os commits. Um commit por passo, com o acompanhamento no `CHECKLIST.md`.
 
 ## 4. O Que Já Foi Implementado
@@ -143,9 +152,13 @@ Atravessa as três partes (passos A1 a A9, detalhes no CHECKLIST e nos READMEs):
 - **App:** registrar abastecimento na ficha (posto ou tanque, preço por litro ao vivo, foto do recibo pela câmera), "Meus abastecimentos" na página inicial com o status e o motivo, correção do abastecimento devolvido (formulário já preenchido) e o cartão Combustível na ficha (último abastecimento, horas desde então, consumo).
 - **Web:** lista de abastecimentos com contador de pendentes no menu e pendência no Painel; conferência com o recibo grande, a comparação com o abastecimento anterior e as três decisões; seção Combustível no detalhe da máquina; kardex com a origem dos movimentos do diesel. 38 testes unitários.
 
+### Atualização: Etapa 5 (jornada do usuário) em andamento
+
+Passos J1 a J6 (branch `feat/jornada`, detalhes no CHECKLIST): textos do Painel e do detalhe da máquina sem sobreposição, sem zeros e com plural certo; glossário de status igual ao do app; ações e "Saídas e retornos" no detalhe da máquina; horímetro do abastecimento explicado na web e no app; consumo comparado à média na conferência; horímetro travado com mínimo e máximo (Parte H1 da API, `GET /maquinas/:id/horimetro`) e botões rápidos na web e no app. 49 testes na web, 171 cenários na API.
+
 ## 5. O Que Ficou Pendente / Próximos Passos Combinados
 
-> **Status:** a **Etapa 1 (back-end em memória)**, a **Etapa 2 (front-end Angular)**, a **Etapa 3 (app móvel do operador)** e a **Etapa 4 (gestão de abastecimento)** estão concluídas. O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
+> **Status:** a **Etapa 1 (back-end em memória)**, a **Etapa 2 (front-end Angular)**, a **Etapa 3 (app móvel do operador)** e a **Etapa 4 (gestão de abastecimento)** estão concluídas. A **Etapa 5 (jornada do usuário)** está em andamento na branch `feat/jornada` (J1 a J6 implementados, aguardando teste e commit). O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
 
 - **Redesign do front-end (concluído e mergeado na `main` pelo PR #3):** Passo 16 (16.2 confirmação antes de fechar a O.S.; 16.3 responsividade com navegação inferior no celular) e R5.1 a R5.4 (identidade com menu verde-escuro e contador de O.S., Painel com pendências e ações diretas, Máquinas com filtros e cartões, fechamento de O.S. com etapas e resumo), a partir do canvas de design aprovado.
 - **Redesign 2 (mergeado na `main` pelo PR #4):** R6.1 paleta escura revista (menu verde-floresta, camadas mais distintas, verde-menta mais calmo), R6.2 Estoque no padrão do redesign (barra de nível do saldo, filtro para repor) e R6.3 lista de O.S. com cada O.S. inteira como link (abertas em cartões, fechadas em lista).

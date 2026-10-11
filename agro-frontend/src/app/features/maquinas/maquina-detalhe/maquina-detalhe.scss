@@ -23,6 +23,63 @@
   color: var(--mat-sys-on-surface-variant);
 }
 
+// Ações à direita do cabeçalho (o .cabecalho global quebra a linha quando não cabem)
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+  align-self: center;
+}
+
+// ===== Saídas e retornos: o mesmo visual da lista de abastecimentos, sem link =====
+.uso {
+  margin-bottom: 24px;
+}
+
+.uso__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: 100px minmax(0, 1fr) 70px 140px;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 14px;
+    border: 1px solid var(--agro-borda);
+    border-radius: 12px;
+  }
+}
+
+.uso__data,
+.uso__detalhe {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.9em;
+}
+
+.uso__avaria {
+  display: block;
+  color: var(--agro-alerta-texto);
+  font-size: 0.9em;
+}
+
+// Celular: quem/onde e as horas (as datas ficam na tela de Movimentações)
+@media (max-width: 767.98px) {
+  .uso__lista li {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+
+    .uso__data,
+    .uso__detalhe {
+      display: none;
+    }
+  }
+}
+
 // ===== Indicadores (stat tiles) =====
 .indicadores {
   display: grid;
@@ -96,7 +153,7 @@
 
   a {
     display: grid;
-    grid-template-columns: 100px minmax(0, 1fr) minmax(0, 1.4fr) 110px 120px;
+    grid-template-columns: 100px minmax(0, 1fr) minmax(0, 1.4fr) 110px 170px; // 170px: "Aguardando conferência" numa linha
     gap: 12px;
     align-items: center;
     padding: 10px 14px;

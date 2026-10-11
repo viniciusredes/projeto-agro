@@ -136,6 +136,22 @@ Branch `feat/abastecimento`. O operador **registra** o abastecimento no app (pos
 
 ---
 
+## Etapa 5 — Jornada do usuário 🚧
+
+Branch `feat/jornada`. Revisão da jornada do operador (app) e do gestor (web) com capturas das telas reais (web a 1366 px e celular emulado; app pelo Expo web), nos dois temas. Cinco melhorias imaginadas já existiam (ação certa na ficha, retorno a partir de "Com você agora", "1 para corrigir", O.S. na ficha, entrada direto do Painel); os passos abaixo atacam o que as capturas revelaram.
+
+- [x] **J1 · Web** — Textos: "R$ 0,00" do Painel invadia a nota de baixo (`line-height` herdado); "0 aberta(s) · 0 fechada(s)" e "1 aguardando conferência e 0 em correção" viram frases sem zeros e com plural certo (`core/ui/textos.ts`: `contagem` e `resumoSemZeros`, com 3 testes); "dados ao lado" na conferência (no celular ficam abaixo) vira "dados informados"
+- [x] **J2 · Web** — Mesmos nomes de status do app: `rotuloStatusAbastecimento` em `core/ui/tons.ts` (Pendente → "Aguardando conferência") nas etiquetas do detalhe da máquina, da conferência e da lista, e no filtro
+- [x] **J3 · Web** — Detalhe da máquina com as ações do dia a dia (Registrar saída/retorno, Abrir O.S., Ver O.S.) e a seção **Saídas e retornos** (as 5 últimas, com operador, frente, horas e avaria); os diálogos saíram da lista para o service `AcoesMaquina`, usado pelas duas telas
+- [x] **J4 · Web e app** — Horímetro: com um abastecimento depois do último retorno (horímetro maior que o da máquina), "0 h trabalhadas desde então" vira a explicação de que as horas aparecem no próximo retorno (`horasDesdeAbastecimento` no app); o formulário do app explica por que o mínimo é maior que o horímetro da ficha
+- [x] **J5 · Web** — Conferência compara o consumo sugerido com a **média aprovada** da máquina: perto da média, uma frase; mais de 30% acima ou abaixo, um aviso de alerta com a diferença (`features/abastecimentos/consumo.ts`, `compararComMedia`, com 3 testes)
+
+- [x] **J6 · API, web e app** — Horímetro travado (Parte H1). **API:** `limitesDoHorimetro` e `erroDoHorimetro` usados pelo retorno, pela abertura de O.S. e pelo registro de abastecimento; mínimo = a maior leitura (máquina ou abastecimento não recusado, pendente conta), máximo = mínimo + horas desde a última leitura + 24 h de folga; rota `GET /maquinas/:id/horimetro`; 12 cenários novos (H1 a H12), 171 no total. **Web:** `core/horimetro.ts` (validadores e botões rápidos, 3 testes) e `shared/atalhos-horimetro` nos diálogos de retorno e de abrir O.S. (campo vazio, faixa e +1/+4/+8 h; 2 testes novos no retorno). **App:** `validarHorimetroNaFaixa` e `atalhosDoHorimetro` em `validacao.ts`, componente `AtalhosHorimetro` (botões de 48 dp) no retorno, na avaria e no registro de abastecimento; horas trabalhadas continuam contando da saída
+
+Web: build sem avisos (606 kB), 49 testes passando. App: `tsc` e `expo lint` sem problemas. API: 171 cenários passando. Telas conferidas por captura (J1 a J5). · *commit pendente (o hash entra aqui depois do commit)*
+
+---
+
 ## Pendências e decisões em aberto
 
 - [x] **Cadastro de máquinas** — decidido: **entra no sistema** (Passos 8.1 e 8.2).
@@ -144,3 +160,5 @@ Branch `feat/abastecimento`. O operador **registra** o abastecimento no app (pos
 - [x] **Budget do pacote inicial** — resolvido no Passo 19: 685,6 → 603,5 kB (o menu `mat-nav-list` trazia o `@angular/forms` para o carregamento inicial); aviso do budget reduzido para 650 kB.
 - [x] **Migrar services para `@Service()`** — feito no Passo 20 nos quatro services (`MaquinaService`, `PecaService`, `OrdemServicoService` e `TemaService`); build e testes continuam passando · `00eee59`
 - [x] **Testes unitários** — resolvido no Passo 18 (34 testes passando; o teste revelou e corrigiu o `matchMedia` sem verificação no `TemaService`).
+- [x] **Retorno × abastecimento** — decidido: o retorno (e a abertura de O.S.) exige horímetro ≥ o último abastecimento não recusado, pendente incluído, e ganha um limite de cima pelo tempo que passou (J6)
+- [ ] **Jornada, próximos candidatos** (da revisão da Etapa 5): preventiva por horímetro com alerta no Painel; tela "Editar máquina" (`PATCH`); Abastecimentos na navegação inferior da web no celular; atalhos de teclado na conferência; operadores escolhidos de uma lista no app (nome digitado livremente quebra "Com você agora"); sugestões de frente e posto; rascunho preservado quando o envio falha; app sem o nome salvo (ficha com "Operador:" vazio e botão desabilitado sem explicação); "conferido por"; exportar CSV.

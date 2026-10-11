@@ -95,6 +95,7 @@ Tudo fica num único `server.ts` de propósito, para facilitar o aprendizado. A 
 | `POST` | `/maquinas/:id/saida` | Registra a saída da máquina para o campo |
 | `POST` | `/maquinas/:id/retorno` | Registra o retorno, o horímetro e as avarias |
 | `GET` | `/movimentacoes` | Lista o histórico (filtro opcional `?maquinaId=`) |
+| `GET` | `/maquinas/:id/horimetro` | A faixa válida para a próxima leitura: `minimo`, `origemMinimo` e `maximo` (Parte H1) |
 
 ### Módulo de Estoque
 
@@ -1662,7 +1663,7 @@ Depois da correção, a devolução em aberto ganha a data `corrigidaEm`, e o st
 - **`PUT` para alterar:** `POST` cria um recurso novo; `PUT /abastecimentos/:id` altera aquele que já existe. A correção mantém o mesmo número, a mesma data de registro e o histórico.
 - **Campos imutáveis:** nem tudo pode ser corrigido. Trocar a origem mudaria o estoque e o significado do registro; a API recusa e explica o caminho certo.
 - **Ajuste pela diferença:** o kardex nunca apaga linhas. Uma correção de 50 L para 30 L gera uma entrada de 20 L, e o histórico mostra a saída original e o ajuste.
-- **Limites dos dois lados:** num registro novo, o horímetro só tem limite de baixo. Na correção de um abastecimento antigo, ele também não pode passar o do abastecimento seguinte.
+- **Limites dos dois lados:** num registro novo, o horímetro só tem limite de baixo. Na correção de um abastecimento antigo, ele também não pode passar o do abastecimento seguinte. (A Parte H1 acrescentou um limite de cima também no registro.)
 
 🧪 **Testes**
 
@@ -1673,11 +1674,43 @@ curl -X PUT http://localhost:3000/abastecimentos/1 -H "Content-Type: application
 curl http://localhost:3000/abastecimentos/1                                              # "devolucoes" com "corrigidaEm"
 ```
 
+### Parte H1 — Limites do horímetro (Etapa 5)
+
+🎯 Dois buracos na validação do horímetro: (1) uma máquina que abasteceu **em campo** com 1050 h podia voltar com 1020 h, porque o retorno só olhava o horímetro da saída; (2) nada impedia um **zero a mais** ("10000" no lugar de "1000"), que estraga as horas trabalhadas e o consumo médio. Agora o retorno, a abertura de O.S. e o registro de abastecimento usam **uma regra só**.
+
+🧩 **1. A regra numa função** (`limitesDoHorimetro(maquina)`):
+
+| Limite | Como é calculado |
+|---|---|
+| **Mínimo** | a maior leitura conhecida: o horímetro da máquina ou o de um abastecimento dela **não recusado** (pendente também conta; o gestor pode devolver um que esteja errado) |
+| **Máximo** | o mínimo + as horas que passaram desde a **última leitura** (saída, retorno, abertura de O.S. ou abastecimento) + **24 h** de folga |
+
+A folga cobre o registro feito com atraso e o relógio do celular adiantado, e ainda pega o zero a mais. Máquina recém-cadastrada, sem nenhuma leitura com data, fica sem máximo (`null`).
+
+**2. A mensagem diz de onde vem o limite** (`erroDoHorimetro`): "é menor que o último registrado (110) no abastecimento nº 6"; "é maior que o máximo possível (124): ... Confira o painel."
+
+**3. Rota nova para as telas** (`GET /maquinas/:id/horimetro`): devolve `{ minimo, origemMinimo, maximo }`. O app e a web mostram a faixa **antes** de enviar, sem copiar a regra.
+
+**4. O abastecimento continua sem alterar o horímetro da máquina** (quem faz isso são a saída e o retorno). A leitura dele só entra no mínimo. Assim, recusar ou corrigir um abastecimento não obriga a desfazer nada na máquina.
+
+📚 **Conceitos**
+- **Uma regra, um lugar:** três rotas com a mesma validação chamam a mesma função. Mudou a regra, muda num lugar só.
+- **Limite por plausibilidade:** o tempo do relógio é um limite físico (a máquina não trabalha mais horas do que as que passaram) e pega erros de digitação que o "nunca anda para trás" não pega.
+- **Expor a regra numa rota:** as telas perguntam a faixa à API em vez de calculá-la. A API continua a autoridade; a tela só avisa antes.
+
+🧪 **Testes**
+
+```bash
+curl http://localhost:3000/maquinas/1/horimetro                         # { minimo, origemMinimo, maximo }
+curl -X POST http://localhost:3000/maquinas/1/saida -H "Content-Type: application/json" -d '{"operador":"Ana","frenteTrabalho":"Talhão 9"}'
+curl -X POST http://localhost:3000/maquinas/1/retorno -H "Content-Type: application/json" -d '{"horimetro":10000}'   # 400: máximo possível
+```
+
 ---
 
 ## 6. Roteiro completo de testes com curl
 
-> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 159 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S. e 56 do abastecimento) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
+> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 171 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S., 56 do abastecimento e 12 dos limites do horímetro) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
 >
 > 💡 **Alternativa sem terminal:** o arquivo [testes.http](testes.http) tem este mesmo roteiro para a extensão **REST Client** do VS Code. Basta clicar em "Send Request" acima de cada teste, sem se preocupar com aspas.
 
@@ -2100,6 +2133,33 @@ curl.exe -X POST $B/abastecimentos/4/devolucao -H "$H" -d '{"motivo":"Valor pago
 curl.exe -X PUT $B/abastecimentos/4 -H "$H" -d '{"litros":110,"horimetro":280,"posto":"Posto Boa Vista","valorTotal":660}'   # AB47
 ```
 
+#### Limites do horímetro (Parte H1) — máquina nova, a nº 4
+
+| ID | Cenário | Esperado |
+|---|---|---|
+| H1 | Cadastrar a HZ-04 com 100 h | **201**, `id: 4` |
+| H2 | Limites sem nenhuma leitura com data | **200**, `maximo: null` |
+| H3 | Limites da máquina 99 | **404** |
+| H4 | Limites depois da saída | **200**, `maximo: 124` (100 + 24 h de folga) |
+| H5 | Abastecimento em campo com 110 h (nº 6) | **201** |
+| H6 | Limites | **200**, `origemMinimo: "abastecimento nº 6"` |
+| H7 | Retorno com 105 | **400**, `último registrado (110) no abastecimento nº 6` |
+| H8 | Retorno com 1100 (um zero a mais) | **400**, `maior que o máximo possível` |
+| H9 | Abastecimento com 1100 | **400**, `maior que o máximo possível` |
+| H10 | Retorno com 112 | **200**, `horasTrabalhadas: 12` |
+| H11 | Abrir O.S. com 1120 | **400**, `maior que o máximo possível` |
+| H12 | Limites depois de recusar um abastecimento de 120 h | **200**, `minimo: 112`, `origemMinimo: null` |
+
+```bash
+curl.exe -X POST $B/maquinas -H "$H" -d '{"tag":"HZ-04","modelo":"Trator","horimetro":100}'        # H1
+curl.exe -X POST $B/maquinas/4/saida -H "$H" -d '{"operador":"Ana","frenteTrabalho":"Talhão 9"}'
+curl.exe $B/maquinas/4/horimetro                                                                    # H4
+curl.exe -X POST $B/abastecimentos -H "$H" -d '{"maquinaId":4,"operador":"Ana","origem":"Tanque","litros":40,"horimetro":110}'   # H5
+curl.exe -X POST $B/maquinas/4/retorno -H "$H" -d '{"horimetro":105}'                              # H7
+curl.exe -X POST $B/maquinas/4/retorno -H "$H" -d '{"horimetro":1100}'                             # H8
+curl.exe -X POST $B/maquinas/4/retorno -H "$H" -d '{"horimetro":112}'                              # H10
+```
+
 > **Dica:** para ver só o código HTTP de cada resposta, acrescente `-w "  [%{http_code}]\n"` ao comando.
 
 ---
@@ -2131,7 +2191,7 @@ curl.exe -X PUT $B/abastecimentos/4 -H "$H" -d '{"litros":110,"horimetro":280,"p
 | Retorno | Status precisa ser `Em Operação` | 409 |
 | Retorno | `horimetro` obrigatório e numérico | 400 |
 | Retorno | `avarias`, se informado, deve ser texto | 400 |
-| Retorno | `horimetro` ≥ horímetro atual | 400 |
+| Retorno | `horimetro` dentro da faixa: ≥ a maior leitura (máquina ou abastecimento não recusado) e ≤ essa leitura + horas desde a última + 24 h (Parte H1) | 400 |
 | Retorno | Precisa existir movimentação aberta | 409 |
 | Histórico | `maquinaId`, se informado, deve ser inteiro | 400 |
 | Peças (todas com `:id`) | `id` deve ser inteiro / peça precisa existir | 400 / 404 |
@@ -2146,7 +2206,7 @@ curl.exe -X PUT $B/abastecimentos/4 -H "$H" -d '{"litros":110,"horimetro":280,"p
 | Abertura de O.S. | `maquinaId` inteiro / máquina existe | 400 / 404 |
 | Abertura de O.S. | Máquina sem outra O.S. aberta | 409 |
 | Abertura de O.S. | `tipo` (`Preventiva`/`Corretiva`), `descricao` e `horimetro` válidos | 400 |
-| Abertura de O.S. | Horímetro ≥ atual | 400 |
+| Abertura de O.S. | Horímetro dentro da mesma faixa do retorno (Parte H1) | 400 |
 | Abertura de O.S. | Máquina em campo: a saída é encerrada automaticamente | — |
 | Fechamento de O.S. | O.S. existe e está `Aberta` | 404 / 409 |
 | Fechamento de O.S. | `pecas`, se informado, é lista; itens com `pecaId` inteiro e `quantidade` > 0 | 400 |
@@ -2157,6 +2217,8 @@ curl.exe -X PUT $B/abastecimentos/4 -H "$H" -d '{"litros":110,"horimetro":280,"p
 | Foto da O.S. | O.S. existe e está `Aberta`, com menos de 5 fotos | 404 / 409 |
 | Foto da O.S. | `imagem` em base64, com bytes de JPEG ou PNG | 400 |
 | Foto da O.S. | Foto até 2 MB; corpo até 3 MB (demais rotas: 100 KB) | 413 |
+| Registro de abastecimento | Horímetro dentro da mesma faixa do retorno (Parte H1) | 400 |
+| Correção de abastecimento | Horímetro entre o do abastecimento anterior e o do seguinte (Parte AB4) | 400 |
 
 ### Anatomia de uma rota com validação
 

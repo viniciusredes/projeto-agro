@@ -15,8 +15,10 @@ import {
 } from '@/servicos/abastecimentos';
 import { useTema } from '@/tema';
 import {
-  formatarHoras, formatarReais, formatarTamanho, TAMANHO_MAXIMO_FOTO, tamanhoDoBase64, validarHorimetroEntre, validarPositivo,
+  formatarHoras, formatarReais, formatarTamanho, TAMANHO_MAXIMO_FOTO, tamanhoDoBase64, validarHorimetroEntre,
+  validarHorimetroNaFaixa, validarPositivo,
 } from '@/validacao';
+import { AtalhosHorimetro } from '@/componentes/atalhos-horimetro';
 
 const ORIGENS: OpcaoSegmentada<OrigemAbastecimento>[] = [
   { valor: 'Posto', rotulo: 'Posto' },
@@ -71,7 +73,7 @@ export default function RegistrarAbastecimento() {
 function Formulario({ dados }: { dados: DadosParaAbastecer }) {
   const tema = useTema();
   const { nome } = useOperador();
-  const { maquina, horimetroMinimo, horimetroMaximo, corrigindo } = dados;
+  const { maquina, limites, horimetroMinimo, horimetroMaximo, corrigindo } = dados;
 
   const [origem, setOrigem] = useState<OrigemAbastecimento>(corrigindo?.origem ?? 'Posto');
   const [litros, setLitros] = useState(paraCampo(corrigindo?.litros));
@@ -90,7 +92,10 @@ function Formulario({ dados }: { dados: DadosParaAbastecer }) {
 
   // Cada campo validado por uma função pura (validacao.ts): a tela só mostra o resultado
   const rLitros = validarPositivo(litros);
-  const rHorimetro = validarHorimetroEntre(horimetro, horimetroMinimo, horimetroMaximo);
+  // Registro: a faixa da API (Etapa 5). Correção: entre o abastecimento anterior e o seguinte.
+  const rHorimetro = limites
+    ? validarHorimetroNaFaixa(horimetro, limites)
+    : validarHorimetroEntre(horimetro, horimetroMinimo, horimetroMaximo);
   const rValor = validarPositivo(valor);
   // Valor DERIVADO: calculado a cada digitação, não guardado em estado
   const precoLitro = rLitros.valido && rValor.valido ? rValor.valor / rLitros.valor : null;
@@ -156,8 +161,10 @@ function Formulario({ dados }: { dados: DadosParaAbastecer }) {
 
   const corDaBorda = (r: { valido: boolean; erro?: string | null }) => (!r.valido && r.erro ? tema.erro : tema.borda);
   const estiloCampo = [estilos.campo, { color: tema.texto, backgroundColor: tema.cartao }];
-  const limiteHorimetro =
-    horimetroMaximo !== null
+  // No registro, a faixa aparece embaixo do campo (AtalhosHorimetro); na correção, no placeholder
+  const limiteHorimetro = limites
+    ? 'Leia no painel da máquina'
+    : horimetroMaximo !== null
       ? `Entre ${formatarHoras(horimetroMinimo)} e ${formatarHoras(horimetroMaximo)}`
       : `Mínimo ${formatarHoras(horimetroMinimo)}`;
 
@@ -219,6 +226,8 @@ function Formulario({ dados }: { dados: DadosParaAbastecer }) {
         {!rHorimetro.valido && rHorimetro.erro && (
           <Text style={[estilos.dica, { color: tema.erro }]}>{rHorimetro.erro}</Text>
         )}
+        {/* A faixa diz de onde vem o mínimo (ex.: "do abastecimento nº 5"), mesmo que a ficha mostre menos */}
+        {limites && <AtalhosHorimetro limites={limites} aoEscolher={setHorimetro} />}
 
         {noPosto && (
           <>

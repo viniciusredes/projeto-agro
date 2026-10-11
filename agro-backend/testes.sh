@@ -695,6 +695,57 @@ testar AB55 "Horímetro acima do abastecimento seguinte (nº 5, 290)" 400 "maior
 testar AB56 "Filtro pelo status novo" 200 '"status":"Em correção"' \
   "$BASE/abastecimentos?status=Em%20corre%C3%A7%C3%A3o"
 
+# =====================================================================
+#  LIMITES DO HORÍMETRO (Etapa 5, J6) — usa uma máquina nova, a nº 4
+#  Mínimo: a maior leitura (máquina ou abastecimento não recusado).
+#  Máximo: o mínimo + as horas desde a última leitura + 24 h de folga.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+secao "Limites do horímetro"
+# ---------------------------------------------------------------------
+testar H1 "Máquina nova (nº 4, 100 h)" 201 '"id":4' \
+  -X POST "$BASE/maquinas" -H "$JSON" -d '{"tag":"HZ-04","modelo":"Trator","horimetro":100}'
+
+testar H2 "Sem nenhuma leitura com data: sem máximo" 200 '"maximo":null' \
+  "$BASE/maquinas/4/horimetro"
+
+testar H3 "Limites de máquina inexistente" 404 "Máquina não encontrada" \
+  "$BASE/maquinas/99/horimetro"
+
+curl -s -o /dev/null -X POST "$BASE/maquinas/4/saida" -H "$JSON" -d '{"operador":"Ana","frenteTrabalho":"Talhão 9"}'
+
+testar H4 "Depois da saída: máximo = 100 + 24 h de folga" 200 '"maximo":124' \
+  "$BASE/maquinas/4/horimetro"
+
+testar H5 "Abastecimento em campo com 110 h (nº 6)" 201 '"horimetro":110' \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d '{"maquinaId":4,"operador":"Ana","origem":"Tanque","litros":40,"horimetro":110}'
+
+testar H6 "O mínimo passa a ser o do abastecimento" 200 '"origemMinimo":"abastecimento nº 6"' \
+  "$BASE/maquinas/4/horimetro"
+
+testar H7 "Retorno abaixo do abastecimento feito em campo" 400 "último registrado (110) no abastecimento nº 6" \
+  -X POST "$BASE/maquinas/4/retorno" -H "$JSON" -d '{"horimetro":105}'
+
+testar H8 "Retorno com um zero a mais (1100)" 400 "maior que o máximo possível" \
+  -X POST "$BASE/maquinas/4/retorno" -H "$JSON" -d '{"horimetro":1100}'
+
+testar H9 "Abastecimento com um zero a mais" 400 "maior que o máximo possível" \
+  -X POST "$BASE/abastecimentos" -H "$JSON" -d '{"maquinaId":4,"operador":"Ana","origem":"Tanque","litros":40,"horimetro":1100}'
+
+testar H10 "Retorno dentro dos limites" 200 '"horasTrabalhadas":12' \
+  -X POST "$BASE/maquinas/4/retorno" -H "$JSON" -d '{"horimetro":112}'
+
+testar H11 "Abrir O.S. com um zero a mais" 400 "maior que o máximo possível" \
+  -X POST "$BASE/ordens-servico" -H "$JSON" -d '{"maquinaId":4,"tipo":"Preventiva","descricao":"Revisão","horimetro":1120}'
+
+# Abastecimento recusado não conta: registra com 120 h (nº 7) e recusa
+curl -s -o /dev/null -X POST "$BASE/abastecimentos" -H "$JSON" -d '{"maquinaId":4,"operador":"Ana","origem":"Tanque","litros":10,"horimetro":120}'
+curl -s -o /dev/null -X POST "$BASE/abastecimentos/7/recusa" -H "$JSON" -d '{"motivo":"Duplicado"}'
+
+testar H12 "Recusado não conta: o mínimo volta ao da máquina (112)" 200 '"minimo":112,"origemMinimo":null' \
+  "$BASE/maquinas/4/horimetro"
+
 # ---------------------------------------------------------------------
 # Resumo
 # ---------------------------------------------------------------------

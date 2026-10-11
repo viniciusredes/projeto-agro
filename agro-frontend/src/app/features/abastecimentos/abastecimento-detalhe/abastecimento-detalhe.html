@@ -19,7 +19,7 @@
   <div class="cabecalho">
     <div>
       <h2>Abastecimento nº {{ ab.id }}</h2>
-      <span class="etiqueta" [class]="etiquetaStatus(ab.status)">{{ ab.status === 'Pendente' ? 'Aguardando conferência' : ab.status }}</span>
+      <span class="etiqueta" [class]="etiquetaStatus(ab.status)">{{ rotuloStatus(ab.status) }}</span>
       <span class="etiqueta" [class]="etiquetaOrigem(ab.origem)">{{ ab.origem === 'Tanque' ? 'Tanque da fazenda' : 'Posto' }}</span>
     </div>
   </div>
@@ -32,7 +32,7 @@
         <a [href]="foto" target="_blank" rel="noopener" class="comprovante__imagem" aria-label="Abrir o comprovante em tamanho real">
           <img [src]="foto" [alt]="'Comprovante do abastecimento nº ' + ab.id" />
         </a>
-        <p class="info">Clique para abrir em tamanho real. Confira litros e valor com os dados ao lado.</p>
+        <p class="info">Clique para abrir em tamanho real. Confira litros e valor com os dados informados.</p>
       } @else {
         <p class="sem-foto">
           <mat-icon>no_photography</mat-icon>
@@ -98,8 +98,28 @@
                   — cerca de <strong>{{ c.consumo | number: '1.0-1' }} L/h</strong> com este abastecimento.
                 }
               }
+              @if (frenteAMedia(); as f) {
+                @if (f.situacao === 'normal') {
+                  Perto da média da máquina ({{ consumoMedio() | number: '1.0-1' }} L/h).
+                }
+              }
             </span>
           </p>
+
+          <!-- Longe da média: um aviso à parte, para não passar despercebido -->
+          @if (frenteAMedia(); as f) {
+            @if (f.situacao !== 'normal') {
+              <p class="comparacao comparacao--alerta" role="status">
+                <mat-icon>warning</mat-icon>
+                <span>
+                  <strong>{{ (f.diferenca < 0 ? -f.diferenca : f.diferenca) * 100 | number: '1.0-0' }}%
+                    {{ f.situacao === 'acima' ? 'acima' : 'abaixo' }}</strong>
+                  da média da máquina ({{ consumoMedio() | number: '1.0-1' }} L/h). Confira os litros e o horímetro
+                  no recibo; se estiverem errados, devolva para correção.
+                </span>
+              </p>
+            }
+          }
         } @else if (daMaquina.hasValue()) {
           <p class="comparacao">
             <mat-icon>history</mat-icon>
@@ -147,7 +167,7 @@
           }
         } @else {
           <p>
-            <span class="etiqueta" [class]="etiquetaStatus(ab.status)">{{ ab.status }}</span>
+            <span class="etiqueta" [class]="etiquetaStatus(ab.status)">{{ rotuloStatus(ab.status) }}</span>
             em {{ ab.dataConferencia | date: "dd/MM/yyyy 'às' HH:mm" }}
           </p>
           @if (ab.motivoRecusa) {

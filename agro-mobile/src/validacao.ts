@@ -1,6 +1,8 @@
 // Regras de formulário do app, em FUNÇÕES PURAS: entra um valor, sai um resultado, sem tela
 // nem estado. Fáceis de testar e de reaproveitar (o mesmo papel do core/validacao.ts da web).
 
+import { LimitesHorimetro } from '@/models/maquina';
+
 export type ResultadoHorimetro =
   | { valido: true; valor: number; horas: number } // horas: quanto a máquina trabalhou
   | { valido: false; erro: string | null };         // erro null = campo vazio (sem mensagem ainda)
@@ -33,6 +35,31 @@ export function validarHorimetroEntre(texto: string, minimo: number, maximo: num
     return { valido: false, erro: `Não pode passar o do abastecimento seguinte (${formatarHoras(maximo)} h).` };
   }
   return resultado;
+}
+
+// A faixa que a API manda (GET /maquinas/:id/horimetro, Etapa 5): a regra do retorno, da avaria
+// e do abastecimento. Mínimo: a maior leitura (máquina ou abastecimento); máximo: o tempo que passou.
+export function validarHorimetroNaFaixa(texto: string, limites: LimitesHorimetro): ResultadoHorimetro {
+  const resultado = validarHorimetro(texto, limites.minimo);
+  const digitado = Number(texto.trim().replace(',', '.'));
+  // resultado.erro null = campo vazio: sem mensagem ainda (Number('') vale 0, que é "menor")
+  if (!resultado.valido && resultado.erro !== null && limites.origemMinimo && digitado < limites.minimo) {
+    // Abaixo do mínimo que veio de um abastecimento: diz qual, para o operador entender
+    return { valido: false, erro: `Não pode ser menor que ${formatarHoras(limites.minimo)} h (${limites.origemMinimo}).` };
+  }
+  if (resultado.valido && limites.maximo !== null && resultado.valor > limites.maximo) {
+    return { valido: false, erro: `Passa do máximo possível (${formatarHoras(limites.maximo)} h). Confira o painel da máquina.` };
+  }
+  return resultado;
+}
+
+// Botões rápidos: somam ao mínimo (+1 h, +4 h, +8 h); os que passariam do máximo não aparecem.
+// O texto vai para o campo com VÍRGULA, como se o operador tivesse digitado ("1008,5").
+export function atalhosDoHorimetro(limites: LimitesHorimetro): { rotulo: string; texto: string }[] {
+  return [1, 4, 8]
+    .map(horas => ({ horas, valor: Math.round((limites.minimo + horas) * 10) / 10 }))
+    .filter(({ valor }) => limites.maximo === null || valor <= limites.maximo)
+    .map(({ horas, valor }) => ({ rotulo: `+${horas} h`, texto: String(valor).replace('.', ',') }));
 }
 
 export type ResultadoNumero =
@@ -68,6 +95,13 @@ export function formatarReais(valor: number, casas = 2): string {
 // 1012.5 -> "1.012,5" (formato brasileiro, até 1 casa decimal)
 export function formatarHoras(valor: number): string {
   return valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+}
+
+// Horas trabalhadas desde o último abastecimento. O horímetro da máquina só muda na saída e no
+// retorno; se ela abasteceu DEPOIS do último retorno (em campo, por exemplo), o abastecimento
+// tem horímetro maior e ainda não dá para saber: null (a tela explica, em vez de "0 h").
+export function horasDesdeAbastecimento(horimetroMaquina: number, horimetroAbastecimento: number): number | null {
+  return horimetroMaquina >= horimetroAbastecimento ? horimetroMaquina - horimetroAbastecimento : null;
 }
 
 // Mesmo limite da API (2 MB): conferir ANTES de enviar poupa o 3G/4G do campo
