@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { mensagemDeErro } from '@/api';
 import { Aviso, DadosAviso } from '@/componentes/aviso';
+import { CartaoCombustivel } from '@/componentes/cartao-combustivel';
 import { EtiquetaStatus } from '@/componentes/etiqueta-status';
 import { GaleriaFotos } from '@/componentes/galeria-fotos';
 import { useOperador } from '@/contextos/operador';
@@ -112,6 +113,9 @@ export default function FichaMaquina() {
             </Text>
           </View>
         )}
+
+        {/* Etapa 4: o combustível da máquina (último abastecimento, horas desde então, consumo) */}
+        <CartaoCombustivel combustivel={dados.combustivel} horimetroAtual={maquina.horimetro} />
 
         {/* Etapa 4: abastecer vale para qualquer situação (no pátio, em campo ou até na oficina) */}
         <Pressable

@@ -2,7 +2,15 @@
 // O front web terá a mesma cópia em core/models/abastecimento.ts.
 
 export type OrigemAbastecimento = 'Posto' | 'Tanque';
-export type StatusAbastecimento = 'Pendente' | 'Aprovado' | 'Recusado';
+// 'Em correção': devolvido pelo gestor ao operador (Parte AB4); corrigido, volta a 'Pendente'
+export type StatusAbastecimento = 'Pendente' | 'Em correção' | 'Aprovado' | 'Recusado';
+
+// Cada devolução para correção: o que corrigir, quando, e quando o operador corrigiu
+export interface Devolucao {
+  motivo: string;
+  data: string;
+  corrigidaEm?: string;
+}
 
 // O recibo (ou a foto da bomba, no tanque): só os dados; a imagem fica na url
 export interface ComprovanteAbastecimento {
@@ -26,7 +34,32 @@ export interface Abastecimento {
   status: StatusAbastecimento;
   motivoRecusa?: string;
   dataConferencia?: string;
+  devolucoes: Devolucao[]; // histórico das devoluções (vazio se nunca voltou ao operador)
   comprovante: ComprovanteAbastecimento | null;
+}
+
+// Resposta de GET /maquinas/:id/combustivel (só os aprovados entram nos números)
+export interface CombustivelMaquina {
+  maquina: string;              // tag
+  aprovados: number;
+  pendentes: number;
+  emCorrecao: number;
+  litros: number;
+  custoTotal: number;
+  horasMedidas: number;
+  consumoMedio: number | null;  // L/h; null = sem dados (menos de 2 aprovados)
+  custoPorHora: number | null;  // R$/h
+  abastecimentos: Abastecimento[];
+}
+
+// Corpo de PUT /abastecimentos/:id (a correção): os campos que o operador digita.
+// Máquina e origem não mudam; a foto é opcional (sem ela, vale a anterior).
+export interface DadosCorrecao {
+  litros: number;
+  horimetro: number;
+  posto?: string;
+  valorTotal?: number;
+  comprovante?: string;
 }
 
 // Corpo de POST /abastecimentos. No posto: posto, valorTotal e comprovante (obrigatório).

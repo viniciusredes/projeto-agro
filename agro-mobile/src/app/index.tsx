@@ -30,8 +30,11 @@ const RESUMO: { status: StatusMaquina; rotulo: string }[] = [
 // "2 aguardando conferência · 1 recusado" (só o que pede atenção; se nada pedir, diz que está tudo certo)
 function resumoDosAbastecimentos(status: string[]): string {
   const pendentes = status.filter(s => s === 'Pendente').length;
+  const paraCorrigir = status.filter(s => s === 'Em correção').length;
   const recusados = status.filter(s => s === 'Recusado').length;
   const partes = [
+    // Primeiro o que depende DELE: os devolvidos para correção
+    paraCorrigir > 0 && `${paraCorrigir} para corrigir`,
     pendentes > 0 && `${pendentes} aguardando conferência`,
     recusados > 0 && `${recusados} ${recusados === 1 ? 'recusado' : 'recusados'}`,
   ].filter(Boolean);
@@ -183,9 +186,18 @@ export default function Inicio() {
               {dados.abastecimentos.slice(0, ULTIMOS_ABASTECIMENTOS).map(({ maquina, abastecimento: ab }) => (
                 <Pressable
                   key={ab.id}
-                  onPress={() => router.push({ pathname: '/maquina/[id]', params: { id: ab.maquinaId } })}
+                  // Devolvido: o toque abre a CORREÇÃO; os outros abrem a ficha da máquina
+                  onPress={() =>
+                    ab.status === 'Em correção'
+                      ? router.push({ pathname: '/maquina/[id]/abastecimento', params: { id: ab.maquinaId, corrigir: ab.id } })
+                      : router.push({ pathname: '/maquina/[id]', params: { id: ab.maquinaId } })
+                  }
                   accessibilityRole="link"
-                  accessibilityLabel={`Abastecimento de ${maquina?.tag ?? 'máquina'}: ${ab.status}. Abrir ficha`}
+                  accessibilityLabel={
+                    ab.status === 'Em correção'
+                      ? `Abastecimento de ${maquina?.tag ?? 'máquina'} devolvido para correção. Abrir para corrigir`
+                      : `Abastecimento de ${maquina?.tag ?? 'máquina'}: ${ab.status}. Abrir ficha`
+                  }
                   style={({ pressed }) => [
                     estilos.cartao,
                     { backgroundColor: tema.cartao, borderColor: pressed ? tema.primaria : tema.borda },
@@ -205,6 +217,15 @@ export default function Inicio() {
                   {/* O MOTIVO da recusa é o que o operador precisa para corrigir */}
                   {ab.status === 'Recusado' && ab.motivoRecusa && (
                     <Text style={[estilos.texto, { color: tema.erro, fontWeight: '700' }]}>Motivo: {ab.motivoRecusa}</Text>
+                  )}
+                  {/* Devolvido: o que o gestor pediu, e o convite à ação */}
+                  {ab.status === 'Em correção' && (
+                    <>
+                      <Text style={[estilos.texto, { color: tema.texto, fontWeight: '700' }]}>
+                        O que corrigir: {ab.devolucoes[ab.devolucoes.length - 1]?.motivo}
+                      </Text>
+                      <Text style={[estilos.texto, { color: tema.primaria, fontWeight: '700' }]}>Toque para corrigir ›</Text>
+                    </>
                   )}
                 </Pressable>
               ))}

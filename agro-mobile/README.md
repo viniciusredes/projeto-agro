@@ -790,6 +790,72 @@ const [maquinas, movimentacoes, abastecimentos] = await Promise.all([
 4. Toque num abastecimento: abre a ficha da máquina.
 5. Troque de operador (barra → "trocar"): a lista mostra só os abastecimentos do nome novo.
 
+### A7.3 — Corrigir um abastecimento devolvido
+
+🎯 Quando o gestor **devolve** um abastecimento para correção (erro de preenchimento), o operador vê na página inicial **o que corrigir**, abre o **mesmo** abastecimento já preenchido, corrige e reenvia. Ele volta para a conferência, sem registro novo.
+
+🧩 **Na página inicial:** o abastecimento devolvido aparece com a etiqueta laranja **Corrigir**, a linha **"O que corrigir: …"** e o convite **"Toque para corrigir ›"**. O resumo diz primeiro o que depende dele: "1 para corrigir · 2 aguardando conferência". O toque abre a correção (os outros continuam abrindo a ficha).
+
+**A tela de abastecimento em modo corrigir** (`/maquina/1/abastecimento?corrigir=4`):
+- no topo, em destaque, **o que o gestor pediu**;
+- os campos **já preenchidos** com o que foi enviado (os números voltam com vírgula: `120,5`);
+- a origem aparece, mas **não muda** (regra da API);
+- a foto enviada antes **continua valendo**: aparece em miniatura, com **Tirar outra** (e **Voltar à anterior**, se tirou);
+- o horímetro fica **entre** o do abastecimento anterior e o do seguinte (`validarHorimetroEntre`, em `validacao.ts`);
+- **Enviar correção** chama `PUT /abastecimentos/:id` (`corrigirAbastecimento`, em `servicos/abastecimentos.ts`).
+
+**Estado inicial que vem da API:** o `useState` usa o valor inicial só na **primeira** renderização. Por isso a tela foi dividida em duas partes: `RegistrarAbastecimento` carrega os dados (e trata carregando e erro), e só então monta o `Formulario`, que já nasce com os valores do abastecimento devolvido:
+
+```tsx
+export default function RegistrarAbastecimento() {
+  const { dados, erro, carregando } = useRequisicao(buscar);
+  if (carregando) return <Carregando />;
+  ...
+  return <Formulario dados={dados} />;   // montado DEPOIS dos dados
+}
+
+function Formulario({ dados }: { dados: DadosParaAbastecer }) {
+  const [litros, setLitros] = useState(paraCampo(dados.corrigindo?.litros)); // "120,5"
+  ...
+}
+```
+
+`buscarDadosParaAbastecer(maquinaId, corrigirId?)` serve aos dois modos: no registro, devolve só o horímetro mínimo; na correção, também o máximo e o próprio abastecimento.
+
+📚 **Conceitos**
+- **Uma tela, dois modos:** registrar e corrigir têm os mesmos campos e as mesmas validações. O parâmetro `corrigir` na rota muda o título, o preenchimento, a origem fixa, a regra da foto e a chamada (`POST` ou `PUT`).
+- **Componente montado depois dos dados:** é o jeito simples de ter um formulário com valores iniciais vindos da API, sem `useEffect` para "copiar" os dados para o estado.
+- **O que depende de mim primeiro:** no resumo e na etiqueta ("Corrigir", no laranja forte da marca), o devolvido chama mais atenção do que o que só está esperando.
+- **Mesmas regras dos dois lados:** o limite do horímetro (anterior e seguinte), a origem fixa e a foto opcional são as regras da API (Parte AB4); o app só avisa antes.
+
+🧪 **Testes**
+1. Registre um abastecimento no posto. Na web, abra a conferência e **Devolva para correção** ("Valor pago não confere com o recibo").
+2. No app, puxe a página inicial: ele aparece com **Corrigir**, "O que corrigir: Valor pago não confere com o recibo" e "1 para corrigir" no resumo.
+3. Toque nele: a tela abre com o pedido no topo, os campos preenchidos, a origem fixa e a foto anterior.
+4. Corrija o valor e toque em **Enviar correção**: o aviso "Correção enviada". De volta ao início, ele está **Aguardando conferência**.
+5. Na web, a conferência mostra o valor novo e "Devolvido 1 vez para correção · corrigido em…". Aprove.
+6. Pelo tanque: devolva, corrija os litros (ex.: 50 → 30) e confira no kardex do DSL-001 a entrada de 20 L.
+
+### A8 — Combustível na ficha da máquina
+
+🎯 Ao lado da máquina, o operador vê quando ela foi abastecida pela última vez e quanto trabalhou desde então, além do consumo médio.
+
+🧩 **Cartão Combustível** (`src/componentes/cartao-combustivel.tsx`), na ficha, junto do botão **Registrar abastecimento**:
+- **Último abastecimento** (o mais recente que não foi recusado): data e hora, litros, posto ou tanque, horímetro e a etiqueta do status;
+- **"N h trabalhadas desde então"** (horímetro atual − horímetro do abastecimento);
+- **Consumo médio** (L/h) e **custo por hora**, ou "Sem dados" com o motivo.
+
+**A ficha busca o combustível junto com o resto:** o `buscarFicha` ganhou uma quarta chamada no `Promise.all`, `buscarCombustivel(id)` (`GET /maquinas/:id/combustivel`). Ela fica em `servicos/maquinas.ts`, porque a rota é da máquina e porque `abastecimentos.ts` já importa `maquinas.ts` (importar de volta criaria um ciclo).
+
+📚 **Conceitos**
+- **Mais uma chamada em paralelo:** a ficha continua carregando de uma vez; o tempo é o da chamada mais lenta, não a soma das quatro.
+- **Componente de apresentação:** o cartão recebe os dados prontos (`combustivel`, `horimetroAtual`) e só decide como mostrar; quem busca é a ficha.
+
+🧪 **Testes**
+1. Abra a ficha de uma máquina com abastecimentos: o cartão mostra o último, as horas desde então e o consumo (ou "Sem dados").
+2. Registre um retorno com o horímetro maior e volte à ficha: as horas desde o último abastecimento aumentam.
+3. Registre um abastecimento: ao voltar, ele aparece como o último, com a etiqueta "Aguardando conferência".
+
 ---
 
 ## 4. Problemas comuns

@@ -25,6 +25,16 @@ export function validarHorimetro(texto: string, atual: number): ResultadoHorimet
   return { valido: true, valor, horas: Math.round((valor - atual) * 10) / 10 };
 }
 
+// Horímetro com limite de cima também (correção de abastecimento: entre o anterior e o seguinte).
+// Reaproveita a regra do mínimo e só acrescenta a do máximo (null = sem limite de cima).
+export function validarHorimetroEntre(texto: string, minimo: number, maximo: number | null): ResultadoHorimetro {
+  const resultado = validarHorimetro(texto, minimo);
+  if (resultado.valido && maximo !== null && resultado.valor > maximo) {
+    return { valido: false, erro: `Não pode passar o do abastecimento seguinte (${formatarHoras(maximo)} h).` };
+  }
+  return resultado;
+}
+
 export type ResultadoNumero =
   | { valido: true; valor: number }
   | { valido: false; erro: string | null }; // erro null = campo vazio (sem mensagem ainda)

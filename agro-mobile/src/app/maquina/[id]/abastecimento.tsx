@@ -10,10 +10,12 @@ import { EscolhaSegmentada, OpcaoSegmentada } from '@/componentes/escolha-segmen
 import { useOperador } from '@/contextos/operador';
 import { useRequisicao } from '@/hooks/use-requisicao';
 import { OrigemAbastecimento } from '@/models/abastecimento';
-import { buscarDadosParaAbastecer, registrarAbastecimento } from '@/servicos/abastecimentos';
+import {
+  buscarDadosParaAbastecer, corrigirAbastecimento, DadosParaAbastecer, enderecoDoComprovante, registrarAbastecimento,
+} from '@/servicos/abastecimentos';
 import { useTema } from '@/tema';
 import {
-  formatarHoras, formatarReais, formatarTamanho, TAMANHO_MAXIMO_FOTO, tamanhoDoBase64, validarHorimetro, validarPositivo,
+  formatarHoras, formatarReais, formatarTamanho, TAMANHO_MAXIMO_FOTO, tamanhoDoBase64, validarHorimetroEntre, validarPositivo,
 } from '@/validacao';
 
 const ORIGENS: OpcaoSegmentada<OrigemAbastecimento>[] = [
@@ -21,25 +23,20 @@ const ORIGENS: OpcaoSegmentada<OrigemAbastecimento>[] = [
   { valor: 'Tanque', rotulo: 'Tanque da fazenda' },
 ];
 
-// Registrar abastecimento (/maquina/1/abastecimento). Vai para a conferência do gestor, na web.
-export default function RegistrarAbastecimento() {
-  // Regra dos hooks: todos antes de qualquer "return" antecipado
-  const tema = useTema();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const idNumero = Number(id);
-  const buscar = useCallback(() => buscarDadosParaAbastecer(idNumero), [idNumero]);
-  const { dados, erro, carregando } = useRequisicao(buscar);
-  const { nome } = useOperador();
+// 120.5 -> "120,5": o número da API volta para o campo no formato que o operador digita
+const paraCampo = (valor: number | undefined) => (valor === undefined ? '' : String(valor).replace('.', ','));
 
-  const [origem, setOrigem] = useState<OrigemAbastecimento>('Posto');
-  const [litros, setLitros] = useState('');
-  const [horimetro, setHorimetro] = useState('');
-  const [posto, setPosto] = useState('');
-  const [valor, setValor] = useState('');
-  const [foto, setFoto] = useState<FotoCapturada | null>(null);
-  const [cameraAberta, setCameraAberta] = useState(false);
-  const [enviando, setEnviando] = useState(false);
-  const [aviso, setAviso] = useState<DadosAviso | null>(null);
+// Abastecimento (/maquina/1/abastecimento). Dois modos:
+// - registrar: um abastecimento novo;
+// - corrigir (?corrigir=4): o abastecimento que o gestor DEVOLVEU, já preenchido (PUT na API).
+// Esta parte só carrega os dados; o formulário é montado DEPOIS, já com os valores iniciais.
+export default function RegistrarAbastecimento() {
+  const tema = useTema();
+  const { id, corrigir } = useLocalSearchParams<{ id: string; corrigir?: string }>();
+  const idNumero = Number(id);
+  const corrigirId = corrigir !== undefined ? Number(corrigir) : undefined;
+  const buscar = useCallback(() => buscarDadosParaAbastecer(idNumero, corrigirId), [idNumero, corrigirId]);
+  const { dados, erro, carregando } = useRequisicao(buscar);
 
   if (carregando) {
     return (
@@ -55,13 +52,45 @@ export default function RegistrarAbastecimento() {
       </View>
     );
   }
+  // Pediu para corrigir algo que não está (mais) em correção: ex.: o gestor já decidiu
+  if (corrigirId !== undefined && dados.corrigindo?.status !== 'Em correção') {
+    return (
+      <View style={[estilos.centro, { backgroundColor: tema.fundo }]}>
+        <Text style={[estilos.texto, { color: tema.texto, textAlign: 'center' }]}>
+          O abastecimento nº {corrigirId} não está esperando correção. Veja o status na página inicial.
+        </Text>
+      </View>
+    );
+  }
 
-  const { maquina, horimetroMinimo } = dados;
+  return <Formulario dados={dados} />;
+}
+
+// O formulário em si. Montado só com os dados em mãos: o useState usa o valor inicial apenas na
+// PRIMEIRA renderização, e é aqui que ele já pode vir do abastecimento devolvido.
+function Formulario({ dados }: { dados: DadosParaAbastecer }) {
+  const tema = useTema();
+  const { nome } = useOperador();
+  const { maquina, horimetroMinimo, horimetroMaximo, corrigindo } = dados;
+
+  const [origem, setOrigem] = useState<OrigemAbastecimento>(corrigindo?.origem ?? 'Posto');
+  const [litros, setLitros] = useState(paraCampo(corrigindo?.litros));
+  const [horimetro, setHorimetro] = useState(paraCampo(corrigindo?.horimetro));
+  const [posto, setPosto] = useState(corrigindo?.posto ?? '');
+  const [valor, setValor] = useState(corrigindo?.origem === 'Posto' ? paraCampo(corrigindo.valorTotal) : '');
+  const [foto, setFoto] = useState<FotoCapturada | null>(null);
+  const [cameraAberta, setCameraAberta] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [aviso, setAviso] = useState<DadosAviso | null>(null);
+
   const noPosto = origem === 'Posto';
+  // Na correção, a foto enviada antes continua valendo se o operador não tirar outra
+  const fotoAnterior = corrigindo ? enderecoDoComprovante(corrigindo) : null;
+  const pedido = corrigindo?.devolucoes[corrigindo.devolucoes.length - 1]?.motivo;
 
   // Cada campo validado por uma função pura (validacao.ts): a tela só mostra o resultado
   const rLitros = validarPositivo(litros);
-  const rHorimetro = validarHorimetro(horimetro, horimetroMinimo);
+  const rHorimetro = validarHorimetroEntre(horimetro, horimetroMinimo, horimetroMaximo);
   const rValor = validarPositivo(valor);
   // Valor DERIVADO: calculado a cada digitação, não guardado em estado
   const precoLitro = rLitros.valido && rValor.valido ? rValor.valor / rLitros.valor : null;
@@ -72,7 +101,7 @@ export default function RegistrarAbastecimento() {
     !rHorimetro.valido && 'horímetro',
     noPosto && posto.trim() === '' && 'nome do posto',
     noPosto && !rValor.valido && 'valor pago',
-    noPosto && !foto && 'foto do recibo',
+    noPosto && !foto && !fotoAnterior && 'foto do recibo',
   ].filter((item): item is string => typeof item === 'string');
   const pronto = faltando.length === 0 && !!nome;
 
@@ -91,30 +120,34 @@ export default function RegistrarAbastecimento() {
       return;
     }
 
+    // Os campos que o operador digita, iguais nos dois modos.
+    // Posto: nome e valor pago. Tanque: nada disso (o custo vem do almoxarifado).
+    const campos = {
+      litros: rLitros.valor,
+      horimetro: rHorimetro.valor,
+      ...(noPosto && rValor.valido ? { posto: posto.trim(), valorTotal: rValor.valor } : {}),
+      ...(foto ? { comprovante: foto.base64 } : {}),
+    };
+
     setEnviando(true);
     try {
-      const resposta = await registrarAbastecimento({
-        maquinaId: maquina.id,
-        operador: nome!,
-        origem,
-        litros: rLitros.valor,
-        horimetro: rHorimetro.valor,
-        // Posto: nome e valor pago. Tanque: nada disso (o custo vem do almoxarifado)
-        ...(noPosto && rValor.valido ? { posto: posto.trim(), valorTotal: rValor.valor } : {}),
-        ...(foto ? { comprovante: foto.base64 } : {}),
-      });
+      const resposta = corrigindo
+        ? await corrigirAbastecimento(corrigindo.id, campos)
+        : await registrarAbastecimento({ maquinaId: maquina.id, operador: nome!, origem, ...campos });
       const ab = resposta.abastecimento;
       setAviso({
         tom: 'sucesso',
-        titulo: 'Abastecimento enviado',
+        titulo: corrigindo ? 'Correção enviada' : 'Abastecimento enviado',
         mensagem:
           `${formatarHoras(ab.litros)} L na ${maquina.tag} (${formatarReais(ab.valorTotal)}, ${formatarReais(ab.precoLitro, 3)}/L). ` +
-          'Ele vai para a conferência do gestor; acompanhe na página inicial.',
+          (corrigindo
+            ? 'O abastecimento voltou para a conferência do gestor.'
+            : 'Ele vai para a conferência do gestor; acompanhe na página inicial.'),
         botoes: [{ texto: 'Concluir', principal: true, aoTocar: () => router.back() }],
         aoDispensar: () => router.back(), // já foi enviado: fechar pelo Voltar também conclui
       });
     } catch (e) {
-      // Ex.: 409 diesel insuficiente no tanque; 400 horímetro menor que o último registrado
+      // Ex.: 409 diesel insuficiente no tanque; 400 horímetro fora do intervalo
       setAviso({ tom: 'erro', titulo: 'Não foi possível enviar', mensagem: mensagemDeErro(e), botoes: [{ texto: 'OK', principal: true }] });
     } finally {
       setEnviando(false);
@@ -123,15 +156,34 @@ export default function RegistrarAbastecimento() {
 
   const corDaBorda = (r: { valido: boolean; erro?: string | null }) => (!r.valido && r.erro ? tema.erro : tema.borda);
   const estiloCampo = [estilos.campo, { color: tema.texto, backgroundColor: tema.cartao }];
+  const limiteHorimetro =
+    horimetroMaximo !== null
+      ? `Entre ${formatarHoras(horimetroMinimo)} e ${formatarHoras(horimetroMaximo)}`
+      : `Mínimo ${formatarHoras(horimetroMinimo)}`;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Stack.Screen options={{ title: `Abastecer ${maquina.tag}` }} />
+      <Stack.Screen options={{ title: corrigindo ? `Corrigir abastecimento nº ${corrigindo.id}` : `Abastecer ${maquina.tag}` }} />
       <ScrollView style={{ backgroundColor: tema.fundo }} contentContainerStyle={estilos.tela} keyboardShouldPersistTaps="handled">
         <Text style={[estilos.subtitulo, { color: tema.texto }]}>{maquina.tag} · {maquina.modelo}</Text>
 
+        {/* Correção: o que o gestor pediu, no topo, antes dos campos */}
+        {pedido && (
+          <View style={[estilos.pedido, { backgroundColor: tema.sinal }]} accessibilityRole="alert">
+            <Text style={estilos.pedidoTitulo}>O gestor pediu para corrigir</Text>
+            <Text style={estilos.pedidoTexto}>{pedido}</Text>
+          </View>
+        )}
+
         <Text style={[estilos.rotulo, { color: tema.texto }]}>De onde veio o combustível?</Text>
-        <EscolhaSegmentada opcoes={ORIGENS} valor={origem} aoEscolher={setOrigem} rotulo="Origem do combustível" />
+        {corrigindo ? (
+          // A origem não muda na correção (regra da API): mostra, sem deixar trocar
+          <Text style={[estilos.texto, { color: tema.textoSuave }]}>
+            {noPosto ? 'Posto' : 'Tanque da fazenda'} (não muda na correção)
+          </Text>
+        ) : (
+          <EscolhaSegmentada opcoes={ORIGENS} valor={origem} aoEscolher={setOrigem} rotulo="Origem do combustível" />
+        )}
 
         {/* O tanque não tem recibo nem preço digitado: explica de onde vem o custo */}
         {!noPosto && (
@@ -154,11 +206,11 @@ export default function RegistrarAbastecimento() {
         />
         {!rLitros.valido && rLitros.erro && <Text style={[estilos.dica, { color: tema.erro }]}>{rLitros.erro}</Text>}
 
-        <Text style={[estilos.rotulo, { color: tema.texto }]} nativeID="rotulo-horimetro-abast">Horímetro agora (h)</Text>
+        <Text style={[estilos.rotulo, { color: tema.texto }]} nativeID="rotulo-horimetro-abast">Horímetro no abastecimento (h)</Text>
         <TextInput
           value={horimetro}
           onChangeText={setHorimetro}
-          placeholder={`Mínimo ${formatarHoras(horimetroMinimo)}`}
+          placeholder={limiteHorimetro}
           placeholderTextColor={tema.textoSuave}
           keyboardType="decimal-pad"
           accessibilityLabelledBy="rotulo-horimetro-abast"
@@ -200,21 +252,30 @@ export default function RegistrarAbastecimento() {
           </>
         )}
 
-        {/* Foto: obrigatória no posto (o recibo), opcional no tanque (ex.: o marcador da bomba) */}
+        {/* Foto: obrigatória no posto (o recibo), opcional no tanque. Na correção, vale a anterior. */}
         <Text style={[estilos.rotulo, { color: tema.texto }]}>
           {noPosto ? 'Foto do recibo (obrigatória)' : 'Foto da bomba (opcional)'}
         </Text>
-        {foto ? (
+        {foto || fotoAnterior ? (
           <View style={[estilos.fotoLinha, { borderColor: tema.borda, backgroundColor: tema.cartao }]}>
-            <Image source={{ uri: foto.uri }} resizeMethod="resize" style={estilos.miniatura} accessibilityLabel="Foto anexada" />
+            <Image
+              source={{ uri: foto ? foto.uri : fotoAnterior! }}
+              resizeMethod="resize"
+              style={estilos.miniatura}
+              accessibilityLabel={foto ? 'Foto anexada' : 'Foto enviada antes'}
+            />
             <View style={estilos.fotoAcoes}>
-              <Text style={[estilos.texto, { color: tema.texto }]}>Foto anexada</Text>
+              <Text style={[estilos.texto, { color: tema.texto }]}>
+                {foto ? 'Foto anexada' : 'Foto enviada antes (vale, se você não tirar outra)'}
+              </Text>
               <Pressable onPress={() => setCameraAberta(true)} accessibilityRole="button">
                 <Text style={[estilos.link, { color: tema.primaria }]}>Tirar outra</Text>
               </Pressable>
-              <Pressable onPress={() => setFoto(null)} accessibilityRole="button">
-                <Text style={[estilos.link, { color: tema.erro }]}>Remover</Text>
-              </Pressable>
+              {foto && (
+                <Pressable onPress={() => setFoto(null)} accessibilityRole="button">
+                  <Text style={[estilos.link, { color: tema.erro }]}>{fotoAnterior ? 'Voltar à anterior' : 'Remover'}</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         ) : (
@@ -242,7 +303,9 @@ export default function RegistrarAbastecimento() {
           {enviando ? (
             <ActivityIndicator color={tema.sobrePrimaria} />
           ) : (
-            <Text style={[estilos.botaoTexto, { color: tema.sobrePrimaria }]}>Enviar para conferência</Text>
+            <Text style={[estilos.botaoTexto, { color: tema.sobrePrimaria }]}>
+              {corrigindo ? 'Enviar correção' : 'Enviar para conferência'}
+            </Text>
           )}
         </Pressable>
         {faltando.length > 0 && (
@@ -282,6 +345,9 @@ const estilos = StyleSheet.create({
   rotulo: { marginTop: 6, fontSize: 15, fontWeight: '600' },
   texto: { fontSize: 15, lineHeight: 21 },
   info: { padding: 12, borderRadius: 12 },
+  pedido: { padding: 14, borderRadius: 12, gap: 4 },
+  pedidoTitulo: { fontSize: 13, fontWeight: '700', color: '#2b1600', textTransform: 'uppercase' },
+  pedidoTexto: { fontSize: 17, fontWeight: '700', color: '#2b1600' },
   campo: { minHeight: 52, paddingHorizontal: 14, borderWidth: 1, borderRadius: 12, fontSize: 17 },
   dica: { fontSize: 14, fontWeight: '600' },
   fotoLinha: { flexDirection: 'row', gap: 12, padding: 10, borderWidth: 1, borderRadius: 12, alignItems: 'center' },
