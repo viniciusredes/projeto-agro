@@ -758,6 +758,38 @@ export function EscolhaSegmentada<T extends string>({ opcoes, valor, aoEscolher,
 7. Pelo tanque, peça mais litros do que há no estoque: o aviso mostra o erro da API ("Diesel insuficiente no tanque…").
 8. Confira com `curl http://localhost:3000/abastecimentos`: os dois estão **Pendente**.
 
+### A5 — "Meus abastecimentos" na página inicial
+
+🎯 O operador fica sabendo o que o gestor decidiu: cada abastecimento dele aparece na página inicial com o status (**Aguardando conferência**, **Aprovado** ou **Recusado**) e, na recusa, o **motivo**, para ele corrigir.
+
+🧩 **Serviço próprio da página inicial** (`src/servicos/painel.ts`): o `buscarPainelDoOperador` saiu de `maquinas.ts`, porque agora usa máquinas **e** abastecimentos. Em `maquinas.ts`, os dois serviços passariam a importar um ao outro (`abastecimentos.ts` já importa `maquinas.ts`). Uma busca só, com três chamadas ao mesmo tempo:
+
+```ts
+const [maquinas, movimentacoes, abastecimentos] = await Promise.all([
+  listarMaquinas(),
+  requisitar<Movimentacao[]>('/movimentacoes'),
+  listarAbastecimentos({ operador: nome }),   // GET /abastecimentos?operador=Ana
+]);
+```
+
+**Na tela** (`src/app/index.tsx`), entre "Com você agora" e "Frota agora":
+- um resumo do que pede atenção: "2 aguardando conferência · 1 recusado" (ou "Todos conferidos e aprovados.");
+- os 5 mais recentes, cada um com a máquina, a etiqueta de status (`src/componentes/etiqueta-abastecimento.tsx`), litros, posto ou tanque, valor, data, horímetro e, se recusado, **"Motivo: …"** em vermelho;
+- um toque abre a ficha da máquina (por exemplo, para registrar de novo um abastecimento recusado).
+
+📚 **Conceitos**
+- **Fechar o ciclo com quem registrou:** o operador mandou o recibo; sem retorno, ele não sabe se valeu. A etiqueta e o motivo completam o fluxo app → web → app.
+- **Evitar importação circular:** quando dois módulos precisam um do outro, a função que usa os dois vai para um terceiro módulo (`painel.ts`), e cada serviço continua dependendo só "para baixo".
+- **Rótulo para quem lê:** o status da API é `Pendente`; para o operador, a etiqueta diz "Aguardando conferência", que explica o que está acontecendo.
+- **Atualiza sozinho:** a página inicial já recarrega ao voltar para ela (`useFocusEffect`) e ao puxar para baixo. Depois de uma conferência na web, basta puxar.
+
+🧪 **Testes**
+1. Registre um abastecimento (A4) e volte ao início: ele aparece como **Aguardando conferência**, com "1 aguardando conferência" no resumo.
+2. Aprove pela API (`curl -X POST http://localhost:3000/abastecimentos/1/aprovacao`) e puxe a página para baixo: a etiqueta fica **Aprovado** (verde).
+3. Registre outro e recuse com motivo (`curl -X POST http://localhost:3000/abastecimentos/2/recusa -H "Content-Type: application/json" -d '{"motivo":"Recibo ilegível"}'`). Puxe: a etiqueta fica **Recusado**, com "Motivo: Recibo ilegível".
+4. Toque num abastecimento: abre a ficha da máquina.
+5. Troque de operador (barra → "trocar"): a lista mostra só os abastecimentos do nome novo.
+
 ---
 
 ## 4. Problemas comuns
