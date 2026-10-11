@@ -12,12 +12,13 @@ O sistema substitui cadernos, planilhas e mensagens soltas por uma plataforma ú
 | **Almoxarifado** | Cadastro de peças e fluidos, entradas (compras) com custo da última compra, kardex e alerta de estoque mínimo |
 | **Manutenção** | Ordens de serviço preventivas e corretivas, baixa automática das peças no fechamento (tudo ou nada), custo congelado, custo de manutenção por máquina e **fotos da avaria** |
 | **Abastecimento** | O operador registra no app, no **posto** (com a **foto do recibo**) ou pelo **tanque da fazenda** (diesel do almoxarifado, com baixa no estoque). O gestor confere na web: **aprova**, **recusa** com motivo (com estorno do diesel) ou **devolve para correção**. Consumo médio (L/h), custo por hora e último abastecimento de cada máquina |
-| **App do operador** | No celular: página inicial com as máquinas que estão com o operador, os abastecimentos dele (com o status da conferência) e os números da frota, leitura do **QR code** colado na máquina, saída e retorno, relato de avaria (abre O.S. corretiva) com **fotos**, registro e correção de abastecimentos, tema claro ou escuro |
+| **Localização** | Durante a saída, o celular do operador envia a posição da máquina (com o app aberto, com consentimento e um indicador sempre visível). Na web, o **mapa da frota** mostra onde está cada máquina em campo, atualizado a cada 15 s, e o detalhe da máquina mostra o **trajeto** da saída |
+| **App do operador** | No celular: página inicial com as máquinas que estão com o operador, os abastecimentos dele (com o status da conferência) e os números da frota, leitura do **QR code** colado na máquina, saída e retorno, relato de avaria (abre O.S. corretiva) com **fotos**, registro e correção de abastecimentos, **localização em campo**, tema claro ou escuro |
 
 | Parte | Tecnologia | Documentação |
 |---|---|---|
 | [`agro-backend/`](agro-backend) | Node.js 24, Express e TypeScript (dados **em memória**) | [README do back-end](agro-backend/README.md): API, regras, construção passo a passo e testes com curl |
-| [`agro-frontend/`](agro-frontend) | Angular 22 e Angular Material: painel de operação, tema claro e escuro, uso no desktop e no celular, etiqueta QR imprimível, fotos da O.S. e conferência de abastecimentos | [README do front-end](agro-frontend/README.md): telas, conceitos, construção passo a passo e roteiro de testes |
+| [`agro-frontend/`](agro-frontend) | Angular 22 e Angular Material: painel de operação, tema claro e escuro, uso no desktop e no celular, etiqueta QR imprimível, fotos da O.S., conferência de abastecimentos e mapa da frota (Leaflet + OpenStreetMap) | [README do front-end](agro-frontend/README.md): telas, conceitos, construção passo a passo e roteiro de testes |
 | [`agro-mobile/`](agro-mobile) | React Native com Expo (SDK 57) e Expo Router: o app do operador, testado no celular pelo Expo Go | [README do app](agro-mobile/README.md): construção passo a passo (M0 a M8), conceitos, testes e problemas comuns |
 
 Outros documentos:
@@ -25,6 +26,8 @@ Outros documentos:
 - [CHECKLIST.md](CHECKLIST.md): cada etapa e passo concluído, com o commit correspondente.
 
 > ⚠️ **Os dados ficam em memória:** ao reiniciar o back-end, tudo volta ao estado inicial (2 máquinas e 4 itens de estoque de exemplo, entre eles o diesel do tanque da fazenda). Não há login nem banco de dados nesta versão.
+
+> 🗺️ **O mapa precisa de internet:** os blocos do mapa vêm do OpenStreetMap. Sem conexão, a tela do mapa abre, mas o fundo fica vazio.
 
 ## Pré-requisitos
 
@@ -81,7 +84,7 @@ cp .env.example .env.local      # depois, troque o IP dentro dele pelo do seu co
 npx expo start
 ```
 
-No celular, abra o **Expo Go** e leia o QR code que aparece no terminal (no iPhone, pela câmera). Na primeira abertura, o app pergunta o nome do operador.
+No celular, abra o **Expo Go** e leia o QR code que aparece no terminal (no iPhone, pela câmera). Na primeira abertura, o app pergunta o nome do operador. Na primeira saída de máquina, ele pede a **localização** ("durante o uso"): permitida, a máquina aparece no mapa da web enquanto o app estiver aberto.
 
 > **Windows:** a rede Wi-Fi precisa estar como **privada**, e as portas **3000** (API) e **8081** (Expo) liberadas no firewall. O passo a passo está no [README do app](agro-mobile/README.md#firewall-do-windows).
 
