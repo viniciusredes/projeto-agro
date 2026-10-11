@@ -268,3 +268,9 @@ a:where(:not(.mat-mdc-button-base):not(.mat-mdc-list-item)) {
   background: var(--agro-corretiva-fundo);
   color: var(--agro-corretiva-texto);
 }
+
+// Erro (ex.: abastecimento recusado): as cores de erro do próprio Material, já com o tema escuro
+.etiqueta--erro {
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}

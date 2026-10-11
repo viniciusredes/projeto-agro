@@ -52,6 +52,7 @@ export interface MovimentoEstoque {
   saldoApos: number;       // saldo da peça logo depois deste movimento
   data: string;            // data ISO (ex.: '2026-09-27T13:15:00.000Z')
   ordemServicoId?: number; // só nas saídas: a O.S. que consumiu a peça
+  abastecimentoId?: number; // só no diesel: o abastecimento pelo tanque (saída) ou o estorno da recusa (entrada)
 }
 
 // Resposta de POST /pecas/:id/entradas

@@ -47,7 +47,12 @@
       @for (pendencia of pendencias(); track $index) {
         <article class="pendencia" [class.pendencia--os]="pendencia.tipo === 'os'">
           <span class="pendencia__icone" [class]="'pendencia__icone--' + pendencia.tipo">
-            <mat-icon>{{ pendencia.tipo === 'os' ? 'build' : pendencia.tipo === 'campo' ? 'agriculture' : 'inventory_2' }}</mat-icon>
+            @switch (pendencia.tipo) {
+              @case ('os') { <mat-icon>build</mat-icon> }
+              @case ('campo') { <mat-icon>agriculture</mat-icon> }
+              @case ('abastecimento') { <mat-icon>local_gas_station</mat-icon> }
+              @default { <mat-icon>inventory_2</mat-icon> }
+            }
           </span>
           <div class="pendencia__texto">
             <strong>{{ pendencia.titulo }}</strong>
@@ -62,6 +67,9 @@
             }
             @case ('repor') {
               <button mat-stroked-button type="button" (click)="registrarEntrada(pendencia.peca)">Registrar entrada</button>
+            }
+            @case ('abastecimento') {
+              <a mat-stroked-button routerLink="/abastecimentos" [queryParams]="{ status: 'Pendente' }">Conferir</a>
             }
           }
         </article>

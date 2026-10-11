@@ -119,6 +119,7 @@ Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.
 | `/estoque` | Lista de peças com busca, filtro "para repor" (`?filtro=repor`), barra de nível do saldo e ação principal + diálogos Nova peça e Entrada | `GET /pecas`, `POST /pecas`, `POST /pecas/:id/entradas` |
 | `/estoque/:id` | Kardex da peça | `GET /pecas/:id`, `GET /pecas/:id/movimentos` |
 | `/ordens-servico` | Abertas em cartões e fechadas em lista (cada O.S. inteira é um link), filtros de máquina e status na URL + diálogo de abertura | `GET /ordens-servico?maquinaId=`, `POST /ordens-servico` |
+| `/abastecimentos` | Abastecimentos registrados pelo app (Etapa 4): os que aguardam conferência em cartões, com a miniatura do recibo; os conferidos em lista, com o motivo das recusas; filtros de máquina, origem e status na URL; contador de pendentes no menu | `GET /abastecimentos?maquinaId=&origem=` |
 | `/ordens-servico/:id` | Detalhe e fechamento da O.S., com as **fotos da avaria** tiradas pelo app do operador (miniaturas; o clique abre a foto inteira numa aba nova; veja o [README do app](../agro-mobile/README.md), passo M7) | `GET /ordens-servico/:id`, `GET /ordens-servico/:id/fotos`, `POST /ordens-servico/:id/fechamento` |
 | qualquer outra | Volta para o início | — |
 
@@ -1816,6 +1817,37 @@ export class MaquinaService { ... }
 
 🧪 **Testes:** `npx ng build` sem erros e `npm test` com 34 testes passando; o app funciona igual.
 
+### Etapa 4 · A6 — Lista de abastecimentos, contador no menu e pendência no Painel
+
+🎯 O gestor enxerga os abastecimentos que os operadores registraram no app (com a foto do recibo) e sabe, de qualquer tela, quantos esperam a conferência. A conferência em si (aprovar ou recusar) vem no A7.
+
+🧩 **Contrato e service** (no padrão dos outros):
+- `core/models/abastecimento.ts`: o mesmo contrato do app (`agro-mobile/src/models/abastecimento.ts`), mais as respostas que a web usa (detalhe, conferência e combustível da máquina). O `MovimentoEstoque` de `peca.ts` ganhou o `abastecimentoId`.
+- `core/services/abastecimento.service.ts`: `listar(filtros)`, `contarPendentes()` (silencioso, como o `contarAbertas` das O.S.), `buscar`, `aprovar`, `recusar`, `combustivelDaMaquina` e `enderecoDoComprovante` (a url da API com o `/api` na frente, para o `<img>` passar pelo proxy).
+
+**Tela `/abastecimentos`** (`features/abastecimentos/abastecimentos-lista`), no padrão da lista de O.S. (Passo 12 e R6.3):
+- filtros de **máquina** e **origem** na URL e enviados à API; o **status** é filtrado na tela, para os botões mostrarem as contagens ("Pendentes · 2");
+- **Aguardando conferência:** cartões com a miniatura do recibo (o clique abre o recibo inteiro numa aba nova), máquina, operador, horímetro, litros, valor e preço por litro (`currency: 'BRL' : 'symbol' : '1.3-3'`, com 3 casas);
+- **Conferidos:** uma linha por abastecimento, com a etiqueta do status e, nas recusas, o motivo.
+
+**Menu com dois contadores:** o item do menu trocou `contaOsAbertas: boolean` por `contador: 'os' | 'abastecimentos'`, e o método `contagem(item)` escolhe o recurso certo. Para um terceiro contador, basta mais um valor.
+
+**Painel:** cada abastecimento pendente vira um item de "Precisa de atenção", com o botão **Conferir** (por enquanto, leva à lista filtrada em pendentes).
+
+**Tons:** `etiquetaStatusAbastecimento` (Pendente = alerta, Aprovado = sucesso, Recusado = **erro**, um tom novo com as cores de erro do Material) e `etiquetaOrigemAbastecimento` (Posto = info, Tanque = neutro).
+
+📚 **Conceitos**
+- **O mesmo padrão em telas novas:** filtros na URL, `rxResource` com `params`, cartões para o que pede ação e lista para o histórico. Quem já conhece a lista de O.S. lê esta tela sem esforço.
+- **Generalizar quando aparece o segundo caso:** um contador era um `boolean`; com dois, virou um tipo com os valores possíveis. Não antes, para não complicar o que só tinha um uso.
+- **Contrato copiado nos dois lados:** web e app têm a mesma interface `Abastecimento`. Se a API mudar um campo, as duas cópias precisam mudar.
+- **Imagem pelo proxy:** o recibo é um `<img>` comum, com `src` em `/api/abastecimentos/1/comprovante`; o proxy do `ng serve` leva até a API, como nas fotos da O.S.
+
+🧪 **Testes** (API e front rodando; registre abastecimentos pelo app ou pelo curl do README do back-end):
+1. O menu mostra **Abastecimentos** com o número de pendentes. O Painel lista cada pendente em "Precisa de atenção", com **Conferir**.
+2. Em `/abastecimentos`, os pendentes aparecem em cartões, com a miniatura do recibo; clique nela para abrir o recibo inteiro.
+3. Aprove ou recuse um pelo curl (`POST /abastecimentos/:id/aprovacao` ou `/recusa`) e clique em **Atualizar**: ele passa para "Conferidos", com a etiqueta e o motivo. Ao trocar de tela, o contador do menu diminui.
+4. Filtre por máquina, origem e status: a URL muda, e o Voltar do navegador desfaz o filtro.
+
 ---
 
 ## 6. Roteiro de testes no navegador
@@ -1923,7 +1955,11 @@ this.dialog.open<MeuDialog, Entrada, Resposta>(MeuDialog, { data })
 | Máquina `Em Operação` / O.S. `Preventiva` | info (azul) |
 | Máquina `Em Manutenção` / O.S. `Aberta` / saída no kardex | alerta (laranja) |
 | O.S. `Corretiva` | corretiva (laranja-avermelhado) |
-| Implantação no kardex | neutro (cinza) |
+| Implantação no kardex / abastecimento pelo `Tanque` | neutro (cinza) |
+| Abastecimento `Pendente` | alerta (laranja) |
+| Abastecimento `Aprovado` | sucesso (verde) |
+| Abastecimento `Recusado` | erro (vermelho, cores de erro do Material) |
+| Abastecimento no `Posto` | info (azul) |
 
 ---
 

@@ -1,0 +1,154 @@
+// .cabecalho, .subtitulo, .botoes, os filtros (.chip), .numero, .aviso e .etiqueta vêm de
+// src/estilos/_comuns.scss. Aqui fica só o que é específico desta tela (no padrão da lista de O.S.).
+
+.cabecalho h2 {
+  margin: 0;
+}
+
+.filtro-select {
+  width: 220px;
+}
+
+.secao {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.secao__titulo {
+  margin: 0;
+  font-size: 15px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// ===== Pendentes: cartões com a miniatura do recibo à esquerda =====
+.pendentes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 12px;
+}
+
+.ab-cartao {
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--agro-borda);
+  border-radius: 16px;
+  background: var(--agro-linha-destaque);
+}
+
+.ab-cartao__foto {
+  flex: 0 0 96px;
+  height: 96px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--agro-borda);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; // recorta para o quadrado; o clique abre o recibo inteiro
+  }
+
+  &:hover,
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+  }
+}
+
+.ab-cartao__foto--vazia {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.ab-cartao__corpo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ab-cartao__topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ab-cartao__data {
+  margin-left: auto;
+}
+
+.ab-cartao__data,
+.ab-cartao__detalhe {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.ab-cartao__maquina {
+  font-weight: 700;
+}
+
+.ab-cartao__valores {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 2px;
+}
+
+// ===== Conferidos: uma linha por abastecimento =====
+.lista-conferidos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ab-linha {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1.2fr) minmax(0, 1.4fr) 80px 110px 100px 90px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 18px;
+  border: 1px solid var(--agro-borda);
+  border-radius: 14px;
+  background: var(--agro-cartao);
+}
+
+.ab-linha__detalhe {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.9em;
+}
+
+// O motivo da recusa ocupa a linha inteira, abaixo dos dados
+.ab-linha__motivo {
+  grid-column: 1 / -1;
+  color: var(--mat-sys-error);
+  font-size: 0.9em;
+}
+
+// Celular: cartões um por linha; a linha dos conferidos vira um bloco compacto
+@media (max-width: 767.98px) {
+  .filtro-select {
+    width: 100%;
+  }
+
+  .pendentes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ab-linha {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    padding: 12px 14px;
+
+    // No celular ficam: número, máquina, valor e status
+    .ab-linha__detalhe,
+    > span.numero {
+      display: none;
+    }
+  }
+}

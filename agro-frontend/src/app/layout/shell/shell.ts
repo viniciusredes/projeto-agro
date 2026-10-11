@@ -11,6 +11,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { PreferenciaTema, TemaService } from '../../core/ui/tema.service';
 import { OrdemServicoService } from '../../core/services/ordem-servico.service';
+import { AbastecimentoService } from '../../core/services/abastecimento.service';
 
 // Formato de um item do menu lateral
 interface ItemMenu {
@@ -18,7 +19,7 @@ interface ItemMenu {
   rota: string;
   icone: string; // nome do ícone do Material Symbols
   curto?: string; // rótulo na navegação inferior do celular; sem ele, o item fica só no menu lateral
-  contaOsAbertas?: boolean; // mostra o contador de O.S. abertas ao lado
+  contador?: 'os' | 'abastecimentos'; // mostra ao lado quantos pedem atenção (O.S. abertas, abastecimentos a conferir)
 }
 
 // Seção do menu lateral: um título e seus itens
@@ -65,7 +66,9 @@ export class Shell {
         { titulo: 'Início', rota: '/', icone: 'home', curto: 'Início' },
         { titulo: 'Máquinas', rota: '/maquinas', icone: 'agriculture', curto: 'Máquinas' },
         { titulo: 'Estoque', rota: '/estoque', icone: 'inventory_2', curto: 'Estoque' },
-        { titulo: 'Ordens de Serviço', rota: '/ordens-servico', icone: 'build', curto: 'O.S.', contaOsAbertas: true },
+        { titulo: 'Ordens de Serviço', rota: '/ordens-servico', icone: 'build', curto: 'O.S.', contador: 'os' },
+        // Sem "curto": a navegação inferior do celular segue com 4 itens; no celular, fica no menu
+        { titulo: 'Abastecimentos', rota: '/abastecimentos', icone: 'local_gas_station', contador: 'abastecimentos' },
       ],
     },
     {
@@ -89,6 +92,19 @@ export class Shell {
     params: () => this.navegacao(),
     stream: () => this.osService.contarAbertas(),
   });
+
+  // O mesmo para os abastecimentos que esperam a conferência (Etapa 4)
+  private readonly abastecimentoService = inject(AbastecimentoService);
+  protected readonly abastecimentosPendentes = rxResource({
+    params: () => this.navegacao(),
+    stream: () => this.abastecimentoService.contarPendentes(),
+  });
+
+  // Quanto mostrar no contador de um item (0 = não mostra; também 0 enquanto carrega ou se falhar)
+  protected contagem(item: ItemMenu): number {
+    const recurso = item.contador === 'os' ? this.osAbertas : item.contador === 'abastecimentos' ? this.abastecimentosPendentes : null;
+    return recurso?.hasValue() ? recurso.value() : 0;
+  }
 
   protected readonly opcoesTema: OpcaoTema[] = [
     { valor: 'claro', rotulo: 'Claro', icone: 'light_mode' },

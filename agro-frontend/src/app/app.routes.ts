@@ -50,6 +50,13 @@ export const routes: Routes = [
       import('./features/ordens-servico/os-detalhe/os-detalhe').then(m => m.OsDetalhe),
   },
   {
+    // Etapa 4: os abastecimentos registrados pelo app, para a conferência do gestor
+    path: 'abastecimentos',
+    title: 'Abastecimentos | Agro Frota',
+    loadComponent: () =>
+      import('./features/abastecimentos/abastecimentos-lista/abastecimentos-lista').then(m => m.AbastecimentosLista),
+  },
+  {
     path: 'movimentacoes',
     title: 'Movimentações | Agro Frota',
     loadComponent: () =>
