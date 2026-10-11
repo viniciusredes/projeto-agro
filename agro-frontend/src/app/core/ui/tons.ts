@@ -26,6 +26,7 @@ const TOM_TIPO_OS: Record<TipoOS, Tom> = {
 // Abastecimento (Etapa 4): pendente pede atenção do gestor; recusado é erro
 const TOM_STATUS_ABASTECIMENTO: Record<StatusAbastecimento, Tom> = {
   Pendente: 'alerta',
+  'Em correção': 'info', // a vez é do operador
   Aprovado: 'sucesso',
   Recusado: 'erro',
 };

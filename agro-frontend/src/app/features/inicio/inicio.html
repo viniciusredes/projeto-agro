@@ -69,7 +69,7 @@
               <button mat-stroked-button type="button" (click)="registrarEntrada(pendencia.peca)">Registrar entrada</button>
             }
             @case ('abastecimento') {
-              <a mat-stroked-button routerLink="/abastecimentos" [queryParams]="{ status: 'Pendente' }">Conferir</a>
+              <a mat-stroked-button [routerLink]="['/abastecimentos', pendencia.abastecimento.id]">Conferir</a>
             }
           }
         </article>

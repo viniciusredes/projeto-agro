@@ -1,0 +1,42 @@
+<h2 mat-dialog-title>{{ textos.titulo(dados.abastecimento.id) }}</h2>
+
+<form [formGroup]="form" (ngSubmit)="confirmar()">
+  <mat-dialog-content>
+    <p class="info">
+      {{ dados.maquina }} · {{ dados.abastecimento.litros | number: '1.0-1' }} L ·
+      {{ dados.abastecimento.valorTotal | currency }} · registrado por {{ dados.abastecimento.operador }}
+    </p>
+
+    <!-- A consequência ANTES da decisão: na recusa pelo tanque, o diesel volta ao estoque -->
+    @if (dados.acao === 'recusar' && dados.abastecimento.origem === 'Tanque') {
+      <p class="aviso-recusa">
+        <mat-icon>undo</mat-icon>
+        Os {{ dados.abastecimento.litros | number: '1.0-1' }} L voltam ao estoque do diesel (estorno no kardex).
+      </p>
+    }
+
+    <mat-form-field appearance="outline" class="campo">
+      <mat-label>{{ textos.rotulo }}</mat-label>
+      <textarea matInput formControlName="motivo" rows="3" cdkFocusInitial placeholder="O operador verá este texto no app"></textarea>
+      <mat-hint>{{ textos.dica }}</mat-hint>
+      @if (form.controls.motivo.hasError('maxlength')) {
+        <mat-error>Use até 200 caracteres</mat-error>
+      } @else {
+        <mat-error>Informe o motivo</mat-error>
+      }
+    </mat-form-field>
+
+    <div class="sugestoes" role="group" aria-label="Motivos comuns">
+      @for (sugestao of textos.sugestoes; track sugestao) {
+        <button type="button" class="chip" (click)="usarSugestao(sugestao)">{{ sugestao }}</button>
+      }
+    </div>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" mat-dialog-close>Cancelar</button>
+    <button mat-flat-button type="submit" [class.botao-recusar]="dados.acao === 'recusar'" [disabled]="salvando()">
+      {{ salvando() ? textos.enviando : textos.botao }}
+    </button>
+  </mat-dialog-actions>
+</form>

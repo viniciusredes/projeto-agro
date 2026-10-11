@@ -46,6 +46,11 @@ export class AbastecimentoService {
     return this.http.post<RespostaConferencia>(`${this.url}/${id}/recusa`, { motivo });
   }
 
+  // POST /api/abastecimentos/:id/devolucao -> volta ao operador para correção (o motivo diz o que corrigir)
+  devolver(id: number, motivo: string): Observable<RespostaConferencia> {
+    return this.http.post<RespostaConferencia>(`${this.url}/${id}/devolucao`, { motivo });
+  }
+
   // GET /api/maquinas/:id/combustivel -> consumo L/h, custo por hora e totais (só os aprovados)
   combustivelDaMaquina(maquinaId: number): Observable<CombustivelMaquina> {
     return this.http.get<CombustivelMaquina>(`${API_URL}/maquinas/${maquinaId}/combustivel`);

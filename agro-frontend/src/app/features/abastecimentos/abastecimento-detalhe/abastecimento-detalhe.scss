@@ -1,0 +1,182 @@
+// .cabecalho, .aviso, .info e .etiqueta vêm de src/estilos/_comuns.scss.
+
+.voltar {
+  margin-bottom: 8px;
+}
+
+.cabecalho {
+  margin-bottom: 16px;
+
+  h2 {
+    margin: 0 0 8px;
+  }
+
+  .etiqueta + .etiqueta {
+    margin-left: 6px;
+  }
+}
+
+// Recibo | dados e decisão (uma coluna só em telas estreitas)
+.conferencia {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+
+  @media (max-width: 1023.98px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.coluna {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cartao {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid var(--agro-borda);
+  border-radius: 16px;
+  background: var(--agro-cartao);
+
+  h3 {
+    margin: 0;
+  }
+}
+
+// O recibo inteiro, sem recorte (contain): o gestor precisa ler os números
+.comprovante__imagem {
+  display: block;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--agro-borda);
+
+  img {
+    display: block;
+    width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+  }
+
+  &:hover,
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+  }
+}
+
+.sem-foto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.dados {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0;
+
+  div {
+    padding: 10px 12px;
+    border: 1px solid var(--agro-borda);
+    border-radius: 12px;
+  }
+
+  dt {
+    font-size: 0.85em;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  dd {
+    margin: 4px 0 0;
+    font-weight: 600;
+  }
+}
+
+.comparacao {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--agro-info-fundo);
+  color: var(--agro-info-texto);
+}
+
+// "Conferir o próximo": alinhado à direita, como os botões de decisão (sem esticar no cartão)
+.decisao > a {
+  align-self: flex-end;
+}
+
+.decisao__botoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+// Recusar: contorno e texto nas cores de erro do Material
+.botao-recusar:not(:disabled) {
+  border-color: var(--mat-sys-error);
+  color: var(--mat-sys-error);
+}
+
+.motivo {
+  margin: 0;
+  color: var(--mat-sys-error);
+}
+
+// O que o operador precisa corrigir (em correção): destaque no tom "info", o mesmo da etiqueta
+.pedido {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--agro-info-fundo);
+  color: var(--agro-info-texto);
+}
+
+// Histórico das devoluções: data | motivo | situação
+.devolucoes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 12px;
+    border: 1px solid var(--agro-borda);
+    border-radius: 10px;
+  }
+}
+
+.devolucoes__data,
+.devolucoes__situacao {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.9em;
+}
+
+.devolucoes__situacao {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: var(--agro-sucesso-texto);
+  }
+}

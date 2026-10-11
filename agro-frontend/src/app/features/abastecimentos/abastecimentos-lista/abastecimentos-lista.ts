@@ -1,6 +1,6 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -33,7 +33,7 @@ function paraOrigem(valor: string | undefined): OrigemAbastecimento | undefined 
 @Component({
   selector: 'app-abastecimentos-lista',
   imports: [
-    CurrencyPipe, DatePipe, DecimalPipe,
+    CurrencyPipe, DatePipe, DecimalPipe, RouterLink,
     MatFormFieldModule, MatSelectModule, MatButtonModule, MatIconModule, MatProgressBarModule, MatTooltipModule,
   ],
   templateUrl: './abastecimentos-lista.html',
@@ -73,6 +73,7 @@ export class AbastecimentosLista {
     return {
       todos: todos.length,
       pendentes: contar('Pendente'),
+      emCorrecao: contar('Em correção'),
       aprovados: aprovados.length,
       recusados: contar('Recusado'),
       // Só os aprovados contam no custo (a regra da API para os indicadores)
@@ -81,15 +82,20 @@ export class AbastecimentosLista {
     };
   });
 
-  // As duas seções da tela, já respeitando o filtro de status da URL
-  protected readonly pendentes = computed(() =>
-    this.status() && this.status() !== 'Pendente' ? [] : this.ordenados().filter(ab => ab.status === 'Pendente'),
-  );
-  protected readonly conferidos = computed(() =>
-    this.status() === 'Pendente'
-      ? []
-      : this.ordenados().filter(ab => ab.status !== 'Pendente' && (!this.status() || ab.status === this.status())),
-  );
+  // As três seções da tela, já respeitando o filtro de status da URL
+  private daSecao(...status: StatusAbastecimento[]): Abastecimento[] {
+    const filtro = this.status();
+    return this.ordenados().filter(ab => status.includes(ab.status) && (!filtro || ab.status === filtro));
+  }
+  protected readonly pendentes = computed(() => this.daSecao('Pendente'));
+  // Devolvidos: a vez é do operador (o gestor só acompanha o que foi pedido)
+  protected readonly emCorrecao = computed(() => this.daSecao('Em correção'));
+  protected readonly conferidos = computed(() => this.daSecao('Aprovado', 'Recusado'));
+
+  // O pedido de correção em aberto (a última devolução)
+  protected oQueCorrigir(abastecimento: Abastecimento): string {
+    return abastecimento.devolucoes[abastecimento.devolucoes.length - 1]?.motivo ?? '';
+  }
 
   // "Join" no front: id da máquina -> "TR-01 · Trator"
   private readonly nomePorId = computed(

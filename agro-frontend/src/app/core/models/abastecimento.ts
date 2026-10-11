@@ -4,11 +4,19 @@
 import { MovimentoEstoque } from './peca';
 
 export type OrigemAbastecimento = 'Posto' | 'Tanque';
-export type StatusAbastecimento = 'Pendente' | 'Aprovado' | 'Recusado';
+// 'Em correção': devolvido pelo gestor ao operador (Parte AB4); corrigido, volta a 'Pendente'
+export type StatusAbastecimento = 'Pendente' | 'Em correção' | 'Aprovado' | 'Recusado';
 
 // Listas de valores válidos (usadas nos filtros e para validar a URL)
 export const ORIGENS_ABASTECIMENTO: OrigemAbastecimento[] = ['Posto', 'Tanque'];
-export const STATUS_ABASTECIMENTO: StatusAbastecimento[] = ['Pendente', 'Aprovado', 'Recusado'];
+export const STATUS_ABASTECIMENTO: StatusAbastecimento[] = ['Pendente', 'Em correção', 'Aprovado', 'Recusado'];
+
+// Cada devolução para correção: o que corrigir, quando, e quando o operador corrigiu
+export interface Devolucao {
+  motivo: string;
+  data: string;
+  corrigidaEm?: string;
+}
 
 // O recibo (ou a foto da bomba, no tanque): só os dados; a imagem fica na url
 export interface ComprovanteAbastecimento {
@@ -32,6 +40,7 @@ export interface Abastecimento {
   status: StatusAbastecimento;
   motivoRecusa?: string;
   dataConferencia?: string;
+  devolucoes: Devolucao[]; // histórico das devoluções (vazio se nunca voltou ao operador)
   comprovante: ComprovanteAbastecimento | null;
 }
 
@@ -60,6 +69,7 @@ export interface CombustivelMaquina {
   maquina: string;              // tag
   aprovados: number;
   pendentes: number;
+  emCorrecao: number;
   litros: number;
   custoTotal: number;
   horasMedidas: number;

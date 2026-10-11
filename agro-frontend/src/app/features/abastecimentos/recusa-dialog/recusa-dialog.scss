@@ -1,0 +1,25 @@
+// .info, .campo e .chip vêm de src/estilos/_comuns.scss (compartilhados por todos os diálogos).
+
+.aviso-recusa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--agro-info-fundo);
+  color: var(--agro-info-texto);
+}
+
+.sugestoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+// Recusar é a ação "negativa": o botão principal usa as cores de erro do Material
+.botao-recusar:not(:disabled) {
+  background: var(--mat-sys-error);
+  color: var(--mat-sys-on-error);
+}

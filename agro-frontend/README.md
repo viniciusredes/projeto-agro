@@ -120,6 +120,7 @@ Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.
 | `/estoque/:id` | Kardex da peça | `GET /pecas/:id`, `GET /pecas/:id/movimentos` |
 | `/ordens-servico` | Abertas em cartões e fechadas em lista (cada O.S. inteira é um link), filtros de máquina e status na URL + diálogo de abertura | `GET /ordens-servico?maquinaId=`, `POST /ordens-servico` |
 | `/abastecimentos` | Abastecimentos registrados pelo app (Etapa 4): os que aguardam conferência em cartões, com a miniatura do recibo; os conferidos em lista, com o motivo das recusas; filtros de máquina, origem e status na URL; contador de pendentes no menu | `GET /abastecimentos?maquinaId=&origem=` |
+| `/abastecimentos/:id` | Conferência: o recibo grande, os dados com o preço por litro, a comparação com o abastecimento anterior da máquina (horas e L/h), **Aprovar** (com confirmação) e **Recusar** (diálogo com motivo obrigatório); depois, o atalho para o próximo pendente | `GET /abastecimentos/:id`, `POST /abastecimentos/:id/aprovacao`, `POST /abastecimentos/:id/recusa` |
 | `/ordens-servico/:id` | Detalhe e fechamento da O.S., com as **fotos da avaria** tiradas pelo app do operador (miniaturas; o clique abre a foto inteira numa aba nova; veja o [README do app](../agro-mobile/README.md), passo M7) | `GET /ordens-servico/:id`, `GET /ordens-servico/:id/fotos`, `POST /ordens-servico/:id/fechamento` |
 | qualquer outra | Volta para o início | — |
 
@@ -1848,6 +1849,114 @@ export class MaquinaService { ... }
 3. Aprove ou recuse um pelo curl (`POST /abastecimentos/:id/aprovacao` ou `/recusa`) e clique em **Atualizar**: ele passa para "Conferidos", com a etiqueta e o motivo. Ao trocar de tela, o contador do menu diminui.
 4. Filtre por máquina, origem e status: a URL muda, e o Voltar do navegador desfaz o filtro.
 
+### Etapa 4 · A7 — Conferência: aprovar ou recusar com motivo
+
+🎯 O gestor confere cada abastecimento olhando o recibo e decide: **aprova** (entra no custo e no consumo) ou **recusa com motivo** (o operador vê o motivo no app; pelo tanque, o diesel volta ao estoque).
+
+🧩 **Tela `/abastecimentos/:id`** (`features/abastecimentos/abastecimento-detalhe`), em duas colunas:
+- **Recibo** grande, inteiro (`object-fit: contain`, para ler os números); o clique abre em tamanho real. No tanque sem foto, uma explicação.
+- **Dados informados** e, para conferir, o **abastecimento anterior** da mesma máquina: as horas trabalhadas desde ele e o consumo que este abastecimento sugere (litros ÷ horas). Um número fora do normal é sinal de litros ou horímetro errados.
+- **Conferência:** **Recusar** e **Aprovar**. Depois da decisão, a etiqueta, a data, o motivo e o atalho **Conferir o próximo**.
+
+Três recursos (`rxResource`), um dependendo do outro:
+
+```ts
+protected readonly abastecimento = rxResource({ params: () => this.id(), stream: ... buscar(params) });
+// Só busca quando o abastecimento chegou (sem a máquina, params é undefined e nada é pedido)
+protected readonly daMaquina = rxResource({
+  params: () => (this.abastecimento.hasValue() ? this.abastecimento.value().maquinaId : undefined),
+  stream: ({ params }) => this.abastecimentoService.listar({ maquinaId: params }),
+});
+protected readonly pendentes = rxResource({ stream: () => this.abastecimentoService.listar({ status: 'Pendente' }) });
+```
+
+**Aprovar** usa a `ConfirmacaoDialog` do Passo 16.2 (com o aviso de irreversível e o que muda). **Recusar** abre o `RecusaDialog` (`features/abastecimentos/recusa-dialog`), um diálogo de formulário como o de retorno:
+- motivo obrigatório, sem aceitar só espaços (`Validators.pattern(NAO_VAZIO)`, a regra da API) e com até 200 caracteres;
+- **sugestões** ("Recibo ilegível", "Valor não confere com o recibo"…) que preenchem o campo, ainda editável;
+- no tanque, o aviso **antes** da decisão: "Os 200 L voltam ao estoque do diesel";
+- o diálogo faz a chamada e fecha com a resposta; a tela mostra a mensagem da API e recarrega tudo.
+
+A lista e o Painel passaram a levar à conferência: o **cartão inteiro** do pendente e a linha do conferido viraram links (a miniatura deixou de ser um link próprio, porque não pode haver link dentro de link), e o **Conferir** do Painel abre a conferência daquele abastecimento.
+
+📚 **Conceitos**
+- **Decisão irreversível com a consequência à vista:** a confirmação diz o que muda ("passa a contar no custo e no consumo"); a recusa avisa o estorno antes. Ninguém decide sem saber o efeito.
+- **Contexto para decidir:** o recibo sozinho não mostra se os litros fazem sentido. A comparação com o abastecimento anterior dá o consumo provável, o que um gestor faria de cabeça.
+- **Recursos encadeados:** o `params` de um `rxResource` pode depender de outro recurso. Enquanto ele devolve `undefined`, a busca espera.
+- **Fluxo de trabalho:** depois de decidir, o botão **Conferir o próximo** evita voltar à lista a cada abastecimento.
+- **Testar o diálogo pelo comportamento:** `recusa-dialog.spec.ts` (3 testes) confere o aviso do estorno, o motivo só com espaços barrado sem chamar a API e a sugestão indo, sem espaços nas pontas, para o `POST /recusa`.
+
+🧪 **Testes** (com abastecimentos registrados pelo app):
+1. No Painel, clique em **Conferir**: abre a conferência daquele abastecimento.
+2. Confira o recibo, os dados e a comparação com o anterior (a partir do segundo abastecimento da máquina).
+3. **Aprovar** → confirmação → aprovado: aparece a mensagem, a etiqueta muda e surge **Conferir o próximo**.
+4. **Recusar** um do tanque: o diálogo avisa o estorno; tente enviar só espaços (barrado), escolha uma sugestão e confirme. No Estoque, o kardex do DSL-001 mostra a entrada do estorno; no app, a página inicial mostra "Recusado" com o motivo.
+5. Abra de novo um já conferido: os botões não aparecem; só o resultado.
+6. `npm test`: 37 testes passando.
+
+### Etapa 4 · A7.2 — Devolver para correção
+
+🎯 Erro de preenchimento não precisa virar recusa e um registro novo: o gestor **devolve** o abastecimento ao operador, dizendo o que corrigir, e ele volta corrigido para a conferência (a API está na Parte AB4 do README do back-end). A recusa fica para o registro indevido.
+
+🧩 **Um diálogo, duas ações.** O `RecusaDialog` passou a receber `acao: 'recusar' | 'devolver'`. O formulário (motivo obrigatório, sem só espaços) é o mesmo; uma tabela de textos (`Record<AcaoComMotivo, Textos>`) troca o título, o rótulo, a dica, o botão, as **sugestões** e a rota da API:
+
+| | Recusar | Devolver para correção |
+|---|---|---|
+| Quando | registro indevido (duplicado, máquina ou origem errada) | erro de preenchimento (recibo ilegível, valor, litros, horímetro) |
+| Rota | `POST /abastecimentos/:id/recusa` | `POST /abastecimentos/:id/devolucao` |
+| Resultado | final; no tanque, estorno do diesel | `Em correção`; volta a `Pendente` quando o operador corrigir |
+
+**Conferência:** três botões (**Recusar**, **Devolver para correção**, **Aprovar**), com a orientação de quando usar cada um. Um abastecimento `Em correção` mostra "Com o operador para correção desde…" e **o que corrigir**; e o cartão **Devolvido N vezes para correção** lista cada devolução, com o motivo e quando foi corrigida.
+
+**Lista:** o botão de filtro "Em correção · N" e a seção **Com o operador para correção** (entre os pendentes e os conferidos), com o pedido em aberto e a contagem ("2ª devolução").
+
+**Contrato e tons:** `StatusAbastecimento` ganhou `'Em correção'` (tom `info`: a vez é do operador), o `Abastecimento` ganhou `devolucoes: Devolucao[]` e o service, `devolver(id, motivo)`.
+
+📚 **Conceitos**
+- **Reaproveitar com uma tabela de textos:** em vez de copiar o diálogo, a diferença entre as ações virou dados (`TEXTOS[acao]`). O `Record` obriga a ter os textos das duas ações.
+- **Orientar a decisão:** a conferência explica quando devolver e quando recusar, e as sugestões de cada diálogo reforçam a diferença.
+- **Estado de espera:** em `Em correção`, não há botões de decisão; a tela mostra o que foi pedido e oferece o próximo pendente.
+- **Histórico visível:** um abastecimento devolvido muitas vezes chama a atenção (treinamento do operador, por exemplo).
+
+🧪 **Testes**
+1. Na conferência de um pendente, **Devolver para correção** → escolha uma sugestão → confirme: a etiqueta vira "Com o operador para correção", com o pedido.
+2. Na lista, ele aparece em **Com o operador para correção** (e no filtro "Em correção").
+3. Corrija pelo app (A7.3) e volte à conferência: ele está Pendente de novo, com o cartão "Devolvido 1 vez", "corrigido em…".
+4. `npm test`: 38 testes (um novo, do diálogo no modo devolver).
+
+### Etapa 4 · A8 — Combustível no detalhe da máquina e abastecimentos no kardex
+
+🎯 Ao abrir uma máquina, o gestor vê o combustível dela: quanto consome, quanto custa por hora, quando foi o último abastecimento e quanto ela trabalhou desde então. No kardex do diesel, cada saída e cada devolução mostram o abastecimento de origem.
+
+🧩 **Seção Combustível** (`maquina-detalhe`), entre os indicadores de manutenção e o custo por tipo, com os números de `GET /maquinas/:id/combustivel` (só os aprovados):
+- **Consumo médio** em L/h (ou **"Sem dados"**, com o motivo: precisa de 2 aprovados);
+- **Custo por hora**, com os litros e o custo aprovados;
+- **Último abastecimento** (o mais recente que não foi recusado): data, litros, onde, e **"N h trabalhadas desde então"** (horímetro atual da máquina − horímetro do abastecimento);
+- o aviso quando há abastecimentos pendentes ou em correção (eles ainda não entram nos números);
+- os 5 últimos abastecimentos, cada um levando à conferência, e o link **Todos os abastecimentos** (a lista já filtrada pela máquina).
+
+```ts
+protected readonly ultimoAbastecimento = computed(() => this.abastecimentosRecentes()[0] ?? null);
+protected readonly horasDesdeUltimo = computed(() => {
+  const ultimo = this.ultimoAbastecimento();
+  const maquina = this.maquina();
+  return ultimo && maquina ? Math.max(0, maquina.horimetro - ultimo.horimetro) : null;
+});
+```
+
+**Kardex** (`peca-kardex`): a coluna Origem reconhece o `abastecimentoId`. Saída: "Abastecimento nº X"; entrada: "Devolução ao tanque · abastecimento nº X" (o estorno de uma recusa ou a correção para menos litros). Antes, esses movimentos apareciam como "Saldo inicial" e "Compra".
+
+📚 **Conceitos**
+- **Informação para decidir:** horas desde o último abastecimento ajudam a prever o próximo; consumo e custo por hora mostram a máquina que gasta demais.
+- **Dado derivado em dois níveis:** a API calcula consumo e custo (regra de negócio); a tela só deriva o que é de apresentação (último abastecimento, horas desde então).
+- **"Sem dados" ≠ zero:** com menos de 2 abastecimentos aprovados, não há consumo a medir, e a tela diz isso em vez de mostrar "0 L/h".
+- **Ligar os módulos pela origem:** o kardex aponta a O.S. ou o abastecimento que movimentou o estoque, com link. Qualquer saldo é explicável.
+
+🧪 **Testes** (com abastecimentos aprovados de uma máquina):
+1. Abra a máquina: a seção Combustível mostra consumo, custo por hora e o último abastecimento, com as horas desde então.
+2. Com um só aprovado: "Sem dados" no consumo.
+3. Registre um retorno da máquina (o horímetro anda) e abra de novo: as horas desde o último abastecimento aumentam.
+4. Estoque → DSL-001: as saídas e devoluções mostram o abastecimento, com link para a conferência.
+
 ---
 
 ## 6. Roteiro de testes no navegador
@@ -1957,6 +2066,7 @@ this.dialog.open<MeuDialog, Entrada, Resposta>(MeuDialog, { data })
 | O.S. `Corretiva` | corretiva (laranja-avermelhado) |
 | Implantação no kardex / abastecimento pelo `Tanque` | neutro (cinza) |
 | Abastecimento `Pendente` | alerta (laranja) |
+| Abastecimento `Em correção` | info (azul) |
 | Abastecimento `Aprovado` | sucesso (verde) |
 | Abastecimento `Recusado` | erro (vermelho, cores de erro do Material) |
 | Abastecimento no `Posto` | info (azul) |

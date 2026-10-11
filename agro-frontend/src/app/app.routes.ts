@@ -57,6 +57,13 @@ export const routes: Routes = [
       import('./features/abastecimentos/abastecimentos-lista/abastecimentos-lista').then(m => m.AbastecimentosLista),
   },
   {
+    // Conferência de um abastecimento: /abastecimentos/1 (o :id vira o input "id")
+    path: 'abastecimentos/:id',
+    title: 'Conferência de abastecimento | Agro Frota',
+    loadComponent: () =>
+      import('./features/abastecimentos/abastecimento-detalhe/abastecimento-detalhe').then(m => m.AbastecimentoDetalhe),
+  },
+  {
     path: 'movimentacoes',
     title: 'Movimentações | Agro Frota',
     loadComponent: () =>
