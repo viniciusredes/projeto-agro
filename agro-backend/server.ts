@@ -118,7 +118,7 @@ interface MovimentoEstoque {
   saldoApos: number;       // saldo da peça logo depois deste movimento
   data: string;
   ordemServicoId?: number; // só nas saídas: a O.S. que consumiu a peça
-  abastecimentoId?: number; // só no diesel: o abastecimento pelo tanque que o consumiu
+  abastecimentoId?: number; // só no diesel: o abastecimento pelo tanque (saída) ou o estorno da recusa (entrada)
 }
 
 // Histórico de movimentos: começa com a implantação do saldo das peças iniciais
@@ -336,7 +336,7 @@ interface Abastecimento {
   precoLitro: number;       // R$/L: valorTotal / litros (posto) ou custo do diesel, congelado (tanque)
   data: string;
   status: StatusAbastecimento;
-  motivoRecusa?: string;    // preenchidos na conferência (A3)
+  motivoRecusa?: string;    // preenchidos na conferência do gestor
   dataConferencia?: string;
   comprovante?: Comprovante;
 }
@@ -1091,7 +1091,7 @@ app.post('/abastecimentos', (req, res) => {
   };
   abastecimentos.push(abastecimento);
 
-  // Tanque: o diesel saiu de verdade, então a baixa é AGORA (se o gestor recusar, há estorno - A3)
+  // Tanque: o diesel saiu de verdade, então a baixa é AGORA (se o gestor recusar, há estorno)
   if (diesel) {
     diesel.saldo = arredondar(diesel.saldo - litros, 2);
     movimentosEstoque.push({
@@ -1187,6 +1187,130 @@ app.get('/abastecimentos/:id/comprovante', (req, res) => {
   }
 
   res.type(abastecimento.comprovante.tipo).send(abastecimento.comprovante.conteudo);
+});
+
+// 22. Caminho para APROVAR um abastecimento (conferência do gestor, na web)
+app.post('/abastecimentos/:id/aprovacao', (req, res) => {
+  const id = Number(req.params.id);
+
+  // Validação 1 (formato): o id é um número inteiro?
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  // Validação 2: o abastecimento existe?
+  const abastecimento = abastecimentos.find(ab => ab.id === id);
+  if (!abastecimento) {
+    return res.status(404).json({ erro: 'Abastecimento não encontrado' });
+  }
+
+  // Validação 3 (estado): só se confere o que está Pendente. A decisão é final.
+  if (abastecimento.status !== 'Pendente') {
+    return res.status(409).json({ erro: `Abastecimento nº ${id} já foi conferido (${abastecimento.status})` });
+  }
+
+  abastecimento.status = 'Aprovado';
+  abastecimento.dataConferencia = new Date().toISOString();
+
+  res.json({ mensagem: 'Abastecimento aprovado!', abastecimento: resumoDoAbastecimento(abastecimento) });
+});
+
+// 23. Caminho para RECUSAR um abastecimento (com motivo). Pelo tanque, o diesel volta ao estoque.
+app.post('/abastecimentos/:id/recusa', (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  const abastecimento = abastecimentos.find(ab => ab.id === id);
+  if (!abastecimento) {
+    return res.status(404).json({ erro: 'Abastecimento não encontrado' });
+  }
+
+  if (abastecimento.status !== 'Pendente') {
+    return res.status(409).json({ erro: `Abastecimento nº ${id} já foi conferido (${abastecimento.status})` });
+  }
+
+  // Validação 4 (formato): o operador precisa saber POR QUE foi recusado
+  const { motivo } = req.body ?? {};
+  if (typeof motivo !== 'string' || motivo.trim() === '') {
+    return res.status(400).json({ erro: "Campo 'motivo' é obrigatório para recusar" });
+  }
+
+  const data = new Date().toISOString();
+  abastecimento.status = 'Recusado';
+  abastecimento.motivoRecusa = motivo.trim();
+  abastecimento.dataConferencia = data;
+
+  // Pelo tanque, o diesel já tinha sido baixado no registro: o ESTORNO devolve os litros, com o
+  // MESMO custo da saída (e sem mudar o custo do diesel, que só muda com uma compra)
+  let estorno: MovimentoEstoque | null = null;
+  const diesel = abastecimento.pecaId !== undefined ? pecas.find(peca => peca.id === abastecimento.pecaId) : undefined;
+  if (diesel) {
+    diesel.saldo = arredondar(diesel.saldo + abastecimento.litros, 2);
+    estorno = {
+      id: proximoIdMovimentoEstoque++,
+      pecaId: diesel.id,
+      tipo: 'entrada',
+      quantidade: abastecimento.litros,
+      custoUnitario: abastecimento.precoLitro,
+      valorTotal: abastecimento.valorTotal,
+      saldoApos: diesel.saldo,
+      data,
+      abastecimentoId: abastecimento.id
+    };
+    movimentosEstoque.push(estorno);
+  }
+
+  res.json({
+    mensagem: estorno
+      ? `Abastecimento recusado. ${abastecimento.litros} L de diesel voltaram ao estoque.`
+      : 'Abastecimento recusado.',
+    abastecimento: resumoDoAbastecimento(abastecimento),
+    estorno
+  });
+});
+
+// 24. Caminho para VER o combustível de uma máquina: consumo (L/h) e custo, só com os APROVADOS
+app.get('/maquinas/:id/combustivel', (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  const maquina = maquinas.find(m => m.id === id);
+  if (!maquina) {
+    return res.status(404).json({ erro: 'Máquina não encontrada' });
+  }
+
+  const daMaquina = abastecimentos.filter(ab => ab.maquinaId === maquina.id);
+  const aprovados = daMaquina
+    .filter(ab => ab.status === 'Aprovado')
+    .sort((a, b) => a.horimetro - b.horimetro);
+
+  // Consumo médio: o PRIMEIRO abastecimento é só o ponto de partida (ninguém sabe o que já havia
+  // no tanque). O que foi colocado DEPOIS dele é o que a máquina gastou nas horas trabalhadas.
+  const primeiro = aprovados[0];
+  const ultimo = aprovados[aprovados.length - 1];
+  const depoisDoPrimeiro = aprovados.slice(1);
+  const horasMedidas = aprovados.length >= 2 ? arredondar(ultimo.horimetro - primeiro.horimetro, 1) : 0;
+  const somar = (lista: Abastecimento[], campo: 'litros' | 'valorTotal') =>
+    lista.reduce((soma, ab) => soma + ab[campo], 0);
+
+  res.json({
+    maquina: maquina.tag,
+    aprovados: aprovados.length,
+    pendentes: daMaquina.filter(ab => ab.status === 'Pendente').length,
+    litros: arredondar(somar(aprovados, 'litros'), 2),
+    custoTotal: arredondar(somar(aprovados, 'valorTotal'), 2),
+    horasMedidas,
+    // null = sem dados suficientes (menos de 2 abastecimentos aprovados, ou horímetro parado)
+    consumoMedio: horasMedidas > 0 ? arredondar(somar(depoisDoPrimeiro, 'litros') / horasMedidas, 2) : null,
+    custoPorHora: horasMedidas > 0 ? arredondar(somar(depoisDoPrimeiro, 'valorTotal') / horasMedidas, 2) : null,
+    abastecimentos: daMaquina.map(resumoDoAbastecimento)
+  });
 });
 
 // Rota não encontrada: se a requisição chegou até aqui, nenhuma rota acima atendeu.

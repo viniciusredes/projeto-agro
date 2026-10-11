@@ -127,6 +127,9 @@ Tudo fica num único `server.ts` de propósito, para facilitar o aprendizado. A 
 | `GET` | `/abastecimentos` | Lista (filtros opcionais `?maquinaId=`, `?status=`, `?origem=` e `?operador=`) |
 | `GET` | `/abastecimentos/:id` | Detalhe, com os dados da máquina |
 | `GET` | `/abastecimentos/:id/comprovante` | A foto do recibo (resposta binária) |
+| `POST` | `/abastecimentos/:id/aprovacao` | Conferência: aprova |
+| `POST` | `/abastecimentos/:id/recusa` | Conferência: recusa com motivo (estorno do diesel, se veio do tanque) |
+| `GET` | `/maquinas/:id/combustivel` | Consumo médio (L/h), custo por hora e totais, só com os aprovados |
 
 Toda resposta de erro segue o formato:
 
@@ -296,7 +299,7 @@ O projeto foi construído em **partes pequenas**. Cada parte traz: 🎯 o **obje
 | **Uso** (máquinas) | [Ponto de partida](#ponto-de-partida), [Parte 0](#parte-0--script-de-desenvolvimento) a [Parte 6](#parte-6--avarias-no-retorno-campo-opcional) |
 | **Estoque** (peças) | [Parte E1](#parte-e1--modelo-de-peça-e-listagem) a [Parte E6](#parte-e6--estoque-mínimo-e-alerta-de-reposição) |
 | **Manutenção** (O.S.) | [Parte OS1](#parte-os1--modelo-da-ordem-de-serviço-e-listagem) a [Parte OS7](#parte-os7--detalhe-da-os-e-custo-por-máquina), mais a [Parte OS8](#parte-os8--fotos-da-os-para-o-app-do-operador) (fotos, feita na Etapa 3) |
-| **Abastecimento** (Etapa 4) | [Parte AB1](#parte-ab1--abastecimento-em-posto-com-o-recibo) e [Parte AB2](#parte-ab2--abastecimento-pelo-tanque-da-fazenda) |
+| **Abastecimento** (Etapa 4) | [Parte AB1](#parte-ab1--abastecimento-em-posto-com-o-recibo) a [Parte AB3](#parte-ab3--conferência-do-gestor-e-indicadores-de-combustível) |
 
 > **Dica para os alunos:** reproduzam as partes na ordem, testando cada uma antes de seguir. É assim que se constrói software de forma segura: um passo pequeno e verificado de cada vez.
 
@@ -1551,11 +1554,75 @@ curl -X POST http://localhost:3000/abastecimentos -H "Content-Type: application/
   -d '{"maquinaId":1,"operador":"Bruno","origem":"Tanque","litros":5000,"horimetro":1100}'  # 409, diesel insuficiente
 ```
 
+### Parte AB3 — Conferência do gestor e indicadores de combustível
+
+🎯 O gestor confere cada abastecimento, olhando o recibo, e **aprova** ou **recusa com motivo**. A recusa de um abastecimento pelo tanque **devolve o diesel** ao estoque. Com os aprovados, a API calcula o **consumo médio (L/h)** e o **custo por hora** de cada máquina.
+
+🧩 **1. Máquina de estados:** `Pendente` → `Aprovado` ou `Recusado`. A decisão é final: conferir de novo responde **409**, como fechar uma O.S. já fechada.
+
+```ts
+if (abastecimento.status !== 'Pendente') {
+  return res.status(409).json({ erro: `Abastecimento nº ${id} já foi conferido (${abastecimento.status})` });
+}
+```
+
+**2. Recusa com estorno.** O motivo é obrigatório (o operador precisa saber o que corrigir). Pelo tanque, um movimento de **entrada** devolve os litros, com o **mesmo custo** da saída:
+
+```ts
+diesel.saldo = arredondar(diesel.saldo + abastecimento.litros, 2);
+movimentosEstoque.push({
+  id: proximoIdMovimentoEstoque++,
+  pecaId: diesel.id,
+  tipo: 'entrada',
+  quantidade: abastecimento.litros,
+  custoUnitario: abastecimento.precoLitro, // o custo da SAÍDA, não o atual
+  valorTotal: abastecimento.valorTotal,
+  saldoApos: diesel.saldo,
+  data,
+  abastecimentoId: abastecimento.id
+});
+```
+
+**3. Indicadores (`GET /maquinas/:id/combustivel`)**, só com os aprovados, em ordem de horímetro:
+
+```ts
+// O PRIMEIRO abastecimento é só o ponto de partida: ninguém sabe o que já havia no tanque.
+// O que foi colocado DEPOIS dele é o que a máquina gastou nas horas trabalhadas.
+const horasMedidas = ultimo.horimetro - primeiro.horimetro;
+consumoMedio = litros(depoisDoPrimeiro) / horasMedidas;   // L/h
+custoPorHora = valor(depoisDoPrimeiro) / horasMedidas;    // R$/h
+```
+
+Com menos de 2 aprovados, `consumoMedio` e `custoPorHora` vêm `null` ("sem dados"). A resposta traz também os totais (litros, custo), quantos estão pendentes e a lista de abastecimentos da máquina.
+
+| Método | Rota | O que faz |
+|---|---|---|
+| `POST` | `/abastecimentos/:id/aprovacao` | Aprova (409 se já conferido) |
+| `POST` | `/abastecimentos/:id/recusa` | Recusa com `{ "motivo": "..." }` (400 sem motivo; estorno do diesel pelo tanque) |
+| `GET` | `/maquinas/:id/combustivel` | Consumo L/h, custo por hora, totais e histórico da máquina |
+
+📚 **Conceitos**
+- **Máquina de estados:** cada status diz o que ainda pode acontecer. Validar o estado antes de agir evita aprovar duas vezes ou recusar algo já aprovado.
+- **Estorno, não apagar:** o kardex nunca apaga uma linha. A recusa acrescenta uma entrada que desfaz a saída, e o histórico mostra as duas, com a mesma origem (`abastecimentoId`). É assim que a contabilidade corrige lançamentos.
+- **O estorno não mexe no custo do diesel:** só uma compra (`POST /pecas/:id/entradas`) define o custo da última compra. Por isso o estorno não passa pela rota de entradas.
+- **Indicador derivado:** consumo e custo por hora não são guardados; são calculados a cada pedido, a partir dos abastecimentos aprovados. Recusar ou aprovar muda os números na hora.
+- **"Sem dados" é diferente de zero:** com um abastecimento só, não dá para medir consumo. A API responde `null`, e a tela deve mostrar "sem dados", não "0 L/h".
+- **Por que o estorno é `entrada`:** um tipo novo de movimento (`estorno`) quebraria o kardex da web, que exige uma apresentação para cada tipo. A origem (`abastecimentoId`) já diz que não é compra.
+
+🧪 **Testes** (com os abastecimentos das Partes AB1 e AB2 registrados)
+
+```bash
+curl -X POST http://localhost:3000/abastecimentos/1/aprovacao
+curl -X POST http://localhost:3000/abastecimentos/2/recusa -H "Content-Type: application/json" -d '{"motivo":"Litros acima da capacidade do tanque"}'
+curl http://localhost:3000/pecas/4/movimentos     # a saída e a entrada (estorno) do nº 2
+curl http://localhost:3000/maquinas/1/combustivel
+```
+
 ---
 
 ## 6. Roteiro completo de testes com curl
 
-> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 127 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S. e 24 do abastecimento) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
+> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 141 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S. e 38 do abastecimento) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
 >
 > 💡 **Alternativa sem terminal:** o arquivo [testes.http](testes.http) tem este mesmo roteiro para a extensão **REST Client** do VS Code. Basta clicar em "Send Request" acima de cada teste, sem se preocupar com aspas.
 
@@ -1926,6 +1993,20 @@ Usa a PV-03 (horímetro 260 depois do F1). Os testes montam o corpo com uma fun�
 | AB22 | Tanque com 5000 L | **409**, `pedido 5000 L, saldo 2800 L` |
 | AB23 | Diesel de novo | **200**, saldo continua 2800 |
 | AB24 | Tanque, 10 L, com foto | **201**, com a `url` do comprovante |
+| AB25 | Aprovar o nº 1 | **200**, `Aprovado` |
+| AB26 | Aprovar o nº 1 de novo | **409**, `já foi conferido (Aprovado)` |
+| AB27 | Recusar o nº 2 sem motivo | **400** |
+| AB28 | Recusar o nº 2 com motivo | **200**, `Recusado`, com o motivo |
+| AB29 | Diesel (peça 4) | **200**, saldo 2990 (estorno de 200 L) |
+| AB30 | Kardex do diesel | **200**, entrada de 200 L (o estorno) |
+| AB31 | Recusar o nº 1 (já aprovado) | **409** |
+| AB32 | Aprovar o 99 | **404** |
+| AB33 | Combustível da PV-03, com 1 aprovado | **200**, `consumoMedio: null` |
+| AB34 | Aprovar o nº 3 | **200** |
+| AB35 | Combustível da PV-03 | **200**, `consumoMedio: 1.11` (10 L em 9 h) |
+| AB36 | Combustível da PV-03 | **200**, `custoPorHora: 6.72` (R$ 60,50 em 9 h) |
+| AB37 | Combustível da PV-03 | **200**, `custoTotal: 806.8` (o recusado fica fora) |
+| AB38 | Combustível da máquina 99 | **404** |
 
 ```bash
 PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
@@ -1937,6 +2018,11 @@ curl.exe -X POST $B/abastecimentos -H "$H" -d '{"maquinaId":3,"operador":"Bruno"
 curl.exe $B/pecas/4                                            # AB19
 curl.exe $B/pecas/4/movimentos                                 # AB20
 curl.exe -X POST $B/abastecimentos -H "$H" -d '{"maquinaId":3,"operador":"Bruno","origem":"Tanque","litros":5000,"horimetro":270}'   # AB22
+curl.exe -X POST $B/abastecimentos/1/aprovacao                                                    # AB25
+curl.exe -X POST $B/abastecimentos/2/recusa -H "$H" -d '{"motivo":"Litros acima da capacidade do tanque"}'   # AB28
+curl.exe $B/pecas/4/movimentos                                                                    # AB30
+curl.exe -X POST $B/abastecimentos/3/aprovacao                                                    # AB34
+curl.exe $B/maquinas/3/combustivel                                                                # AB35 a AB37
 ```
 
 > **Dica:** para ver só o código HTTP de cada resposta, acrescente `-w "  [%{http_code}]\n"` ao comando.

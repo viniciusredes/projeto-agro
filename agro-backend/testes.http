@@ -967,3 +967,28 @@ Content-Type: application/json
   "litros": 5000,
   "horimetro": 270
 }
+
+### AB25 — Conferência: aprovar o abastecimento em posto
+# Esperado: 200, "status": "Aprovado"
+POST {{baseUrl}}/abastecimentos/1/aprovacao
+
+### AB28 — Conferência: recusar o do tanque, com motivo (o diesel volta ao estoque)
+# Esperado: 200, "status": "Recusado", e o "estorno" (entrada de 200 L)
+POST {{baseUrl}}/abastecimentos/2/recusa
+Content-Type: application/json
+
+{
+  "motivo": "Litros acima da capacidade do tanque"
+}
+
+### AB30 — Kardex do diesel: a saída e o estorno do nº 2
+# Esperado: 200, uma saída e uma entrada de 200 L com "abastecimentoId": 2
+GET {{baseUrl}}/pecas/4/movimentos
+
+### AB34 — Aprovar o nº 3
+# Esperado: 200, "status": "Aprovado"
+POST {{baseUrl}}/abastecimentos/3/aprovacao
+
+### AB35 — Combustível da PV-03 (só os aprovados)
+# Esperado: 200, "consumoMedio": 1.11, "custoPorHora": 6.72, "custoTotal": 806.8
+GET {{baseUrl}}/maquinas/3/combustivel

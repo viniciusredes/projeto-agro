@@ -580,6 +580,56 @@ testar AB23 "Nada foi baixado na recusa por saldo" 200 '"saldo":2800' \
 testar AB24 "Pelo tanque, com a foto opcional da bomba" 201 '"url":"/abastecimentos/3/comprovante"' \
   -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(tanque "\"litros\":10,\"horimetro\":271,\"comprovante\":\"$PNG_1PX\"")"
 
+# Até aqui: nº 1 (posto, 120,5 L, horímetro 262), nº 2 (tanque, 200 L, 270) e nº 3 (tanque, 10 L, 271)
+
+# ---------------------------------------------------------------------
+secao "Conferência: aprovar e recusar"
+# ---------------------------------------------------------------------
+testar AB25 "Aprovar o abastecimento em posto" 200 '"status":"Aprovado"' \
+  -X POST "$BASE/abastecimentos/1/aprovacao"
+
+testar AB26 "Aprovar de novo" 409 "já foi conferido (Aprovado)" \
+  -X POST "$BASE/abastecimentos/1/aprovacao"
+
+testar AB27 "Recusar sem motivo" 400 "'motivo' é obrigatório" \
+  -X POST "$BASE/abastecimentos/2/recusa" -H "$JSON" -d '{"motivo":"  "}'
+
+testar AB28 "Recusar o do tanque, com motivo" 200 '"motivoRecusa":"Litros acima da capacidade do tanque"' \
+  -X POST "$BASE/abastecimentos/2/recusa" -H "$JSON" -d '{"motivo":"Litros acima da capacidade do tanque"}'
+
+testar AB29 "Estorno: o diesel volta ao estoque (2790 + 200)" 200 '"saldo":2990' \
+  "$BASE/pecas/4"
+
+testar AB30 "Kardex com a entrada do estorno" 200 '"tipo":"entrada","quantidade":200' \
+  "$BASE/pecas/4/movimentos"
+
+testar AB31 "Recusar o que já foi aprovado" 409 "já foi conferido (Aprovado)" \
+  -X POST "$BASE/abastecimentos/1/recusa" -H "$JSON" -d '{"motivo":"Engano"}'
+
+testar AB32 "Aprovar abastecimento inexistente" 404 "Abastecimento não encontrado" \
+  -X POST "$BASE/abastecimentos/99/aprovacao"
+
+# ---------------------------------------------------------------------
+secao "GET /maquinas/:id/combustivel (só os aprovados)"
+# ---------------------------------------------------------------------
+testar AB33 "Um aprovado só: ainda sem consumo" 200 '"consumoMedio":null' \
+  "$BASE/maquinas/3/combustivel"
+
+testar AB34 "Aprovar o nº 3 (tanque, 10 L no horímetro 271)" 200 '"status":"Aprovado"' \
+  -X POST "$BASE/abastecimentos/3/aprovacao"
+
+testar AB35 "Consumo: 10 L em 9 h (262 -> 271)" 200 '"consumoMedio":1.11' \
+  "$BASE/maquinas/3/combustivel"
+
+testar AB36 "Custo por hora: R$ 60,50 em 9 h" 200 '"custoPorHora":6.72' \
+  "$BASE/maquinas/3/combustivel"
+
+testar AB37 "O recusado fica fora do custo (746,30 + 60,50)" 200 '"custoTotal":806.8' \
+  "$BASE/maquinas/3/combustivel"
+
+testar AB38 "Combustível de máquina inexistente" 404 "Máquina não encontrada" \
+  "$BASE/maquinas/99/combustivel"
+
 # ---------------------------------------------------------------------
 # Resumo
 # ---------------------------------------------------------------------
