@@ -12,12 +12,10 @@ import * as L from 'leaflet';
 import { PosicaoService } from '../../core/services/posicao.service';
 import { PosicaoAtual } from '../../core/models/posicao';
 import { ROTULO_SINAL, TOM_SINAL, situacaoDoSinal, textoDoSinal } from './sinal';
+import { criarMapa, iconeDaMaquina } from './leaflet-base';
 
 // O celular envia a cada 30 s; buscar a cada 15 s deixa o mapa no máximo uns 45 s atrás do campo
 export const ATUALIZACAO_MS = 15_000;
-
-// Sem nenhuma posição ainda: o mapa abre no centro do Brasil
-const CENTRO_INICIAL: L.LatLngTuple = [-15.8, -47.9];
 
 // Mapa da frota (Etapa 6): onde está cada máquina em campo, pela posição que o app do operador envia
 @Component({
@@ -57,16 +55,7 @@ export class Mapa {
   private enquadrado = false; // enquadra os marcadores só na primeira vez (depois, o gestor manda)
 
   constructor() {
-    afterNextRender(() => {
-      carregarEstiloDoLeaflet(this.documento);
-      const mapa = L.map(this.elementoMapa().nativeElement).setView(CENTRO_INICIAL, 4);
-      // Mapa do OpenStreetMap: livre, sem chave de API; a atribuição é obrigatória
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; colaboradores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(mapa);
-      this.mapa.set(mapa);
-    });
+    afterNextRender(() => this.mapa.set(criarMapa(this.elementoMapa().nativeElement, this.documento)));
 
     // Dados novos ou mapa pronto: redesenha os marcadores
     effect(() => {
@@ -116,8 +105,7 @@ export class Mapa {
 
     for (const item of lista) {
       const { latitude, longitude } = item.posicao!;
-      // iconSize [0, 0]: o ícone é só a ÂNCORA no ponto exato; o CSS (.marcador) desenha o balão acima
-      const icone = L.divIcon({ className: 'ancora-marcador', html: this.elementoDoMarcador(item), iconSize: [0, 0] });
+      const icone = iconeDaMaquina(this.documento, item.tag, situacaoDoSinal(item));
       const existente = this.marcadores.get(item.maquinaId);
       if (existente) {
         // Mesmo marcador, posição e aparência novas (o balão aberto continua aberto)
@@ -145,15 +133,7 @@ export class Mapa {
     mapa.fitBounds(L.latLngBounds(pontos), { padding: [48, 48], maxZoom: 16 });
   }
 
-  // O marcador é um "balão" com a tag. Montado com textContent (nunca innerHTML): a tag vem do
-  // cadastro, e um texto com <script> viraria código na página
-  private elementoDoMarcador(item: PosicaoAtual): HTMLElement {
-    const marcador = this.documento.createElement('span');
-    marcador.className = `marcador marcador--${situacaoDoSinal(item)}`;
-    marcador.textContent = item.tag;
-    return marcador;
-  }
-
+  // O balão que abre ao tocar no marcador (com textContent, pelo mesmo motivo do ícone)
   private elementoDoBalao(item: PosicaoAtual): HTMLElement {
     const balao = this.documento.createElement('div');
     balao.className = 'balao';
@@ -166,18 +146,4 @@ export class Mapa {
     balao.append(titulo, quem, quando);
     return balao;
   }
-}
-
-// O CSS do Leaflet é grande demais para o estilo de um componente (orçamento de 4 kB): o build
-// gera um leaflet.css à parte (angular.json, "inject": false), e esta função o põe na página
-// só quando o mapa abre. Uma vez basta: as outras visitas reaproveitam o mesmo <link>.
-function carregarEstiloDoLeaflet(documento: Document): void {
-  if (documento.getElementById('estilo-leaflet')) {
-    return;
-  }
-  const link = documento.createElement('link');
-  link.id = 'estilo-leaflet';
-  link.rel = 'stylesheet';
-  link.href = 'leaflet.css';
-  documento.head.append(link);
 }

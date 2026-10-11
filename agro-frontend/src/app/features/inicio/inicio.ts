@@ -98,7 +98,8 @@ export class Inicio {
     const repor = this.pecasParaRepor().map(p => p.codigo);
     return [
       { rotulo: 'Disponíveis no pátio', valor: disponiveis.length, total: lista.length, contexto: disponiveis.join(', ') || 'Nenhuma', classe: 'ponto--sucesso', rota: '/maquinas' },
-      { rotulo: 'Em campo', valor: emCampo.length, contexto: emCampo.join(', ') || 'Nenhuma', classe: 'ponto--info', rota: '/movimentacoes' },
+      // Etapa 6: "em campo" leva ao mapa (onde elas estão), e não mais ao histórico de movimentações
+      { rotulo: 'Em campo', valor: emCampo.length, contexto: emCampo.join(', ') || 'Nenhuma', classe: 'ponto--info', rota: '/mapa' },
       { rotulo: 'Em manutenção', valor: emManutencao.length, contexto: emManutencao.join(', ') || 'Nenhuma', classe: 'ponto--alerta', rota: '/ordens-servico' },
       { rotulo: 'Peças para repor', valor: repor.length, contexto: repor.join(', ') || 'Estoque acima do mínimo', classe: 'ponto--neutro', rota: '/estoque' },
     ];

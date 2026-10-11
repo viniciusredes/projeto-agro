@@ -213,6 +213,38 @@
     }
   </section>
 
+  <!-- ===== Trajeto (Etapa 6): o caminho da saída aberta ou da última, pelas posições do app ===== -->
+  @if (trajeto.hasValue()) {
+    @let t = trajeto.value();
+    @if (resumoTrajeto(); as r) {
+      <section class="trajeto" aria-labelledby="titulo-trajeto">
+        <div class="trajeto__titulo">
+          <h3 id="titulo-trajeto">{{ t.emCampo ? 'Trajeto da saída atual' : 'Trajeto da última saída' }}</h3>
+          @if (t.emCampo) {
+            <a mat-button routerLink="/mapa">
+              Mapa da frota
+              <mat-icon iconPositionEnd>arrow_forward</mat-icon>
+            </a>
+          }
+        </div>
+        <p class="trajeto__resumo">
+          {{ r.pontos }} {{ r.pontos === 1 ? 'posição' : 'posições' }} ·
+          de {{ r.inicio | date: 'dd/MM HH:mm' }} a {{ r.fim | date: 'HH:mm' }} ·
+          cerca de {{ r.km | number: '1.1-1' }} km
+        </p>
+        <app-trajeto-mapa [posicoes]="t.posicoes" [tag]="dados.maquina" [emCampo]="t.emCampo" />
+      </section>
+    } @else if (t.emCampo) {
+      <!-- Em campo, mas sem posição: o operador ainda não permitiu, ou o app está fechado -->
+      <section class="trajeto" aria-labelledby="titulo-trajeto">
+        <h3 id="titulo-trajeto">Trajeto da saída atual</h3>
+        <p class="aviso">
+          Ainda sem posições. Elas chegam quando o operador permite a localização e deixa o app aberto.
+        </p>
+      </section>
+    }
+  }
+
   <!-- ===== O.S. da máquina ===== -->
   <h3>Ordens de serviço</h3>
   @if (ordens().length === 0) {

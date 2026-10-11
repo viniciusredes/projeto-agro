@@ -1,3 +1,5 @@
+@use 'leaflet';
+
 // Mapa à esquerda, lista à direita; no celular, um embaixo do outro
 .layout {
   display: grid;
@@ -82,41 +84,9 @@
 }
 
 // ===== Dentro do Leaflet: elementos criados por ele, fora do template (por isso ::ng-deep) =====
+// Os estilos comuns aos dois mapas (marcadores e tema escuro) ficam em _leaflet.scss
 :host ::ng-deep {
-  // O balão com a tag, apontando para o ponto exato (a âncora tem tamanho zero)
-  .marcador {
-    position: absolute;
-    transform: translate(-50%, calc(-100% - 6px));
-    padding: 3px 8px;
-    border-radius: 999px;
-    font: 700 13px/1.4 var(--mat-sys-body-medium-font);
-    white-space: nowrap;
-    box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
-
-    // A "ponta" do balão
-    &::after {
-      content: '';
-      position: absolute;
-      left: 50%;
-      bottom: -5px;
-      transform: translateX(-50%);
-      border: 5px solid transparent;
-      border-bottom: 0;
-      border-top-color: inherit;
-    }
-  }
-
-  .marcador--ativo {
-    background: var(--mat-sys-primary);
-    border-color: var(--mat-sys-primary);
-    color: var(--mat-sys-on-primary);
-  }
-
-  .marcador--sem-sinal {
-    background: var(--mat-sys-surface-container-high);
-    border-color: var(--mat-sys-surface-container-high);
-    color: var(--mat-sys-on-surface-variant);
-  }
+  @include leaflet.marcadores;
 
   .balao {
     display: flex;
@@ -125,23 +95,6 @@
   }
 }
 
-// Tema escuro: os blocos do OpenStreetMap são claros; o filtro escurece sem perder as estradas.
-// Os controles (zoom, atribuição) e o balão do Leaflet ganham as cores de superfície do tema.
 :host-context(.tema-escuro) ::ng-deep {
-  .leaflet-tile-pane {
-    filter: brightness(0.7) invert(1) contrast(0.9) hue-rotate(200deg) saturate(0.4) brightness(0.8);
-  }
-
-  .leaflet-bar a,
-  .leaflet-control-attribution,
-  .leaflet-popup-content-wrapper,
-  .leaflet-popup-tip {
-    background: var(--mat-sys-surface-container-high);
-    color: var(--mat-sys-on-surface);
-    border-color: var(--agro-borda);
-  }
-
-  .leaflet-control-attribution a {
-    color: var(--mat-sys-primary); // o azul do Leaflet some no fundo escuro
-  }
+  @include leaflet.tema-escuro;
 }
