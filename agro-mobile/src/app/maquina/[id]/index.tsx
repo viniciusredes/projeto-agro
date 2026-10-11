@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { mensagemDeErro } from '@/api';
 import { Aviso, DadosAviso } from '@/componentes/aviso';
+import { CartaoCombustivel } from '@/componentes/cartao-combustivel';
 import { EtiquetaStatus } from '@/componentes/etiqueta-status';
 import { GaleriaFotos } from '@/componentes/galeria-fotos';
 import { useOperador } from '@/contextos/operador';
@@ -112,6 +113,21 @@ export default function FichaMaquina() {
             </Text>
           </View>
         )}
+
+        {/* Etapa 4: o combustível da máquina (último abastecimento, horas desde então, consumo) */}
+        <CartaoCombustivel combustivel={dados.combustivel} horimetroAtual={maquina.horimetro} />
+
+        {/* Etapa 4: abastecer vale para qualquer situação (no pátio, em campo ou até na oficina) */}
+        <Pressable
+          onPress={() => router.push({ pathname: '/maquina/[id]/abastecimento', params: { id: maquina.id } })}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            estilos.botaoSecundario,
+            { borderColor: tema.primaria, opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <Text style={[estilos.botaoTexto, { color: tema.texto }]}>Registrar abastecimento</Text>
+        </Pressable>
 
         {/* Relatar avaria: para máquina disponível ou em campo (em manutenção já tem O.S. aberta) */}
         {maquina.status !== 'Em Manutenção' && (

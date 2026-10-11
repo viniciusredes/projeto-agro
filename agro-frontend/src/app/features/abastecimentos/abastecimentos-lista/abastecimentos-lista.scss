@@ -1,0 +1,184 @@
+// .cabecalho, .subtitulo, .botoes, os filtros (.chip), .numero, .aviso e .etiqueta vêm de
+// src/estilos/_comuns.scss. Aqui fica só o que é específico desta tela (no padrão da lista de O.S.).
+
+.cabecalho h2 {
+  margin: 0;
+}
+
+.filtro-select {
+  width: 220px;
+}
+
+.secao {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.secao__titulo {
+  margin: 0;
+  font-size: 15px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// ===== Pendentes: cartões com a miniatura do recibo à esquerda =====
+.pendentes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 12px;
+}
+
+// O cartão e a linha INTEIROS são <a>: área de clique grande, e o realce mostra que é clicável
+.ab-cartao,
+.ab-linha {
+  border: 1px solid var(--agro-borda);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--mat-sys-primary);
+    box-shadow: 0 2px 10px rgb(0 0 0 / 8%);
+    text-decoration: none;
+  }
+}
+
+.ab-cartao {
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--agro-linha-destaque);
+}
+
+// "Cara" de botão da ação do cartão (o clique é do cartão todo), como nas O.S.
+.ab-cartao__acao {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  margin-left: auto;
+  padding: 0 6px 0 14px;
+  border-radius: 18px;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  font-weight: 700;
+}
+
+.ab-cartao__foto {
+  flex: 0 0 96px;
+  height: 96px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--agro-borda);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; // recorta para o quadrado; o recibo inteiro fica na conferência
+  }
+}
+
+.ab-cartao__foto--vazia {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.ab-cartao__corpo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ab-cartao__topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ab-cartao__data {
+  margin-left: auto;
+}
+
+.ab-cartao__data,
+.ab-cartao__detalhe {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.ab-cartao__maquina {
+  font-weight: 700;
+}
+
+.ab-cartao__valores {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 2px;
+}
+
+// ===== Conferidos: uma linha por abastecimento =====
+.lista-conferidos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ab-linha {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1.2fr) minmax(0, 1.4fr) 80px 110px 100px 90px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: var(--agro-cartao);
+}
+
+.ab-linha__detalhe {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.9em;
+}
+
+// O motivo da recusa e o pedido de correção ocupam a linha inteira, abaixo dos dados
+.ab-linha__motivo,
+.ab-linha__pedido {
+  grid-column: 1 / -1;
+  font-size: 0.9em;
+}
+
+.ab-linha__motivo {
+  color: var(--mat-sys-error);
+}
+
+.ab-linha__pedido {
+  color: var(--agro-info-texto);
+}
+
+// Celular: cartões um por linha; a linha dos conferidos vira um bloco compacto
+@media (max-width: 767.98px) {
+  .filtro-select {
+    width: 100%;
+  }
+
+  .pendentes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ab-linha {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    padding: 12px 14px;
+
+    // No celular ficam: número, máquina, valor e status
+    .ab-linha__detalhe,
+    > span.numero {
+      display: none;
+    }
+  }
+}

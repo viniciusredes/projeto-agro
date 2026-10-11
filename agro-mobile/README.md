@@ -75,13 +75,14 @@ agro-mobile/
     │   └── maquina/[id]/      # rotas da máquina (o [id] vale para as duas)
     │       ├── index.tsx      # ficha, saída e retorno (/maquina/1)
     │       ├── avaria.tsx     # relatar avaria, em modal (/maquina/1/avaria)
-    │       └── foto-avaria.tsx  # foto da avaria para a O.S. aberta
+    │       ├── foto-avaria.tsx  # foto da avaria para a O.S. aberta
+    │       └── abastecimento.tsx  # registrar abastecimento, com a foto do recibo (Etapa 4)
     ├── api.ts          # ponto único de acesso à API e tradução de erros
     ├── config.ts       # API_URL lida do .env.local
     ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
     ├── validacao.ts    # regras de formulário em funções puras (ex.: horímetro)
     ├── qr.ts           # formato do QR da etiqueta (contrato com a web)
-    ├── componentes/    # peças reutilizáveis (etiqueta de status, câmera, galeria, aviso, seletor de tema)
+    ├── componentes/    # peças reutilizáveis (etiqueta de status, câmera, galeria, aviso, escolha segmentada, seletor de tema)
     ├── contextos/      # valores compartilhados entre telas (o operador, a preferência de tema)
     ├── hooks/          # lógica reutilizável com estado (ex.: useRequisicao)
     ├── models/         # tipos copiados do front web (o contrato da API)
@@ -701,6 +702,159 @@ function escolher(nova: PreferenciaTema) {
 4. Em **Aparência**, toque em **Escuro**: o app inteiro escurece na hora, e a logo troca para a versão escura. **Claro** faz o contrário. **Sistema** volta a seguir o celular (troque o tema do celular para conferir).
 5. Feche o app pelo multitarefa e abra de novo: a escolha continua valendo.
 6. Puxe a página para baixo: ela recarrega.
+
+## Etapa 4 — Abastecimento
+
+A Etapa 4 atravessa as três partes do projeto. O operador **registra** o abastecimento no app, com a foto do recibo. A API guarda e calcula (Partes AB1 a AB3 do [README do back-end](../agro-backend/README.md)). O gestor **confere** na web.
+
+### A4 — Registrar abastecimento, com a foto do recibo
+
+🎯 Ao lado da máquina, o operador registra o abastecimento: de onde veio o combustível, litros, horímetro e, no posto, o nome do posto, o valor pago e a **foto do recibo**. O registro vai para a conferência do gestor.
+
+🧩 **Tela nova** `src/app/maquina/[id]/abastecimento.tsx`, aberta pelo botão **Registrar abastecimento** da ficha (vale em qualquer situação da máquina).
+
+| | Posto | Tanque da fazenda |
+|---|---|---|
+| Campos | litros, horímetro, nome do posto, valor pago | litros, horímetro |
+| Foto | recibo, **obrigatória** | bomba, opcional |
+| Ao vivo | preço por litro (valor ÷ litros) | aviso: "o custo é o da última compra do diesel" |
+
+**Escolha segmentada genérica** (`src/componentes/escolha-segmentada.tsx`): os botões "Posto | Tanque da fazenda" são os mesmos do "Sistema | Claro | Escuro". O seletor de tema passou a usar o componente novo:
+
+```tsx
+export function EscolhaSegmentada<T extends string>({ opcoes, valor, aoEscolher, rotulo }: Props<T>) { ... }
+
+<EscolhaSegmentada opcoes={ORIGENS} valor={origem} aoEscolher={setOrigem} rotulo="Origem do combustível" />
+```
+
+**A câmera do M7 dentro de um `Modal`:** ela abre por cima do formulário e devolve a foto, que aparece em miniatura, com **Tirar outra** e **Remover**. Nada do que foi digitado se perde.
+
+```tsx
+<Modal visible={cameraAberta} animationType="slide" onRequestClose={() => setCameraAberta(false)}>
+  <Camera aoConfirmar={capturada => { setFoto(capturada); setCameraAberta(false); }} />
+</Modal>
+```
+
+**O horímetro mínimo vem da mesma regra da API**: o maior entre o da máquina e o do último abastecimento não recusado (`buscarDadosParaAbastecer`, em `src/servicos/abastecimentos.ts`, com `Promise.all`).
+
+**Funções puras novas** em `src/validacao.ts`: `validarPositivo` (litros e valor pago, com vírgula) e `formatarReais` (`R$ 746,30`; com 3 casas para o preço do litro, `R$ 6,193`).
+
+**O que falta, em palavras:** abaixo do botão **Enviar para conferência**, enquanto ele está apagado, aparece "Para enviar, falta: litros, foto do recibo." O botão apagado sozinho não diz o que fazer.
+
+📚 **Conceitos**
+- **Formulário condicional:** a origem muda os campos, a obrigatoriedade da foto e o corpo enviado. No tanque, `posto` e `valorTotal` **não vão** no JSON (a API os recusaria: o custo vem do almoxarifado).
+- **Componente genérico (`<T extends string>`):** o mesmo componente serve a valores de tipos diferentes, e o TypeScript confere que `aoEscolher` recebe exatamente `'Posto' | 'Tanque'`.
+- **Reaproveitar em vez de copiar:** a câmera (M7), o aviso, a validação do horímetro (M4) e a conferência do tamanho da foto vieram prontos. A tela nova só juntou as peças.
+- **Valor derivado:** o preço por litro é calculado a cada digitação, sem estado próprio. Um valor errado (R$ 74,63 no lugar de R$ 746,30) fica visível antes do envio.
+- **A API continua sendo a autoridade:** o app valida para ajudar, mas um diesel insuficiente (409) ou um horímetro abaixo do último (400) chega no aviso com a mensagem da API.
+
+🧪 **Testes**
+1. Na ficha de uma máquina, toque em **Registrar abastecimento**. A tela vem com **Posto** escolhido, e o botão **Enviar** apagado com "Para enviar, falta: litros, horímetro, nome do posto, valor pago, foto do recibo."
+2. Preencha litros (`120,5`) e valor (`746,30`): aparece "Preço por litro: R$ 6,193".
+3. Digite um horímetro menor que o mínimo: o erro aparece em vermelho.
+4. Toque em **Fotografar o recibo**, fotografe e use a foto: a miniatura aparece, com **Tirar outra** e **Remover**. **Cancelar** fecha a câmera sem perder o formulário.
+5. Envie: o aviso "Abastecimento enviado" mostra os litros, o valor e o preço por litro. **Concluir** volta para a ficha.
+6. Troque para **Tanque da fazenda**: os campos do posto somem, a foto vira opcional e aparece a explicação do custo. Envie sem foto. Na web, o kardex do DSL-001 mostra a saída.
+7. Pelo tanque, peça mais litros do que há no estoque: o aviso mostra o erro da API ("Diesel insuficiente no tanque…").
+8. Confira com `curl http://localhost:3000/abastecimentos`: os dois estão **Pendente**.
+
+### A5 — "Meus abastecimentos" na página inicial
+
+🎯 O operador fica sabendo o que o gestor decidiu: cada abastecimento dele aparece na página inicial com o status (**Aguardando conferência**, **Aprovado** ou **Recusado**) e, na recusa, o **motivo**, para ele corrigir.
+
+🧩 **Serviço próprio da página inicial** (`src/servicos/painel.ts`): o `buscarPainelDoOperador` saiu de `maquinas.ts`, porque agora usa máquinas **e** abastecimentos. Em `maquinas.ts`, os dois serviços passariam a importar um ao outro (`abastecimentos.ts` já importa `maquinas.ts`). Uma busca só, com três chamadas ao mesmo tempo:
+
+```ts
+const [maquinas, movimentacoes, abastecimentos] = await Promise.all([
+  listarMaquinas(),
+  requisitar<Movimentacao[]>('/movimentacoes'),
+  listarAbastecimentos({ operador: nome }),   // GET /abastecimentos?operador=Ana
+]);
+```
+
+**Na tela** (`src/app/index.tsx`), entre "Com você agora" e "Frota agora":
+- um resumo do que pede atenção: "2 aguardando conferência · 1 recusado" (ou "Todos conferidos e aprovados.");
+- os 5 mais recentes, cada um com a máquina, a etiqueta de status (`src/componentes/etiqueta-abastecimento.tsx`), litros, posto ou tanque, valor, data, horímetro e, se recusado, **"Motivo: …"** em vermelho;
+- um toque abre a ficha da máquina (por exemplo, para registrar de novo um abastecimento recusado).
+
+📚 **Conceitos**
+- **Fechar o ciclo com quem registrou:** o operador mandou o recibo; sem retorno, ele não sabe se valeu. A etiqueta e o motivo completam o fluxo app → web → app.
+- **Evitar importação circular:** quando dois módulos precisam um do outro, a função que usa os dois vai para um terceiro módulo (`painel.ts`), e cada serviço continua dependendo só "para baixo".
+- **Rótulo para quem lê:** o status da API é `Pendente`; para o operador, a etiqueta diz "Aguardando conferência", que explica o que está acontecendo.
+- **Atualiza sozinho:** a página inicial já recarrega ao voltar para ela (`useFocusEffect`) e ao puxar para baixo. Depois de uma conferência na web, basta puxar.
+
+🧪 **Testes**
+1. Registre um abastecimento (A4) e volte ao início: ele aparece como **Aguardando conferência**, com "1 aguardando conferência" no resumo.
+2. Aprove pela API (`curl -X POST http://localhost:3000/abastecimentos/1/aprovacao`) e puxe a página para baixo: a etiqueta fica **Aprovado** (verde).
+3. Registre outro e recuse com motivo (`curl -X POST http://localhost:3000/abastecimentos/2/recusa -H "Content-Type: application/json" -d '{"motivo":"Recibo ilegível"}'`). Puxe: a etiqueta fica **Recusado**, com "Motivo: Recibo ilegível".
+4. Toque num abastecimento: abre a ficha da máquina.
+5. Troque de operador (barra → "trocar"): a lista mostra só os abastecimentos do nome novo.
+
+### A7.3 — Corrigir um abastecimento devolvido
+
+🎯 Quando o gestor **devolve** um abastecimento para correção (erro de preenchimento), o operador vê na página inicial **o que corrigir**, abre o **mesmo** abastecimento já preenchido, corrige e reenvia. Ele volta para a conferência, sem registro novo.
+
+🧩 **Na página inicial:** o abastecimento devolvido aparece com a etiqueta laranja **Corrigir**, a linha **"O que corrigir: …"** e o convite **"Toque para corrigir ›"**. O resumo diz primeiro o que depende dele: "1 para corrigir · 2 aguardando conferência". O toque abre a correção (os outros continuam abrindo a ficha).
+
+**A tela de abastecimento em modo corrigir** (`/maquina/1/abastecimento?corrigir=4`):
+- no topo, em destaque, **o que o gestor pediu**;
+- os campos **já preenchidos** com o que foi enviado (os números voltam com vírgula: `120,5`);
+- a origem aparece, mas **não muda** (regra da API);
+- a foto enviada antes **continua valendo**: aparece em miniatura, com **Tirar outra** (e **Voltar à anterior**, se tirou);
+- o horímetro fica **entre** o do abastecimento anterior e o do seguinte (`validarHorimetroEntre`, em `validacao.ts`);
+- **Enviar correção** chama `PUT /abastecimentos/:id` (`corrigirAbastecimento`, em `servicos/abastecimentos.ts`).
+
+**Estado inicial que vem da API:** o `useState` usa o valor inicial só na **primeira** renderização. Por isso a tela foi dividida em duas partes: `RegistrarAbastecimento` carrega os dados (e trata carregando e erro), e só então monta o `Formulario`, que já nasce com os valores do abastecimento devolvido:
+
+```tsx
+export default function RegistrarAbastecimento() {
+  const { dados, erro, carregando } = useRequisicao(buscar);
+  if (carregando) return <Carregando />;
+  ...
+  return <Formulario dados={dados} />;   // montado DEPOIS dos dados
+}
+
+function Formulario({ dados }: { dados: DadosParaAbastecer }) {
+  const [litros, setLitros] = useState(paraCampo(dados.corrigindo?.litros)); // "120,5"
+  ...
+}
+```
+
+`buscarDadosParaAbastecer(maquinaId, corrigirId?)` serve aos dois modos: no registro, devolve só o horímetro mínimo; na correção, também o máximo e o próprio abastecimento.
+
+📚 **Conceitos**
+- **Uma tela, dois modos:** registrar e corrigir têm os mesmos campos e as mesmas validações. O parâmetro `corrigir` na rota muda o título, o preenchimento, a origem fixa, a regra da foto e a chamada (`POST` ou `PUT`).
+- **Componente montado depois dos dados:** é o jeito simples de ter um formulário com valores iniciais vindos da API, sem `useEffect` para "copiar" os dados para o estado.
+- **O que depende de mim primeiro:** no resumo e na etiqueta ("Corrigir", no laranja forte da marca), o devolvido chama mais atenção do que o que só está esperando.
+- **Mesmas regras dos dois lados:** o limite do horímetro (anterior e seguinte), a origem fixa e a foto opcional são as regras da API (Parte AB4); o app só avisa antes.
+
+🧪 **Testes**
+1. Registre um abastecimento no posto. Na web, abra a conferência e **Devolva para correção** ("Valor pago não confere com o recibo").
+2. No app, puxe a página inicial: ele aparece com **Corrigir**, "O que corrigir: Valor pago não confere com o recibo" e "1 para corrigir" no resumo.
+3. Toque nele: a tela abre com o pedido no topo, os campos preenchidos, a origem fixa e a foto anterior.
+4. Corrija o valor e toque em **Enviar correção**: o aviso "Correção enviada". De volta ao início, ele está **Aguardando conferência**.
+5. Na web, a conferência mostra o valor novo e "Devolvido 1 vez para correção · corrigido em…". Aprove.
+6. Pelo tanque: devolva, corrija os litros (ex.: 50 → 30) e confira no kardex do DSL-001 a entrada de 20 L.
+
+### A8 — Combustível na ficha da máquina
+
+🎯 Ao lado da máquina, o operador vê quando ela foi abastecida pela última vez e quanto trabalhou desde então, além do consumo médio.
+
+🧩 **Cartão Combustível** (`src/componentes/cartao-combustivel.tsx`), na ficha, junto do botão **Registrar abastecimento**:
+- **Último abastecimento** (o mais recente que não foi recusado): data e hora, litros, posto ou tanque, horímetro e a etiqueta do status;
+- **"N h trabalhadas desde então"** (horímetro atual − horímetro do abastecimento);
+- **Consumo médio** (L/h) e **custo por hora**, ou "Sem dados" com o motivo.
+
+**A ficha busca o combustível junto com o resto:** o `buscarFicha` ganhou uma quarta chamada no `Promise.all`, `buscarCombustivel(id)` (`GET /maquinas/:id/combustivel`). Ela fica em `servicos/maquinas.ts`, porque a rota é da máquina e porque `abastecimentos.ts` já importa `maquinas.ts` (importar de volta criaria um ciclo).
+
+📚 **Conceitos**
+- **Mais uma chamada em paralelo:** a ficha continua carregando de uma vez; o tempo é o da chamada mais lenta, não a soma das quatro.
+- **Componente de apresentação:** o cartão recebe os dados prontos (`combustivel`, `horimetroAtual`) e só decide como mostrar; quem busca é a ficha.
+
+🧪 **Testes**
+1. Abra a ficha de uma máquina com abastecimentos: o cartão mostra o último, as horas desde então e o consumo (ou "Sem dados").
+2. Registre um retorno com o horímetro maior e volte à ficha: as horas desde o último abastecimento aumentam.
+3. Registre um abastecimento: ao voltar, ele aparece como o último, com a etiqueta "Aguardando conferência".
 
 ---
 

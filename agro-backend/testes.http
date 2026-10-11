@@ -232,7 +232,7 @@ GET {{baseUrl}}/maquinas
 # =====================================================================
 
 ### P1 — Listar peças
-# Esperado: 200, as 3 peças iniciais (FLT-001, OLE-001, COR-001)
+# Esperado: 200, as 4 peças iniciais (FLT-001, OLE-001, COR-001 e o diesel DSL-001)
 GET {{baseUrl}}/pecas
 
 ### P2 — Buscar peça existente
@@ -400,7 +400,7 @@ GET {{baseUrl}}/pecas/1/movimentos
 
 ### K3 — Kardex de peça nova, sem compras
 # Esperado: 200, []
-GET {{baseUrl}}/pecas/4/movimentos
+GET {{baseUrl}}/pecas/5/movimentos
 
 ### K4 — Kardex de peça inexistente
 # Esperado: 404, "Peça não encontrada"
@@ -869,3 +869,173 @@ GET {{baseUrl}}/ordens-servico/3/fotos/1
 ### F15 — Foto de outra O.S. não aparece por este caminho
 # Esperado: 404, "Foto não encontrada"
 GET {{baseUrl}}/ordens-servico/1/fotos/1
+
+# =====================================================================
+#  ABASTECIMENTO (Etapa 4, Parte AB1). Usa a PV-03 (horímetro 260 depois do F1).
+#  Mesmos códigos do testes.sh.
+# =====================================================================
+
+### AB1 — Abastecimento em posto, com o recibo (PNG de 1x1 pixel)
+# Esperado: 201, "status": "Pendente", "precoLitro": 6.193
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Ana",
+  "origem": "Posto",
+  "litros": 120.5,
+  "horimetro": 262,
+  "posto": "Posto Boa Vista",
+  "valorTotal": 746.3,
+  "comprovante": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+}
+
+### AB3 — Sem o recibo
+# Esperado: 400, "Campo 'comprovante' é obrigatório e deve ser a foto em base64"
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Ana",
+  "origem": "Posto",
+  "litros": 50,
+  "horimetro": 263,
+  "posto": "Posto Boa Vista",
+  "valorTotal": 310
+}
+
+### AB11 — Horímetro menor que o do último abastecimento
+# Esperado: 400, "Horímetro informado (261) é menor que o último registrado (262)"
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Ana",
+  "origem": "Posto",
+  "litros": 50,
+  "horimetro": 261,
+  "posto": "Posto Boa Vista",
+  "valorTotal": 310,
+  "comprovante": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+}
+
+### AB13 — Filtro por operador (ignora maiúsculas e espaços)
+# Esperado: 200, o abastecimento da "Ana"
+GET {{baseUrl}}/abastecimentos?operador=%20ana%20
+
+### AB15 — Detalhe, com os dados da máquina
+# Esperado: 200, "maquina": { "tag": "PV-03", ... }
+GET {{baseUrl}}/abastecimentos/1
+
+### AB17 — O recibo (o REST Client mostra a imagem)
+# Esperado: 200, Content-Type: image/png
+GET {{baseUrl}}/abastecimentos/1/comprovante
+
+### AB18 — Pelo tanque da fazenda, sem foto (o custo vem do almoxarifado)
+# Esperado: 201, "valorTotal": 1210 (200 L x R$ 6,05), "pecaId": 4
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Bruno",
+  "origem": "Tanque",
+  "litros": 200,
+  "horimetro": 270
+}
+
+### AB19 — O diesel foi baixado do almoxarifado
+# Esperado: 200, "saldo": 2800
+GET {{baseUrl}}/pecas/4
+
+### AB20 — Kardex do diesel aponta o abastecimento
+# Esperado: 200, uma saída com "abastecimentoId": 2
+GET {{baseUrl}}/pecas/4/movimentos
+
+### AB22 — Diesel insuficiente no tanque
+# Esperado: 409, "Diesel insuficiente no tanque: pedido 5000 L, saldo 2800 L. Nada foi registrado."
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Bruno",
+  "origem": "Tanque",
+  "litros": 5000,
+  "horimetro": 270
+}
+
+### AB25 — Conferência: aprovar o abastecimento em posto
+# Esperado: 200, "status": "Aprovado"
+POST {{baseUrl}}/abastecimentos/1/aprovacao
+
+### AB28 — Conferência: recusar o do tanque, com motivo (o diesel volta ao estoque)
+# Esperado: 200, "status": "Recusado", e o "estorno" (entrada de 200 L)
+POST {{baseUrl}}/abastecimentos/2/recusa
+Content-Type: application/json
+
+{
+  "motivo": "Litros acima da capacidade do tanque"
+}
+
+### AB30 — Kardex do diesel: a saída e o estorno do nº 2
+# Esperado: 200, uma saída e uma entrada de 200 L com "abastecimentoId": 2
+GET {{baseUrl}}/pecas/4/movimentos
+
+### AB34 — Aprovar o nº 3
+# Esperado: 200, "status": "Aprovado"
+POST {{baseUrl}}/abastecimentos/3/aprovacao
+
+### AB35 — Combustível da PV-03 (só os aprovados)
+# Esperado: 200, "consumoMedio": 1.11, "custoPorHora": 6.72, "custoTotal": 806.8
+GET {{baseUrl}}/maquinas/3/combustivel
+
+### Preparação do AB39 em diante: nº 4, posto, 100 L por R$ 600,00 (o recibo é um PNG de 1x1 pixel)
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Ana",
+  "origem": "Posto",
+  "litros": 100,
+  "horimetro": 280,
+  "posto": "Posto Boa Vista",
+  "valorTotal": 600,
+  "comprovante": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+}
+
+### AB40 — Devolver para correção, dizendo o que corrigir
+# Esperado: 200, "status": "Em correção", e a devolução em "devolucoes"
+POST {{baseUrl}}/abastecimentos/4/devolucao
+Content-Type: application/json
+
+{
+  "motivo": "Valor pago não confere com o recibo"
+}
+
+### AB44 — Corrigir trocando a origem
+# Esperado: 400, "A origem não muda na correção (é Posto). Origem errada: o gestor deve recusar."
+PUT {{baseUrl}}/abastecimentos/4
+Content-Type: application/json
+
+{
+  "origem": "Tanque",
+  "litros": 100,
+  "horimetro": 280
+}
+
+### AB47 — Correção válida, sem foto nova (vale a anterior)
+# Esperado: 200, "status": "Pendente", "precoLitro": 6 e a devolução com "corrigidaEm"
+PUT {{baseUrl}}/abastecimentos/4
+Content-Type: application/json
+
+{
+  "litros": 110,
+  "horimetro": 280,
+  "posto": "Posto Boa Vista",
+  "valorTotal": 660
+}

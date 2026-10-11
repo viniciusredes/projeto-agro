@@ -39,6 +39,83 @@
     </div>
   </div>
 
+  <!-- ===== Combustível (Etapa 4): consumo, custo e último abastecimento ===== -->
+  <section class="combustivel" aria-labelledby="titulo-combustivel">
+    <div class="combustivel__titulo">
+      <h3 id="titulo-combustivel">Combustível</h3>
+      <a mat-button [routerLink]="['/abastecimentos']" [queryParams]="{ maquinaId: id() }">
+        Todos os abastecimentos
+        <mat-icon iconPositionEnd>arrow_forward</mat-icon>
+      </a>
+    </div>
+
+    @if (combustivel.error()) {
+      <p class="aviso aviso--erro">
+        <mat-icon>error</mat-icon>
+        Não foi possível carregar o combustível desta máquina.
+      </p>
+    } @else if (combustivel.hasValue()) {
+      @let c = combustivel.value();
+      <div class="indicadores">
+        <div class="indicador">
+          <span class="indicador__rotulo">Consumo médio</span>
+          @if (c.consumoMedio !== null) {
+            <span class="indicador__valor indicador__valor--destaque">{{ c.consumoMedio | number: '1.1-2' }} L/h</span>
+            <span class="indicador__detalhe">em {{ c.horasMedidas | number: '1.0-1' }} h medidas</span>
+          } @else {
+            <!-- "Sem dados" é diferente de zero: a API responde null com menos de 2 aprovados -->
+            <span class="indicador__valor">Sem dados</span>
+            <span class="indicador__detalhe">precisa de 2 abastecimentos aprovados</span>
+          }
+        </div>
+        <div class="indicador">
+          <span class="indicador__rotulo">Custo por hora</span>
+          <span class="indicador__valor">{{ c.custoPorHora !== null ? (c.custoPorHora | currency) : '—' }}</span>
+          <span class="indicador__detalhe">{{ c.litros | number: '1.0-1' }} L aprovados · {{ c.custoTotal | currency }}</span>
+        </div>
+        <div class="indicador">
+          <span class="indicador__rotulo">Último abastecimento</span>
+          @if (ultimoAbastecimento(); as ultimo) {
+            <span class="indicador__valor">{{ ultimo.data | date: 'dd/MM/yyyy' }}</span>
+            <span class="indicador__detalhe">
+              {{ ultimo.litros | number: '1.0-1' }} L · {{ ultimo.origem === 'Tanque' ? 'tanque da fazenda' : ultimo.posto }}
+              @if (horasDesdeUltimo() !== null) {
+                · <strong>{{ horasDesdeUltimo() | number: '1.0-1' }} h trabalhadas desde então</strong>
+              }
+            </span>
+          } @else {
+            <span class="indicador__valor">Nenhum</span>
+            <span class="indicador__detalhe">os operadores registram pelo app</span>
+          }
+        </div>
+      </div>
+
+      @if (c.pendentes + c.emCorrecao > 0) {
+        <p class="combustivel__aviso">
+          <mat-icon>pending_actions</mat-icon>
+          {{ c.pendentes }} aguardando conferência e {{ c.emCorrecao }} em correção: só os aprovados entram nos números.
+        </p>
+      }
+
+      <!-- Os últimos abastecimentos: cada linha leva à conferência -->
+      @if (abastecimentosRecentes().length > 0) {
+        <ul class="abastecimentos">
+          @for (ab of abastecimentosRecentes().slice(0, 5); track ab.id) {
+            <li>
+              <a [routerLink]="['/abastecimentos', ab.id]">
+                <span class="abastecimentos__data">{{ ab.data | date: 'dd/MM HH:mm' }}</span>
+                <span>{{ ab.litros | number: '1.0-1' }} L · {{ ab.horimetro | number: '1.0-1' }} h</span>
+                <span class="abastecimentos__detalhe">{{ ab.operador }} · {{ ab.origem === 'Tanque' ? 'Tanque' : ab.posto }}</span>
+                <strong class="numero">{{ ab.valorTotal | currency }}</strong>
+                <span class="etiqueta" [class]="etiquetaStatusAbastecimento(ab.status)">{{ ab.status }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    }
+  </section>
+
   <!-- ===== Custo por tipo: parte do todo, barra empilhada horizontal ===== -->
   <section class="custo-tipo">
     <h3>Custo por tipo</h3>

@@ -25,6 +25,46 @@ export function validarHorimetro(texto: string, atual: number): ResultadoHorimet
   return { valido: true, valor, horas: Math.round((valor - atual) * 10) / 10 };
 }
 
+// Horímetro com limite de cima também (correção de abastecimento: entre o anterior e o seguinte).
+// Reaproveita a regra do mínimo e só acrescenta a do máximo (null = sem limite de cima).
+export function validarHorimetroEntre(texto: string, minimo: number, maximo: number | null): ResultadoHorimetro {
+  const resultado = validarHorimetro(texto, minimo);
+  if (resultado.valido && maximo !== null && resultado.valor > maximo) {
+    return { valido: false, erro: `Não pode passar o do abastecimento seguinte (${formatarHoras(maximo)} h).` };
+  }
+  return resultado;
+}
+
+export type ResultadoNumero =
+  | { valido: true; valor: number }
+  | { valido: false; erro: string | null }; // erro null = campo vazio (sem mensagem ainda)
+
+// Número maior que zero digitado no teclado brasileiro (litros, valor pago): "120,5" vale 120.5
+export function validarPositivo(texto: string): ResultadoNumero {
+  const limpo = texto.trim().replace(',', '.');
+  if (limpo === '') {
+    return { valido: false, erro: null };
+  }
+  const valor = Number(limpo);
+  if (!Number.isFinite(valor)) {
+    return { valido: false, erro: 'Digite só números, sem ponto de milhar (ex.: 120,5).' };
+  }
+  if (valor <= 0) {
+    return { valido: false, erro: 'Precisa ser maior que zero.' };
+  }
+  return { valido: true, valor };
+}
+
+// 746.3 -> "R$ 746,30"; com casas = 3 (preço do combustível): 6.193 -> "R$ 6,193"
+export function formatarReais(valor: number, casas = 2): string {
+  return valor.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: casas,
+    maximumFractionDigits: casas,
+  });
+}
+
 // 1012.5 -> "1.012,5" (formato brasileiro, até 1 casa decimal)
 export function formatarHoras(valor: number): string {
   return valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 });

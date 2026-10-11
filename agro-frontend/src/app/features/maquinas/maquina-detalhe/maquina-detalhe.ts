@@ -10,7 +10,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaquinaService } from '../../../core/services/maquina.service';
 import { OrdemServicoService } from '../../../core/services/ordem-servico.service';
 import { TIPOS_OS, TipoOS } from '../../../core/models/ordem-servico';
-import { etiquetaStatusMaquina, etiquetaTipoOS } from '../../../core/ui/tons';
+import { AbastecimentoService } from '../../../core/services/abastecimento.service';
+import { etiquetaStatusAbastecimento, etiquetaStatusMaquina, etiquetaTipoOS } from '../../../core/ui/tons';
 import { conteudoDoQrDaMaquina } from '../../../core/qr';
 import { renderSVG } from 'uqr';
 
@@ -52,6 +53,31 @@ export class MaquinaDetalhe {
   protected readonly maquina = computed(() =>
     this.maquinas.hasValue() ? this.maquinas.value().find(m => m.id === this.id()) : undefined,
   );
+
+  // ===== Combustível (Etapa 4): consumo, custo e abastecimentos, calculados pela API =====
+  private readonly abastecimentoService = inject(AbastecimentoService);
+  protected readonly combustivel = rxResource({
+    params: () => this.id(),
+    stream: ({ params }) => this.abastecimentoService.combustivelDaMaquina(params),
+  });
+
+  // Os abastecimentos que valem (sem os recusados), do mais recente para o mais antigo
+  protected readonly abastecimentosRecentes = computed(() =>
+    this.combustivel.hasValue()
+      ? [...this.combustivel.value().abastecimentos].filter(ab => ab.status !== 'Recusado').sort((a, b) => b.id - a.id)
+      : [],
+  );
+
+  protected readonly ultimoAbastecimento = computed(() => this.abastecimentosRecentes()[0] ?? null);
+
+  // Quanto a máquina trabalhou desde o último abastecimento (horímetro atual - o do abastecimento)
+  protected readonly horasDesdeUltimo = computed(() => {
+    const ultimo = this.ultimoAbastecimento();
+    const maquina = this.maquina();
+    return ultimo && maquina ? Math.max(0, maquina.horimetro - ultimo.horimetro) : null;
+  });
+
+  protected readonly etiquetaStatusAbastecimento = etiquetaStatusAbastecimento;
 
   // Etiqueta QR para colar na máquina (o app móvel lê e abre a ficha).
   // O uqr gera o QR como TEXTO SVG; virar "data URL" permite usar numa <img> comum, sem

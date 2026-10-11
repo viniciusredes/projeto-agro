@@ -13,6 +13,8 @@ import { OrdemServicoService } from '../../core/services/ordem-servico.service';
 import { Maquina, RespostaRetorno } from '../../core/models/maquina';
 import { Peca, RespostaEntrada } from '../../core/models/peca';
 import { OrdemServico, RespostaAberturaOS, TIPOS_OS, TipoOS } from '../../core/models/ordem-servico';
+import { Abastecimento } from '../../core/models/abastecimento';
+import { AbastecimentoService } from '../../core/services/abastecimento.service';
 import { RetornoDialog } from '../maquinas/retorno-dialog/retorno-dialog';
 import { EntradaDialog } from '../estoque/entrada-dialog/entrada-dialog';
 import { AbrirOsDialog } from '../ordens-servico/abrir-os-dialog/abrir-os-dialog';
@@ -32,7 +34,8 @@ interface Indicador {
 type Pendencia =
   | { tipo: 'os'; titulo: string; detalhe: string; os: OrdemServico }
   | { tipo: 'campo'; titulo: string; detalhe: string; maquina: Maquina }
-  | { tipo: 'repor'; titulo: string; detalhe: string; peca: Peca };
+  | { tipo: 'repor'; titulo: string; detalhe: string; peca: Peca }
+  | { tipo: 'abastecimento'; titulo: string; detalhe: string; abastecimento: Abastecimento };
 
 // Um pedaço da barra de custo por tipo de O.S.
 interface SegmentoCusto {
@@ -51,22 +54,31 @@ export class Inicio {
   private readonly maquinaService = inject(MaquinaService);
   private readonly pecaService = inject(PecaService);
   private readonly osService = inject(OrdemServicoService);
+  private readonly abastecimentoService = inject(AbastecimentoService);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
 
   protected readonly hoje = new Date();
 
-  // ===== 4 chamadas à API; todo o resto é dado DERIVADO (computed) =====
+  // ===== 5 chamadas à API; todo o resto é dado DERIVADO (computed) =====
   protected readonly maquinas = rxResource({ stream: () => this.maquinaService.listar() });
   protected readonly pecas = rxResource({ stream: () => this.pecaService.listar() });
   protected readonly ordens = rxResource({ stream: () => this.osService.listar() });
   protected readonly movimentacoes = rxResource({ stream: () => this.maquinaService.listarMovimentacoes() });
+  // Etapa 4: só os que esperam a conferência (o filtro vai para a API)
+  protected readonly abastecimentosPendentes = rxResource({
+    stream: () => this.abastecimentoService.listar({ status: 'Pendente' }),
+  });
 
   protected readonly carregando = computed(
-    () => this.maquinas.isLoading() || this.pecas.isLoading() || this.ordens.isLoading() || this.movimentacoes.isLoading(),
+    () =>
+      this.maquinas.isLoading() || this.pecas.isLoading() || this.ordens.isLoading() ||
+      this.movimentacoes.isLoading() || this.abastecimentosPendentes.isLoading(),
   );
   protected readonly comErro = computed(
-    () => !!(this.maquinas.error() || this.pecas.error() || this.ordens.error() || this.movimentacoes.error()),
+    () =>
+      !!(this.maquinas.error() || this.pecas.error() || this.ordens.error() ||
+        this.movimentacoes.error() || this.abastecimentosPendentes.error()),
   );
 
   // Listas "seguras": vazias enquanto carregam ou se deram erro (hasValue evita o erro do value())
@@ -131,7 +143,20 @@ export class Inicio {
       peca,
     }));
 
-    return [...osAbertas, ...emCampo, ...repor];
+    // Abastecimentos registrados no app que esperam a conferência do gestor (Etapa 4)
+    const reais = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+    const aConferir: Pendencia[] = (this.abastecimentosPendentes.hasValue() ? this.abastecimentosPendentes.value() : [])
+      .map(ab => {
+        const maquina = maquinaPorId.get(ab.maquinaId);
+        return {
+          tipo: 'abastecimento' as const,
+          titulo: `Abastecimento nº ${ab.id} a conferir · ${maquina?.tag ?? '#' + ab.maquinaId} ${maquina?.modelo ?? ''}`,
+          detalhe: `${ab.operador} · ${ab.litros.toLocaleString('pt-BR')} L · ${reais.format(ab.valorTotal)} · ${ab.origem === 'Tanque' ? 'tanque da fazenda' : ab.posto} · ${quando(ab.data)}`,
+          abastecimento: ab,
+        };
+      });
+
+    return [...osAbertas, ...aConferir, ...emCampo, ...repor];
   });
 
   // ===== Custo de manutenção (todas as O.S. fechadas) =====

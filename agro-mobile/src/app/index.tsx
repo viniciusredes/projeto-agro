@@ -3,13 +3,18 @@ import { useCallback, useRef } from 'react';
 import {
   ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useColorScheme, View,
 } from 'react-native';
+import { EtiquetaAbastecimento } from '@/componentes/etiqueta-abastecimento';
 import { EtiquetaStatus } from '@/componentes/etiqueta-status';
 import { SeletorTema } from '@/componentes/seletor-tema';
 import { useOperador } from '@/contextos/operador';
 import { useRequisicao } from '@/hooks/use-requisicao';
 import { StatusMaquina } from '@/models/maquina';
-import { buscarPainelDoOperador } from '@/servicos/maquinas';
+import { buscarPainelDoOperador } from '@/servicos/painel';
 import { TOM_STATUS, useTema } from '@/tema';
+import { formatarHoras, formatarReais } from '@/validacao';
+
+// Quantos abastecimentos recentes a página inicial mostra (o histórico completo fica na web)
+const ULTIMOS_ABASTECIMENTOS = 5;
 
 // require: a imagem entra NO PACOTE do app (não vem da internet). Uma versão para cada tema.
 const LOGO = require('../../assets/images/logo.png');
@@ -21,6 +26,20 @@ const RESUMO: { status: StatusMaquina; rotulo: string }[] = [
   { status: 'Em Operação', rotulo: 'em campo' },
   { status: 'Em Manutenção', rotulo: 'na oficina' },
 ];
+
+// "2 aguardando conferência · 1 recusado" (só o que pede atenção; se nada pedir, diz que está tudo certo)
+function resumoDosAbastecimentos(status: string[]): string {
+  const pendentes = status.filter(s => s === 'Pendente').length;
+  const paraCorrigir = status.filter(s => s === 'Em correção').length;
+  const recusados = status.filter(s => s === 'Recusado').length;
+  const partes = [
+    // Primeiro o que depende DELE: os devolvidos para correção
+    paraCorrigir > 0 && `${paraCorrigir} para corrigir`,
+    pendentes > 0 && `${pendentes} aguardando conferência`,
+    recusados > 0 && `${recusados} ${recusados === 1 ? 'recusado' : 'recusados'}`,
+  ].filter(Boolean);
+  return partes.length > 0 ? partes.join(' · ') : 'Todos conferidos e aprovados.';
+}
 
 function saudacao(): string {
   const hora = new Date().getHours();
@@ -149,6 +168,68 @@ export default function Inicio() {
                 </Text>
               </Pressable>
             ))
+          )}
+
+          {/* Etapa 4: o retorno da conferência do gestor. Sem isso, o operador não sabe se o recibo valeu */}
+          <Text style={[estilos.secao, { color: tema.texto }]}>Meus abastecimentos</Text>
+          {dados.abastecimentos.length === 0 ? (
+            <View style={[estilos.cartao, { backgroundColor: tema.cartao, borderColor: tema.borda }]}>
+              <Text style={[estilos.texto, { color: tema.textoSuave }]}>
+                Nenhum abastecimento registrado. Para registrar, abra a ficha da máquina e toque em Registrar abastecimento.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text style={[estilos.texto, { color: tema.textoSuave }]}>
+                {resumoDosAbastecimentos(dados.abastecimentos.map(item => item.abastecimento.status))}
+              </Text>
+              {dados.abastecimentos.slice(0, ULTIMOS_ABASTECIMENTOS).map(({ maquina, abastecimento: ab }) => (
+                <Pressable
+                  key={ab.id}
+                  // Devolvido: o toque abre a CORREÇÃO; os outros abrem a ficha da máquina
+                  onPress={() =>
+                    ab.status === 'Em correção'
+                      ? router.push({ pathname: '/maquina/[id]/abastecimento', params: { id: ab.maquinaId, corrigir: ab.id } })
+                      : router.push({ pathname: '/maquina/[id]', params: { id: ab.maquinaId } })
+                  }
+                  accessibilityRole="link"
+                  accessibilityLabel={
+                    ab.status === 'Em correção'
+                      ? `Abastecimento de ${maquina?.tag ?? 'máquina'} devolvido para correção. Abrir para corrigir`
+                      : `Abastecimento de ${maquina?.tag ?? 'máquina'}: ${ab.status}. Abrir ficha`
+                  }
+                  style={({ pressed }) => [
+                    estilos.cartao,
+                    { backgroundColor: tema.cartao, borderColor: pressed ? tema.primaria : tema.borda },
+                  ]}
+                >
+                  <View style={estilos.linha}>
+                    <Text style={[estilos.tag, { color: tema.texto }]}>{maquina?.tag ?? `Máquina ${ab.maquinaId}`}</Text>
+                    <EtiquetaAbastecimento status={ab.status} />
+                  </View>
+                  <Text style={[estilos.texto, { color: tema.texto }]}>
+                    {formatarHoras(ab.litros)} L · {ab.origem === 'Posto' ? ab.posto : 'Tanque da fazenda'} · {formatarReais(ab.valorTotal)}
+                  </Text>
+                  <Text style={[estilos.texto, { color: tema.textoSuave }]}>
+                    {new Date(ab.data).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} · horímetro{' '}
+                    {formatarHoras(ab.horimetro)} h
+                  </Text>
+                  {/* O MOTIVO da recusa é o que o operador precisa para corrigir */}
+                  {ab.status === 'Recusado' && ab.motivoRecusa && (
+                    <Text style={[estilos.texto, { color: tema.erro, fontWeight: '700' }]}>Motivo: {ab.motivoRecusa}</Text>
+                  )}
+                  {/* Devolvido: o que o gestor pediu, e o convite à ação */}
+                  {ab.status === 'Em correção' && (
+                    <>
+                      <Text style={[estilos.texto, { color: tema.texto, fontWeight: '700' }]}>
+                        O que corrigir: {ab.devolucoes[ab.devolucoes.length - 1]?.motivo}
+                      </Text>
+                      <Text style={[estilos.texto, { color: tema.primaria, fontWeight: '700' }]}>Toque para corrigir ›</Text>
+                    </>
+                  )}
+                </Pressable>
+              ))}
+            </>
           )}
 
           {/* A frota em três números; o toque leva à lista completa */}

@@ -119,6 +119,20 @@ Tudo fica num único `server.ts` de propósito, para facilitar o aprendizado. A 
 | `GET` | `/ordens-servico/:id/fotos/:fotoId` | A imagem em si (resposta binária, não JSON) |
 | `GET` | `/maquinas/:id/manutencoes` | Histórico e custo de manutenção de uma máquina |
 
+### Módulo de Abastecimento (Etapa 4)
+
+| Método | Rota | O que faz |
+|---|---|---|
+| `POST` | `/abastecimentos` | Registra um abastecimento (entra `Pendente`): no posto, com a foto do recibo; pelo tanque da fazenda, com baixa do diesel no almoxarifado |
+| `GET` | `/abastecimentos` | Lista (filtros opcionais `?maquinaId=`, `?status=`, `?origem=` e `?operador=`) |
+| `GET` | `/abastecimentos/:id` | Detalhe, com os dados da máquina |
+| `GET` | `/abastecimentos/:id/comprovante` | A foto do recibo (resposta binária) |
+| `POST` | `/abastecimentos/:id/aprovacao` | Conferência: aprova |
+| `POST` | `/abastecimentos/:id/recusa` | Conferência: recusa com motivo (estorno do diesel, se veio do tanque) |
+| `GET` | `/maquinas/:id/combustivel` | Consumo médio (L/h), custo por hora e totais, só com os aprovados |
+| `POST` | `/abastecimentos/:id/devolucao` | Conferência: devolve ao operador para correção, com o que corrigir (vira `Em correção`) |
+| `PUT` | `/abastecimentos/:id` | Correção pelo operador de um abastecimento devolvido (volta a `Pendente`) |
+
 Toda resposta de erro segue o formato:
 
 ```json
@@ -287,6 +301,7 @@ O projeto foi construído em **partes pequenas**. Cada parte traz: 🎯 o **obje
 | **Uso** (máquinas) | [Ponto de partida](#ponto-de-partida), [Parte 0](#parte-0--script-de-desenvolvimento) a [Parte 6](#parte-6--avarias-no-retorno-campo-opcional) |
 | **Estoque** (peças) | [Parte E1](#parte-e1--modelo-de-peça-e-listagem) a [Parte E6](#parte-e6--estoque-mínimo-e-alerta-de-reposição) |
 | **Manutenção** (O.S.) | [Parte OS1](#parte-os1--modelo-da-ordem-de-serviço-e-listagem) a [Parte OS7](#parte-os7--detalhe-da-os-e-custo-por-máquina), mais a [Parte OS8](#parte-os8--fotos-da-os-para-o-app-do-operador) (fotos, feita na Etapa 3) |
+| **Abastecimento** (Etapa 4) | [Parte AB1](#parte-ab1--abastecimento-em-posto-com-o-recibo) a [Parte AB4](#parte-ab4--devolver-para-correção) |
 
 > **Dica para os alunos:** reproduzam as partes na ordem, testando cada uma antes de seguir. É assim que se constrói software de forma segura: um passo pequeno e verificado de cada vez.
 
@@ -1406,11 +1421,263 @@ curl -X POST http://localhost:3000/ordens-servico/1/fotos -H "Content-Type: appl
 
 Ou abra `http://localhost:3000/ordens-servico/1/fotos/1` no navegador: a imagem aparece, porque a resposta diz `Content-Type: image/png`.
 
+### Parte AB1 — Abastecimento em posto, com o recibo
+
+🎯 O operador abastece a máquina num posto e registra pelo app: litros, horímetro, posto, valor pago e a **foto do recibo**. O abastecimento entra **Pendente**, à espera da conferência do gestor na web (Parte AB3). Esta é a Etapa 4 do projeto; o tanque da fazenda vem na Parte AB2.
+
+🧩 **1. O modelo.** Origem e status são tipos com poucos valores possíveis, como na O.S.:
+
+```ts
+type OrigemAbastecimento = 'Posto' | 'Tanque';
+type StatusAbastecimento = 'Pendente' | 'Aprovado' | 'Recusado';
+
+interface Abastecimento {
+  id: number;
+  maquinaId: number;
+  operador: string;
+  origem: OrigemAbastecimento;
+  litros: number;
+  horimetro: number;        // leitura no momento do abastecimento (não muda a máquina)
+  posto?: string;
+  valorTotal: number;       // R$ pago no posto
+  precoLitro: number;       // R$/L = valorTotal / litros
+  data: string;
+  status: StatusAbastecimento;
+  comprovante?: Comprovante; // a foto do recibo: tipo, tamanho e os bytes
+}
+```
+
+**2. Recibo no mesmo JSON.** O `POST /abastecimentos` recebe o recibo em base64 no campo `comprovante`. Assim **ou entra tudo, ou nada**: não existe abastecimento em posto sem recibo. As fotos da O.S. (Parte OS8) usam duas chamadas, porque a foto é opcional e pode vir depois. O leitor de corpo grande passa a valer também aqui:
+
+```ts
+app.use('/abastecimentos', express.json({ limit: '3mb' }));
+```
+
+**3. Uma regra, uma função.** A validação da imagem (base64, JPEG ou PNG, até 2 MB) saiu da rota de fotos da O.S. e virou a função `lerImagemBase64`, usada pelas duas rotas:
+
+```ts
+const imagem = lerImagemBase64(comprovante, 'comprovante');
+if (!imagem.ok) {
+  return res.status(imagem.status).json({ erro: imagem.erro });
+}
+```
+
+**4. O horímetro nunca anda para trás.** O mínimo é o **maior** entre o horímetro da máquina e o do último abastecimento dela que não foi recusado:
+
+```ts
+const minimo = Math.max(
+  maquina.horimetro,
+  ...abastecimentos.filter(ab => ab.maquinaId === maquina.id && ab.status !== 'Recusado').map(ab => ab.horimetro)
+);
+```
+
+O abastecimento **não** altera o horímetro da máquina; quem faz isso são a saída e o retorno. Um abastecimento recusado (com o horímetro digitado errado, por exemplo) não "estraga" a máquina.
+
+**5. As rotas:**
+
+| Método | Rota | O que faz |
+|---|---|---|
+| `POST` | `/abastecimentos` | Registra (201, `Pendente`). Valida máquina (404), operador, origem, litros > 0, horímetro, posto, valor pago > 0 e o recibo (400/413) |
+| `GET` | `/abastecimentos` | Lista, com filtros opcionais e combináveis: `?maquinaId=`, `?status=`, `?origem=`, `?operador=` |
+| `GET` | `/abastecimentos/:id` | Detalhe, com a tag e o modelo da máquina |
+| `GET` | `/abastecimentos/:id/comprovante` | A foto do recibo (resposta binária, não JSON) |
+
+📚 **Conceitos**
+- **Operação atômica:** o abastecimento e o recibo entram numa requisição só. Se o recibo estiver errado, nada é gravado. Comparar com as fotos da O.S. mostra quando cada desenho faz sentido.
+- **Refatorar antes de repetir:** antes de escrever a segunda rota com foto, a regra da primeira virou uma função. Os testes F1 a F15 (fotos da O.S.) continuaram passando: é assim que se refatora com segurança.
+- **Valor derivado na gravação:** o `precoLitro` é calculado e guardado no registro, com 3 casas, como nas bombas de combustível (R$ 6,193). Se o gestor quiser saber quanto pagou por litro naquele dia, o número está lá.
+- **Filtro tolerante:** `?operador=%20ana%20` encontra "Ana". O app manda o nome que o operador digitou, com as maiúsculas e espaços que ele usou.
+
+🧪 **Testes** (no Git Bash; a foto é um PNG de 1×1 pixel)
+
+```bash
+PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+curl -X POST http://localhost:3000/abastecimentos -H "Content-Type: application/json" \
+  -d "{\"maquinaId\":1,\"operador\":\"Ana\",\"origem\":\"Posto\",\"litros\":120.5,\"horimetro\":1100,\"posto\":\"Posto Boa Vista\",\"valorTotal\":746.3,\"comprovante\":\"$PNG\"}"   # 201, Pendente, precoLitro 6.193
+curl http://localhost:3000/abastecimentos?status=Pendente
+curl -o recibo.png http://localhost:3000/abastecimentos/1/comprovante
+```
+
+### Parte AB2 — Abastecimento pelo tanque da fazenda
+
+🎯 Muitas fazendas têm um **tanque próprio de diesel**. O diesel do tanque é **estoque**: entra por compra (`POST /pecas/:id/entradas`) e sai quando uma máquina é abastecida. Abastecer pelo tanque dá **baixa no almoxarifado** na hora, com o custo da última compra.
+
+🧩 **1. O diesel no almoxarifado inicial**, como mais uma peça, em litros:
+
+```ts
+{ id: 4, codigo: 'DSL-001', descricao: 'Óleo diesel S10 (tanque da fazenda)', unidade: 'L', saldo: 3000, custoUnitario: 6.05, estoqueMinimo: 1000 }
+```
+
+```ts
+const ORIGENS_ABASTECIMENTO: OrigemAbastecimento[] = ['Posto', 'Tanque'];
+const CODIGO_DIESEL = 'DSL-001'; // o item do almoxarifado que representa o tanque
+```
+
+**2. Cada origem tem as suas regras:**
+
+| | Posto | Tanque |
+|---|---|---|
+| `posto` e `valorTotal` | obrigatórios | **proibidos** (400): o custo vem do almoxarifado |
+| `comprovante` | obrigatório | opcional (ex.: foto do marcador da bomba) |
+| Custo | valor pago | litros × custo do diesel, **congelado** |
+| Estoque | — | saldo suficiente (409, nada é gravado) e **baixa** com saída no kardex |
+
+**3. A baixa**, depois de todas as validações (nada é gravado pela metade):
+
+```ts
+diesel.saldo = arredondar(diesel.saldo - litros, 2);
+movimentosEstoque.push({
+  id: proximoIdMovimentoEstoque++,
+  pecaId: diesel.id,
+  tipo: 'saida',
+  quantidade: litros,
+  custoUnitario: diesel.custoUnitario,
+  valorTotal: abastecimento.valorTotal,
+  saldoApos: diesel.saldo,
+  data,
+  abastecimentoId: abastecimento.id   // o kardex sabe QUEM consumiu o diesel
+});
+```
+
+📚 **Conceitos**
+- **Integração entre módulos:** o abastecimento usa o almoxarifado do jeito que a O.S. já usava: estoque nunca negativo, custo congelado no momento da saída e um movimento no kardex apontando a origem (`ordemServicoId` na O.S., `abastecimentoId` aqui).
+- **O dado vem de quem sabe:** no posto, quem sabe o preço é o recibo. No tanque, é o almoxarifado (última compra). Por isso o tanque **recusa** o `valorTotal` em vez de ignorá-lo em silêncio: o erro ensina o caminho certo, como o "Use a entrada de estoque" do cadastro de peças.
+- **Baixa no registro, não na conferência:** o diesel saiu do tanque de verdade quando a máquina foi abastecida. O estoque precisa mostrar isso já, mesmo com o abastecimento ainda Pendente. Se o gestor recusar, um **estorno** devolve os litros (Parte AB3).
+- **Mudar os dados iniciais mexe nos testes:** com o diesel como peça 4, a primeira peça cadastrada nos testes passou a ser a 5. A verificação de "servidor zerado" e o K3 do `testes.sh` foram ajustados.
+
+🧪 **Testes**
+
+```bash
+curl -X POST http://localhost:3000/abastecimentos -H "Content-Type: application/json" \
+  -d '{"maquinaId":1,"operador":"Bruno","origem":"Tanque","litros":200,"horimetro":1100}'   # 201, valorTotal 1210
+curl http://localhost:3000/pecas/4             # saldo 2800
+curl http://localhost:3000/pecas/4/movimentos  # a saída com "abastecimentoId"
+curl -X POST http://localhost:3000/abastecimentos -H "Content-Type: application/json" \
+  -d '{"maquinaId":1,"operador":"Bruno","origem":"Tanque","litros":5000,"horimetro":1100}'  # 409, diesel insuficiente
+```
+
+### Parte AB3 — Conferência do gestor e indicadores de combustível
+
+🎯 O gestor confere cada abastecimento, olhando o recibo, e **aprova** ou **recusa com motivo**. A recusa de um abastecimento pelo tanque **devolve o diesel** ao estoque. Com os aprovados, a API calcula o **consumo médio (L/h)** e o **custo por hora** de cada máquina.
+
+🧩 **1. Máquina de estados:** `Pendente` → `Aprovado` ou `Recusado`. A decisão é final: conferir de novo responde **409**, como fechar uma O.S. já fechada.
+
+```ts
+if (abastecimento.status !== 'Pendente') {
+  return res.status(409).json({ erro: `Abastecimento nº ${id} já foi conferido (${abastecimento.status})` });
+}
+```
+
+**2. Recusa com estorno.** O motivo é obrigatório (o operador precisa saber o que corrigir). Pelo tanque, um movimento de **entrada** devolve os litros, com o **mesmo custo** da saída:
+
+```ts
+diesel.saldo = arredondar(diesel.saldo + abastecimento.litros, 2);
+movimentosEstoque.push({
+  id: proximoIdMovimentoEstoque++,
+  pecaId: diesel.id,
+  tipo: 'entrada',
+  quantidade: abastecimento.litros,
+  custoUnitario: abastecimento.precoLitro, // o custo da SAÍDA, não o atual
+  valorTotal: abastecimento.valorTotal,
+  saldoApos: diesel.saldo,
+  data,
+  abastecimentoId: abastecimento.id
+});
+```
+
+**3. Indicadores (`GET /maquinas/:id/combustivel`)**, só com os aprovados, em ordem de horímetro:
+
+```ts
+// O PRIMEIRO abastecimento é só o ponto de partida: ninguém sabe o que já havia no tanque.
+// O que foi colocado DEPOIS dele é o que a máquina gastou nas horas trabalhadas.
+const horasMedidas = ultimo.horimetro - primeiro.horimetro;
+consumoMedio = litros(depoisDoPrimeiro) / horasMedidas;   // L/h
+custoPorHora = valor(depoisDoPrimeiro) / horasMedidas;    // R$/h
+```
+
+Com menos de 2 aprovados, `consumoMedio` e `custoPorHora` vêm `null` ("sem dados"). A resposta traz também os totais (litros, custo), quantos estão pendentes e a lista de abastecimentos da máquina.
+
+| Método | Rota | O que faz |
+|---|---|---|
+| `POST` | `/abastecimentos/:id/aprovacao` | Aprova (409 se já conferido) |
+| `POST` | `/abastecimentos/:id/recusa` | Recusa com `{ "motivo": "..." }` (400 sem motivo; estorno do diesel pelo tanque) |
+| `GET` | `/maquinas/:id/combustivel` | Consumo L/h, custo por hora, totais e histórico da máquina |
+
+📚 **Conceitos**
+- **Máquina de estados:** cada status diz o que ainda pode acontecer. Validar o estado antes de agir evita aprovar duas vezes ou recusar algo já aprovado.
+- **Estorno, não apagar:** o kardex nunca apaga uma linha. A recusa acrescenta uma entrada que desfaz a saída, e o histórico mostra as duas, com a mesma origem (`abastecimentoId`). É assim que a contabilidade corrige lançamentos.
+- **O estorno não mexe no custo do diesel:** só uma compra (`POST /pecas/:id/entradas`) define o custo da última compra. Por isso o estorno não passa pela rota de entradas.
+- **Indicador derivado:** consumo e custo por hora não são guardados; são calculados a cada pedido, a partir dos abastecimentos aprovados. Recusar ou aprovar muda os números na hora.
+- **"Sem dados" é diferente de zero:** com um abastecimento só, não dá para medir consumo. A API responde `null`, e a tela deve mostrar "sem dados", não "0 L/h".
+- **Por que o estorno é `entrada`:** um tipo novo de movimento (`estorno`) quebraria o kardex da web, que exige uma apresentação para cada tipo. A origem (`abastecimentoId`) já diz que não é compra.
+
+🧪 **Testes** (com os abastecimentos das Partes AB1 e AB2 registrados)
+
+```bash
+curl -X POST http://localhost:3000/abastecimentos/1/aprovacao
+curl -X POST http://localhost:3000/abastecimentos/2/recusa -H "Content-Type: application/json" -d '{"motivo":"Litros acima da capacidade do tanque"}'
+curl http://localhost:3000/pecas/4/movimentos     # a saída e a entrada (estorno) do nº 2
+curl http://localhost:3000/maquinas/1/combustivel
+```
+
+### Parte AB4 — Devolver para correção
+
+🎯 Um erro de digitação (litros, horímetro, valor, foto ilegível) não precisa virar recusa e um registro novo. O gestor **devolve** o abastecimento ao operador, dizendo o que corrigir; o operador corrige **o mesmo** registro, e ele volta à conferência. Assim o histórico não se enche de abastecimentos recusados por engano. A **recusa** fica para o que é indevido (duplicado, máquina ou origem errada).
+
+🧩 **1. O ciclo de vida ganhou um estado:**
+
+```
+Pendente ──devolver──▶ Em correção ──corrigir──▶ Pendente ──aprovar / recusar──▶ (final)
+```
+
+```ts
+type StatusAbastecimento = 'Pendente' | 'Em correção' | 'Aprovado' | 'Recusado';
+
+interface Devolucao { motivo: string; data: string; corrigidaEm?: string; }
+// no Abastecimento:
+devolucoes: Devolucao[];  // o histórico: quantas vezes voltou, por quê e quando foi corrigido
+```
+
+**2. Devolver** (`POST /abastecimentos/:id/devolucao`, com `{ "motivo": "..." }`): só um **Pendente** (409); motivo obrigatório (400). Nada muda no estoque.
+
+**3. Corrigir** (`PUT /abastecimentos/:id`): o operador manda de novo os campos que ele digita. As regras:
+
+| Regra | Resposta |
+|---|---|
+| Só um abastecimento `Em correção` pode ser alterado | 409 |
+| Máquina e origem **não mudam** (errada = registro indevido: o gestor recusa) | 400 |
+| Litros, horímetro, posto e valor: a **mesma** validação do registro (`erroNosCampos`) | 400 |
+| Horímetro entre o do abastecimento **anterior** e o do **seguinte** da máquina | 400 |
+| Foto nova opcional (sem ela, vale a anterior) | 400/413 se inválida |
+| Tanque: litros diferentes ajustam o estoque pela **diferença** (saída se aumentou, entrada se diminuiu), com o preço congelado do registro | 409 se faltar diesel |
+
+Depois da correção, a devolução em aberto ganha a data `corrigidaEm`, e o status volta a `Pendente`.
+
+**4. Refatorar antes de repetir:** as validações de formato saíram da rota de registro para a função `erroNosCampos(origem, campos)`, usada pelas duas rotas. Os 141 testes anteriores continuaram passando.
+
+**5. Mensagem certa para cada caso:** aprovar ou recusar um abastecimento `Em correção` responde 409 com "está com o operador para correção", e não "já foi conferido" (função `motivoParaNaoConferir`).
+
+📚 **Conceitos**
+- **Máquina de estados com volta:** nem todo fluxo é só para a frente. Um estado intermediário (`Em correção`) devolve a vez a quem pode resolver, sem perder o registro.
+- **`PUT` para alterar:** `POST` cria um recurso novo; `PUT /abastecimentos/:id` altera aquele que já existe. A correção mantém o mesmo número, a mesma data de registro e o histórico.
+- **Campos imutáveis:** nem tudo pode ser corrigido. Trocar a origem mudaria o estoque e o significado do registro; a API recusa e explica o caminho certo.
+- **Ajuste pela diferença:** o kardex nunca apaga linhas. Uma correção de 50 L para 30 L gera uma entrada de 20 L, e o histórico mostra a saída original e o ajuste.
+- **Limites dos dois lados:** num registro novo, o horímetro só tem limite de baixo. Na correção de um abastecimento antigo, ele também não pode passar o do abastecimento seguinte.
+
+🧪 **Testes**
+
+```bash
+curl -X POST http://localhost:3000/abastecimentos/1/devolucao -H "Content-Type: application/json" -d '{"motivo":"Valor pago não confere com o recibo"}'
+curl -X PUT http://localhost:3000/abastecimentos/1 -H "Content-Type: application/json" \
+  -d '{"litros":110,"horimetro":1100,"posto":"Posto Boa Vista","valorTotal":660}'        # volta a Pendente
+curl http://localhost:3000/abastecimentos/1                                              # "devolucoes" com "corrigidaEm"
+```
+
 ---
 
 ## 6. Roteiro completo de testes com curl
 
-> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 103 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas e 15 das fotos da O.S.) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
+> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 159 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S. e 56 do abastecimento) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
 >
 > 💡 **Alternativa sem terminal:** o arquivo [testes.http](testes.http) tem este mesmo roteiro para a extensão **REST Client** do VS Code. Basta clicar em "Send Request" acima de cada teste, sem se preocupar com aspas.
 
@@ -1513,7 +1780,7 @@ curl.exe -i $B/maquinas             # G3
 
 | # | Cenário | Esperado |
 |---|---|---|
-| P1 | Listar peças | **200**, as 3 peças iniciais |
+| P1 | Listar peças | **200**, as 4 peças iniciais (com o diesel da Etapa 4) |
 | P2 | Buscar peça 2 | **200**, `OLE-001` |
 | P3 | Peça inexistente | **404**, `Peça não encontrada` |
 | P4 | Id inválido | **400**, `O id deve ser um número inteiro` |
@@ -1572,12 +1839,12 @@ curl.exe -X POST $B/pecas/99/entradas -H "$H" -d '{"quantidade":5,"custoUnitario
 | # | Cenário | Esperado |
 |---|---|---|
 | K1/K2 | Kardex do filtro | **200**, implantação (saldo após 10) + entrada (saldo após 15) |
-| K3 | Kardex da peça nova | **200**, `[]` |
+| K3 | Kardex da peça nova (id 5) | **200**, `[]` |
 | K4 | Peça inexistente | **404** |
 
 ```bash
 curl.exe $B/pecas/1/movimentos     # K1/K2
-curl.exe $B/pecas/4/movimentos     # K3
+curl.exe $B/pecas/5/movimentos     # K3
 curl.exe $B/pecas/99/movimentos    # K4
 ```
 
@@ -1749,6 +2016,88 @@ curl.exe -X POST $B/ordens-servico/1/fotos -H "$H" -d "{\"imagem\":\"$PNG\"}"   
 curl.exe $B/ordens-servico/3/fotos                                                # F13
 curl.exe -I $B/ordens-servico/3/fotos/1                                           # F14 (só os cabeçalhos)
 curl.exe $B/ordens-servico/1/fotos/1                                              # F15
+```
+
+### Abastecimento — `/abastecimentos` (Etapa 4)
+
+Usa a PV-03 (horímetro 260 depois do F1). Os testes montam o corpo com uma função `posto()` do `testes.sh`; aqui fica o corpo completo do AB1.
+
+| # | Cenário | Esperado |
+|---|---|---|
+| AB1 | Posto, 120,5 L, R$ 746,30, com recibo | **201**, `Pendente` |
+| AB2 | Detalhe do nº 1 | **200**, `precoLitro: 6.193` |
+| AB3 | Sem recibo | **400**, `'comprovante' é obrigatório` |
+| AB4 | Recibo que não é imagem | **400**, `JPEG ou PNG` |
+| AB5 | Sem o nome do posto | **400** |
+| AB6 | Valor pago zero | **400** |
+| AB7 | Litros negativos | **400** |
+| AB8 | Origem desconhecida | **400** |
+| AB9 | Sem operador | **400** |
+| AB10 | Máquina 99 | **404** |
+| AB11 | Horímetro 261 (o último foi 262) | **400**, `menor que o último registrado (262)` |
+| AB12 | Lista | **200**, sem os bytes |
+| AB13 | `?operador=%20ana%20` | **200**, encontra "Ana" |
+| AB14 | `?status=aprovado` | **400** |
+| AB15 | Detalhe do nº 1 | **200**, com `"tag": "PV-03"` |
+| AB16 | Abastecimento 99 | **404** |
+| AB17 | Recibo do nº 1 | **200**, `Content-Type: image/png` |
+| AB18 | Tanque, 200 L, sem foto | **201**, `valorTotal: 1210` (200 × 6,05) |
+| AB19 | Diesel (peça 4) | **200**, saldo 2800 |
+| AB20 | Kardex do diesel | **200**, saída com `abastecimentoId: 2` |
+| AB21 | Tanque com `valorTotal` | **400**, `o custo vem do almoxarifado` |
+| AB22 | Tanque com 5000 L | **409**, `pedido 5000 L, saldo 2800 L` |
+| AB23 | Diesel de novo | **200**, saldo continua 2800 |
+| AB24 | Tanque, 10 L, com foto | **201**, com a `url` do comprovante |
+| AB25 | Aprovar o nº 1 | **200**, `Aprovado` |
+| AB26 | Aprovar o nº 1 de novo | **409**, `já foi conferido (Aprovado)` |
+| AB27 | Recusar o nº 2 sem motivo | **400** |
+| AB28 | Recusar o nº 2 com motivo | **200**, `Recusado`, com o motivo |
+| AB29 | Diesel (peça 4) | **200**, saldo 2990 (estorno de 200 L) |
+| AB30 | Kardex do diesel | **200**, entrada de 200 L (o estorno) |
+| AB31 | Recusar o nº 1 (já aprovado) | **409** |
+| AB32 | Aprovar o 99 | **404** |
+| AB33 | Combustível da PV-03, com 1 aprovado | **200**, `consumoMedio: null` |
+| AB34 | Aprovar o nº 3 | **200** |
+| AB35 | Combustível da PV-03 | **200**, `consumoMedio: 1.11` (10 L em 9 h) |
+| AB36 | Combustível da PV-03 | **200**, `custoPorHora: 6.72` (R$ 60,50 em 9 h) |
+| AB37 | Combustível da PV-03 | **200**, `custoTotal: 806.8` (o recusado fica fora) |
+| AB38 | Combustível da máquina 99 | **404** |
+| AB39 | Devolver o nº 4 (posto, 100 L, R$ 600, horímetro 280) sem motivo | **400** |
+| AB40 | Devolver o nº 4 com motivo | **200**, `Em correção` |
+| AB41 | Devolver o nº 4 de novo | **409** |
+| AB42 | Aprovar o nº 4 em correção | **409**, `está com o operador para correção` |
+| AB43 | Corrigir o nº 1 (aprovado) | **409** |
+| AB44 | Corrigir trocando a origem | **400**, `A origem não muda na correção` |
+| AB45 | Corrigir com litros zero | **400** |
+| AB46 | Corrigir com horímetro 265 (o anterior tem 271) | **400** |
+| AB47 | Correção válida (110 L, R$ 660), sem foto nova | **200**, `Pendente` |
+| AB48 | Detalhe do nº 4 | **200**, `precoLitro: 6` |
+| AB49 | Detalhe do nº 4 | **200**, a foto anterior continua |
+| AB50 | Detalhe do nº 4 | **200**, a devolução com `corrigidaEm` |
+| AB51 | Devolver o nº 5 (tanque, 50 L, horímetro 290) | **200** |
+| AB52 | Corrigir o nº 5 para 30 L | **200**, `valorTotal: 181.5` (preço congelado) |
+| AB53 | Diesel (peça 4) | **200**, saldo 2960 (+20 L) |
+| AB54 | Kardex do diesel | **200**, entrada de 20 L |
+| AB55 | Corrigir o nº 4 (devolvido de novo) com horímetro 295 (o seguinte tem 290) | **400** |
+| AB56 | `?status=Em correção` | **200** |
+
+```bash
+PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+curl.exe -X POST $B/abastecimentos -H "$H" -d "{\"maquinaId\":3,\"operador\":\"Ana\",\"origem\":\"Posto\",\"litros\":120.5,\"horimetro\":262,\"posto\":\"Posto Boa Vista\",\"valorTotal\":746.3,\"comprovante\":\"$PNG\"}"   # AB1
+curl.exe $B/abastecimentos/1                                   # AB2 e AB15
+curl.exe "$B/abastecimentos?operador=%20ana%20"                # AB13
+curl.exe -I $B/abastecimentos/1/comprovante                    # AB17
+curl.exe -X POST $B/abastecimentos -H "$H" -d '{"maquinaId":3,"operador":"Bruno","origem":"Tanque","litros":200,"horimetro":270}'    # AB18
+curl.exe $B/pecas/4                                            # AB19
+curl.exe $B/pecas/4/movimentos                                 # AB20
+curl.exe -X POST $B/abastecimentos -H "$H" -d '{"maquinaId":3,"operador":"Bruno","origem":"Tanque","litros":5000,"horimetro":270}'   # AB22
+curl.exe -X POST $B/abastecimentos/1/aprovacao                                                    # AB25
+curl.exe -X POST $B/abastecimentos/2/recusa -H "$H" -d '{"motivo":"Litros acima da capacidade do tanque"}'   # AB28
+curl.exe $B/pecas/4/movimentos                                                                    # AB30
+curl.exe -X POST $B/abastecimentos/3/aprovacao                                                    # AB34
+curl.exe $B/maquinas/3/combustivel                                                                # AB35 a AB37
+curl.exe -X POST $B/abastecimentos/4/devolucao -H "$H" -d '{"motivo":"Valor pago não confere com o recibo"}'   # AB40
+curl.exe -X PUT $B/abastecimentos/4 -H "$H" -d '{"litros":110,"horimetro":280,"posto":"Posto Boa Vista","valorTotal":660}'   # AB47
 ```
 
 > **Dica:** para ver só o código HTTP de cada resposta, acrescente `-w "  [%{http_code}]\n"` ao comando.

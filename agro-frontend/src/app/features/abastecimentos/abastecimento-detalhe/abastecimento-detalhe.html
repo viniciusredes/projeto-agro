@@ -1,0 +1,193 @@
+<a mat-button routerLink="/abastecimentos" class="voltar">
+  <mat-icon>arrow_back</mat-icon>
+  Abastecimentos
+</a>
+
+@if (abastecimento.isLoading() || decidindo()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+
+<!-- Erro PRIMEIRO (regra do rxResource): abastecimento inexistente ou API fora do ar -->
+@if (abastecimento.error()) {
+  <p class="aviso aviso--erro">
+    <mat-icon>error</mat-icon>
+    Não foi possível carregar o abastecimento nº {{ id() }}. Ele pode não existir.
+  </p>
+} @else if (abastecimento.hasValue()) {
+  @let ab = abastecimento.value();
+
+  <div class="cabecalho">
+    <div>
+      <h2>Abastecimento nº {{ ab.id }}</h2>
+      <span class="etiqueta" [class]="etiquetaStatus(ab.status)">{{ ab.status === 'Pendente' ? 'Aguardando conferência' : ab.status }}</span>
+      <span class="etiqueta" [class]="etiquetaOrigem(ab.origem)">{{ ab.origem === 'Tanque' ? 'Tanque da fazenda' : 'Posto' }}</span>
+    </div>
+  </div>
+
+  <div class="conferencia">
+    <!-- ===== Coluna 1: o comprovante, grande, para ler os números ===== -->
+    <section class="cartao comprovante" aria-labelledby="titulo-comprovante">
+      <h3 id="titulo-comprovante">{{ ab.origem === 'Tanque' ? 'Foto da bomba' : 'Recibo' }}</h3>
+      @if (comprovante(); as foto) {
+        <a [href]="foto" target="_blank" rel="noopener" class="comprovante__imagem" aria-label="Abrir o comprovante em tamanho real">
+          <img [src]="foto" [alt]="'Comprovante do abastecimento nº ' + ab.id" />
+        </a>
+        <p class="info">Clique para abrir em tamanho real. Confira litros e valor com os dados ao lado.</p>
+      } @else {
+        <p class="sem-foto">
+          <mat-icon>no_photography</mat-icon>
+          Sem foto. No tanque da fazenda, a foto é opcional: o custo vem do almoxarifado.
+        </p>
+      }
+    </section>
+
+    <!-- ===== Coluna 2: os dados e a decisão ===== -->
+    <div class="coluna">
+      <section class="cartao" aria-labelledby="titulo-dados">
+        <h3 id="titulo-dados">Dados informados</h3>
+        <dl class="dados">
+          <div>
+            <dt>Máquina</dt>
+            <dd>
+              <a [routerLink]="['/maquinas', ab.maquinaId]">
+                {{ ab.maquina ? ab.maquina.tag + ' · ' + ab.maquina.modelo : '#' + ab.maquinaId }}
+              </a>
+            </dd>
+          </div>
+          <div>
+            <dt>Operador</dt>
+            <dd>{{ ab.operador }}</dd>
+          </div>
+          <div>
+            <dt>Registrado em</dt>
+            <dd>{{ ab.data | date: 'dd/MM/yyyy HH:mm' }}</dd>
+          </div>
+          <div>
+            <dt>Horímetro</dt>
+            <dd>{{ ab.horimetro | number: '1.0-1' }} h</dd>
+          </div>
+          <div>
+            <dt>Litros</dt>
+            <dd>{{ ab.litros | number: '1.0-2' }} L</dd>
+          </div>
+          <div>
+            <dt>{{ ab.origem === 'Tanque' ? 'Custo (diesel do estoque)' : 'Valor pago' }}</dt>
+            <dd>{{ ab.valorTotal | currency }}</dd>
+          </div>
+          <div>
+            <dt>Preço por litro</dt>
+            <dd>{{ ab.precoLitro | currency: 'BRL' : 'symbol' : '1.3-3' }}</dd>
+          </div>
+          @if (ab.posto) {
+            <div>
+              <dt>Posto</dt>
+              <dd>{{ ab.posto }}</dd>
+            </div>
+          }
+        </dl>
+
+        <!-- Contexto para conferir: o abastecimento anterior desta máquina -->
+        @if (anterior(); as ant) {
+          <p class="comparacao">
+            <mat-icon>history</mat-icon>
+            <span>
+              Anterior: nº {{ ant.id }} com {{ ant.horimetro | number: '1.0-1' }} h ({{ ant.litros | number: '1.0-1' }} L).
+              @if (comparacao(); as c) {
+                Desde então, {{ c.horas | number: '1.0-1' }} h trabalhadas
+                @if (c.consumo !== null) {
+                  — cerca de <strong>{{ c.consumo | number: '1.0-1' }} L/h</strong> com este abastecimento.
+                }
+              }
+            </span>
+          </p>
+        } @else if (daMaquina.hasValue()) {
+          <p class="comparacao">
+            <mat-icon>history</mat-icon>
+            <span>Primeiro abastecimento registrado desta máquina: ainda não há com o que comparar.</span>
+          </p>
+        }
+      </section>
+
+      <!-- ===== A decisão ===== -->
+      <section class="cartao decisao" aria-labelledby="titulo-decisao">
+        <h3 id="titulo-decisao">Conferência</h3>
+        @if (ab.status === 'Pendente') {
+          <p class="info">
+            Aprovado, ele entra no custo e no consumo da máquina. Erro de preenchimento? Devolva para o operador
+            corrigir. Registro indevido (duplicado, máquina ou origem errada)? Recuse.
+          </p>
+          <div class="decisao__botoes">
+            <button mat-stroked-button type="button" class="botao-recusar" (click)="decidirComMotivo('recusar')" [disabled]="decidindo()">
+              <mat-icon>block</mat-icon>
+              Recusar
+            </button>
+            <button mat-stroked-button type="button" (click)="decidirComMotivo('devolver')" [disabled]="decidindo()">
+              <mat-icon>edit_note</mat-icon>
+              Devolver para correção
+            </button>
+            <button mat-flat-button type="button" (click)="aprovar()" [disabled]="decidindo()">
+              <mat-icon>task_alt</mat-icon>
+              Aprovar
+            </button>
+          </div>
+        } @else if (ab.status === 'Em correção') {
+          <!-- A vez é do operador: a conferência espera ele corrigir e reenviar -->
+          @let ultima = ab.devolucoes[ab.devolucoes.length - 1];
+          <p>
+            <span class="etiqueta" [class]="etiquetaStatus(ab.status)">Com o operador para correção</span>
+            desde {{ ultima?.data | date: "dd/MM/yyyy 'às' HH:mm" }}
+          </p>
+          <p class="pedido"><strong>O que corrigir:</strong> {{ ultima?.motivo }}</p>
+          <p class="info">Quando {{ ab.operador }} corrigir no app, o abastecimento volta para a conferência.</p>
+          @if (proximoPendente(); as proximo) {
+            <a mat-flat-button [routerLink]="['/abastecimentos', proximo.id]">
+              Conferir o próximo (nº {{ proximo.id }})
+              <mat-icon iconPositionEnd>arrow_forward</mat-icon>
+            </a>
+          }
+        } @else {
+          <p>
+            <span class="etiqueta" [class]="etiquetaStatus(ab.status)">{{ ab.status }}</span>
+            em {{ ab.dataConferencia | date: "dd/MM/yyyy 'às' HH:mm" }}
+          </p>
+          @if (ab.motivoRecusa) {
+            <p class="motivo"><strong>Motivo:</strong> {{ ab.motivoRecusa }}</p>
+          }
+          @if (proximoPendente(); as proximo) {
+            <a mat-flat-button [routerLink]="['/abastecimentos', proximo.id]">
+              Conferir o próximo (nº {{ proximo.id }})
+              <mat-icon iconPositionEnd>arrow_forward</mat-icon>
+            </a>
+          } @else if (pendentes.hasValue()) {
+            <p class="info">Nenhum outro abastecimento aguardando conferência.</p>
+          }
+        }
+      </section>
+
+      <!-- ===== Histórico das devoluções: quantas vezes voltou ao operador, e por quê ===== -->
+      @if (ab.devolucoes.length > 0) {
+        <section class="cartao" aria-labelledby="titulo-devolucoes">
+          <h3 id="titulo-devolucoes">
+            Devolvido {{ ab.devolucoes.length }} {{ ab.devolucoes.length === 1 ? 'vez' : 'vezes' }} para correção
+          </h3>
+          <ol class="devolucoes">
+            @for (devolucao of ab.devolucoes; track devolucao.data) {
+              <li>
+                <span class="devolucoes__data">{{ devolucao.data | date: 'dd/MM HH:mm' }}</span>
+                <span>{{ devolucao.motivo }}</span>
+                <span class="devolucoes__situacao">
+                  @if (devolucao.corrigidaEm) {
+                    <mat-icon>check</mat-icon>
+                    corrigido {{ devolucao.corrigidaEm | date: 'dd/MM HH:mm' }}
+                  } @else {
+                    aguardando o operador
+                  }
+                </span>
+              </li>
+            }
+          </ol>
+        </section>
+      }
+    </div>
+  </div>
+}
