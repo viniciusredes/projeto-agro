@@ -130,6 +130,8 @@ Tudo fica num único `server.ts` de propósito, para facilitar o aprendizado. A 
 | `POST` | `/abastecimentos/:id/aprovacao` | Conferência: aprova |
 | `POST` | `/abastecimentos/:id/recusa` | Conferência: recusa com motivo (estorno do diesel, se veio do tanque) |
 | `GET` | `/maquinas/:id/combustivel` | Consumo médio (L/h), custo por hora e totais, só com os aprovados |
+| `POST` | `/abastecimentos/:id/devolucao` | Conferência: devolve ao operador para correção, com o que corrigir (vira `Em correção`) |
+| `PUT` | `/abastecimentos/:id` | Correção pelo operador de um abastecimento devolvido (volta a `Pendente`) |
 
 Toda resposta de erro segue o formato:
 
@@ -299,7 +301,7 @@ O projeto foi construído em **partes pequenas**. Cada parte traz: 🎯 o **obje
 | **Uso** (máquinas) | [Ponto de partida](#ponto-de-partida), [Parte 0](#parte-0--script-de-desenvolvimento) a [Parte 6](#parte-6--avarias-no-retorno-campo-opcional) |
 | **Estoque** (peças) | [Parte E1](#parte-e1--modelo-de-peça-e-listagem) a [Parte E6](#parte-e6--estoque-mínimo-e-alerta-de-reposição) |
 | **Manutenção** (O.S.) | [Parte OS1](#parte-os1--modelo-da-ordem-de-serviço-e-listagem) a [Parte OS7](#parte-os7--detalhe-da-os-e-custo-por-máquina), mais a [Parte OS8](#parte-os8--fotos-da-os-para-o-app-do-operador) (fotos, feita na Etapa 3) |
-| **Abastecimento** (Etapa 4) | [Parte AB1](#parte-ab1--abastecimento-em-posto-com-o-recibo) a [Parte AB3](#parte-ab3--conferência-do-gestor-e-indicadores-de-combustível) |
+| **Abastecimento** (Etapa 4) | [Parte AB1](#parte-ab1--abastecimento-em-posto-com-o-recibo) a [Parte AB4](#parte-ab4--devolver-para-correção) |
 
 > **Dica para os alunos:** reproduzam as partes na ordem, testando cada uma antes de seguir. É assim que se constrói software de forma segura: um passo pequeno e verificado de cada vez.
 
@@ -1618,11 +1620,64 @@ curl http://localhost:3000/pecas/4/movimentos     # a saída e a entrada (estorn
 curl http://localhost:3000/maquinas/1/combustivel
 ```
 
+### Parte AB4 — Devolver para correção
+
+🎯 Um erro de digitação (litros, horímetro, valor, foto ilegível) não precisa virar recusa e um registro novo. O gestor **devolve** o abastecimento ao operador, dizendo o que corrigir; o operador corrige **o mesmo** registro, e ele volta à conferência. Assim o histórico não se enche de abastecimentos recusados por engano. A **recusa** fica para o que é indevido (duplicado, máquina ou origem errada).
+
+🧩 **1. O ciclo de vida ganhou um estado:**
+
+```
+Pendente ──devolver──▶ Em correção ──corrigir──▶ Pendente ──aprovar / recusar──▶ (final)
+```
+
+```ts
+type StatusAbastecimento = 'Pendente' | 'Em correção' | 'Aprovado' | 'Recusado';
+
+interface Devolucao { motivo: string; data: string; corrigidaEm?: string; }
+// no Abastecimento:
+devolucoes: Devolucao[];  // o histórico: quantas vezes voltou, por quê e quando foi corrigido
+```
+
+**2. Devolver** (`POST /abastecimentos/:id/devolucao`, com `{ "motivo": "..." }`): só um **Pendente** (409); motivo obrigatório (400). Nada muda no estoque.
+
+**3. Corrigir** (`PUT /abastecimentos/:id`): o operador manda de novo os campos que ele digita. As regras:
+
+| Regra | Resposta |
+|---|---|
+| Só um abastecimento `Em correção` pode ser alterado | 409 |
+| Máquina e origem **não mudam** (errada = registro indevido: o gestor recusa) | 400 |
+| Litros, horímetro, posto e valor: a **mesma** validação do registro (`erroNosCampos`) | 400 |
+| Horímetro entre o do abastecimento **anterior** e o do **seguinte** da máquina | 400 |
+| Foto nova opcional (sem ela, vale a anterior) | 400/413 se inválida |
+| Tanque: litros diferentes ajustam o estoque pela **diferença** (saída se aumentou, entrada se diminuiu), com o preço congelado do registro | 409 se faltar diesel |
+
+Depois da correção, a devolução em aberto ganha a data `corrigidaEm`, e o status volta a `Pendente`.
+
+**4. Refatorar antes de repetir:** as validações de formato saíram da rota de registro para a função `erroNosCampos(origem, campos)`, usada pelas duas rotas. Os 141 testes anteriores continuaram passando.
+
+**5. Mensagem certa para cada caso:** aprovar ou recusar um abastecimento `Em correção` responde 409 com "está com o operador para correção", e não "já foi conferido" (função `motivoParaNaoConferir`).
+
+📚 **Conceitos**
+- **Máquina de estados com volta:** nem todo fluxo é só para a frente. Um estado intermediário (`Em correção`) devolve a vez a quem pode resolver, sem perder o registro.
+- **`PUT` para alterar:** `POST` cria um recurso novo; `PUT /abastecimentos/:id` altera aquele que já existe. A correção mantém o mesmo número, a mesma data de registro e o histórico.
+- **Campos imutáveis:** nem tudo pode ser corrigido. Trocar a origem mudaria o estoque e o significado do registro; a API recusa e explica o caminho certo.
+- **Ajuste pela diferença:** o kardex nunca apaga linhas. Uma correção de 50 L para 30 L gera uma entrada de 20 L, e o histórico mostra a saída original e o ajuste.
+- **Limites dos dois lados:** num registro novo, o horímetro só tem limite de baixo. Na correção de um abastecimento antigo, ele também não pode passar o do abastecimento seguinte.
+
+🧪 **Testes**
+
+```bash
+curl -X POST http://localhost:3000/abastecimentos/1/devolucao -H "Content-Type: application/json" -d '{"motivo":"Valor pago não confere com o recibo"}'
+curl -X PUT http://localhost:3000/abastecimentos/1 -H "Content-Type: application/json" \
+  -d '{"litros":110,"horimetro":1100,"posto":"Posto Boa Vista","valorTotal":660}'        # volta a Pendente
+curl http://localhost:3000/abastecimentos/1                                              # "devolucoes" com "corrigidaEm"
+```
+
 ---
 
 ## 6. Roteiro completo de testes com curl
 
-> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 141 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S. e 38 do abastecimento) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
+> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 159 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S. e 56 do abastecimento) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
 >
 > 💡 **Alternativa sem terminal:** o arquivo [testes.http](testes.http) tem este mesmo roteiro para a extensão **REST Client** do VS Code. Basta clicar em "Send Request" acima de cada teste, sem se preocupar com aspas.
 
@@ -2007,6 +2062,24 @@ Usa a PV-03 (horímetro 260 depois do F1). Os testes montam o corpo com uma fun�
 | AB36 | Combustível da PV-03 | **200**, `custoPorHora: 6.72` (R$ 60,50 em 9 h) |
 | AB37 | Combustível da PV-03 | **200**, `custoTotal: 806.8` (o recusado fica fora) |
 | AB38 | Combustível da máquina 99 | **404** |
+| AB39 | Devolver o nº 4 (posto, 100 L, R$ 600, horímetro 280) sem motivo | **400** |
+| AB40 | Devolver o nº 4 com motivo | **200**, `Em correção` |
+| AB41 | Devolver o nº 4 de novo | **409** |
+| AB42 | Aprovar o nº 4 em correção | **409**, `está com o operador para correção` |
+| AB43 | Corrigir o nº 1 (aprovado) | **409** |
+| AB44 | Corrigir trocando a origem | **400**, `A origem não muda na correção` |
+| AB45 | Corrigir com litros zero | **400** |
+| AB46 | Corrigir com horímetro 265 (o anterior tem 271) | **400** |
+| AB47 | Correção válida (110 L, R$ 660), sem foto nova | **200**, `Pendente` |
+| AB48 | Detalhe do nº 4 | **200**, `precoLitro: 6` |
+| AB49 | Detalhe do nº 4 | **200**, a foto anterior continua |
+| AB50 | Detalhe do nº 4 | **200**, a devolução com `corrigidaEm` |
+| AB51 | Devolver o nº 5 (tanque, 50 L, horímetro 290) | **200** |
+| AB52 | Corrigir o nº 5 para 30 L | **200**, `valorTotal: 181.5` (preço congelado) |
+| AB53 | Diesel (peça 4) | **200**, saldo 2960 (+20 L) |
+| AB54 | Kardex do diesel | **200**, entrada de 20 L |
+| AB55 | Corrigir o nº 4 (devolvido de novo) com horímetro 295 (o seguinte tem 290) | **400** |
+| AB56 | `?status=Em correção` | **200** |
 
 ```bash
 PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
@@ -2023,6 +2096,8 @@ curl.exe -X POST $B/abastecimentos/2/recusa -H "$H" -d '{"motivo":"Litros acima 
 curl.exe $B/pecas/4/movimentos                                                                    # AB30
 curl.exe -X POST $B/abastecimentos/3/aprovacao                                                    # AB34
 curl.exe $B/maquinas/3/combustivel                                                                # AB35 a AB37
+curl.exe -X POST $B/abastecimentos/4/devolucao -H "$H" -d '{"motivo":"Valor pago não confere com o recibo"}'   # AB40
+curl.exe -X PUT $B/abastecimentos/4 -H "$H" -d '{"litros":110,"horimetro":280,"posto":"Posto Boa Vista","valorTotal":660}'   # AB47
 ```
 
 > **Dica:** para ver só o código HTTP de cada resposta, acrescente `-w "  [%{http_code}]\n"` ao comando.

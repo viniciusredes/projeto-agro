@@ -307,14 +307,22 @@ function validarPecasDoFechamento(pecasInformadas: unknown): ResultadoValidacaoP
 
 // De onde veio o combustível: posto externo (com recibo) ou tanque da fazenda (diesel do almoxarifado)
 type OrigemAbastecimento = 'Posto' | 'Tanque';
-// Ciclo de vida: o operador registra (Pendente) e o gestor confere (Aprovado ou Recusado)
-type StatusAbastecimento = 'Pendente' | 'Aprovado' | 'Recusado';
+// Ciclo de vida: o operador registra (Pendente) e o gestor confere: aprova, recusa (final) ou
+// DEVOLVE para correção (Em correção). Corrigido pelo operador, volta a Pendente.
+type StatusAbastecimento = 'Pendente' | 'Em correção' | 'Aprovado' | 'Recusado';
 
 const ORIGENS_ABASTECIMENTO: OrigemAbastecimento[] = ['Posto', 'Tanque'];
 
 // O item do almoxarifado que representa o tanque de diesel da fazenda
 const CODIGO_DIESEL = 'DSL-001';
-const STATUS_ABASTECIMENTO: StatusAbastecimento[] = ['Pendente', 'Aprovado', 'Recusado'];
+const STATUS_ABASTECIMENTO: StatusAbastecimento[] = ['Pendente', 'Em correção', 'Aprovado', 'Recusado'];
+
+// Cada vez que o gestor devolve o abastecimento: o que corrigir, quando, e quando foi corrigido
+interface Devolucao {
+  motivo: string;
+  data: string;
+  corrigidaEm?: string;
+}
 
 // Foto do comprovante (o recibo do posto), guardada junto do abastecimento
 interface Comprovante {
@@ -338,11 +346,47 @@ interface Abastecimento {
   status: StatusAbastecimento;
   motivoRecusa?: string;    // preenchidos na conferência do gestor
   dataConferencia?: string;
+  devolucoes: Devolucao[];  // histórico das devoluções para correção (vazio se nunca voltou)
   comprovante?: Comprovante;
 }
 
 let abastecimentos: Abastecimento[] = [];
 let proximoIdAbastecimento = 1;
+
+// Formato dos campos que o OPERADOR digita: os mesmos no registro (POST) e na correção (PUT).
+// Devolve a mensagem do primeiro erro, ou null se estiver tudo certo (sempre um 400).
+function erroNosCampos(
+  origem: OrigemAbastecimento,
+  campos: { litros: unknown; horimetro: unknown; posto: unknown; valorTotal: unknown }
+): string | null {
+  const { litros, horimetro, posto, valorTotal } = campos;
+  if (typeof litros !== 'number' || !Number.isFinite(litros) || litros <= 0) {
+    return "Campo 'litros' deve ser um número maior que zero";
+  }
+  if (typeof horimetro !== 'number' || !Number.isFinite(horimetro)) {
+    return "Campo 'horimetro' é obrigatório e deve ser um número";
+  }
+  if (origem === 'Posto') {
+    // Posto: nome e valor pago
+    if (typeof posto !== 'string' || posto.trim() === '') {
+      return "Campo 'posto' é obrigatório no abastecimento em posto";
+    }
+    if (typeof valorTotal !== 'number' || !Number.isFinite(valorTotal) || valorTotal <= 0) {
+      return "Campo 'valorTotal' deve ser um número maior que zero";
+    }
+  } else if (posto !== undefined || valorTotal !== undefined) {
+    // Tanque: o custo vem do almoxarifado (última compra do diesel), não de quem registra
+    return "No abastecimento pelo tanque, não informe 'posto' nem 'valorTotal': o custo vem do almoxarifado";
+  }
+  return null;
+}
+
+// Por que um abastecimento NÃO pode ser conferido agora (409 da aprovação e da recusa)
+function motivoParaNaoConferir(abastecimento: Abastecimento): string {
+  return abastecimento.status === 'Em correção'
+    ? `Abastecimento nº ${abastecimento.id} está com o operador para correção: confira quando ele reenviar`
+    : `Abastecimento nº ${abastecimento.id} já foi conferido (${abastecimento.status})`;
+}
 
 // O que a API devolve de um abastecimento: os dados + o endereço do comprovante (sem os bytes)
 function resumoDoAbastecimento(abastecimento: Abastecimento) {
@@ -1006,30 +1050,15 @@ app.post('/abastecimentos', (req, res) => {
   if (!ORIGENS_ABASTECIMENTO.includes(origem)) {
     return res.status(400).json({ erro: `Campo 'origem' deve ser um destes: ${ORIGENS_ABASTECIMENTO.join(', ')}` });
   }
-  if (typeof litros !== 'number' || !Number.isFinite(litros) || litros <= 0) {
-    return res.status(400).json({ erro: "Campo 'litros' deve ser um número maior que zero" });
-  }
-  if (typeof horimetro !== 'number' || !Number.isFinite(horimetro)) {
-    return res.status(400).json({ erro: "Campo 'horimetro' é obrigatório e deve ser um número" });
+  // Litros, horímetro e os dados do posto: a mesma função da correção (rota 26)
+  const erroDeFormato = erroNosCampos(origem, { litros, horimetro, posto, valorTotal });
+  if (erroDeFormato) {
+    return res.status(400).json({ erro: erroDeFormato });
   }
 
-  // Validação 4: o que muda com a origem
+  // Validação 4: no tanque, o diesel precisa existir e ter saldo
   let diesel: Peca | undefined;
-  if (origem === 'Posto') {
-    // Posto: nome e valor pago, com o recibo OBRIGATÓRIO (é a prova da despesa)
-    if (typeof posto !== 'string' || posto.trim() === '') {
-      return res.status(400).json({ erro: "Campo 'posto' é obrigatório no abastecimento em posto" });
-    }
-    if (typeof valorTotal !== 'number' || !Number.isFinite(valorTotal) || valorTotal <= 0) {
-      return res.status(400).json({ erro: "Campo 'valorTotal' deve ser um número maior que zero" });
-    }
-  } else {
-    // Tanque: o custo vem do almoxarifado (última compra do diesel), não de quem registra
-    if (posto !== undefined || valorTotal !== undefined) {
-      return res.status(400).json({
-        erro: "No abastecimento pelo tanque, não informe 'posto' nem 'valorTotal': o custo vem do almoxarifado"
-      });
-    }
+  if (origem === 'Tanque') {
     diesel = pecas.find(peca => peca.codigo === CODIGO_DIESEL);
     if (!diesel) {
       return res.status(409).json({ erro: `O diesel (${CODIGO_DIESEL}) não está cadastrado no almoxarifado` });
@@ -1087,6 +1116,7 @@ app.post('/abastecimentos', (req, res) => {
         }),
     data,
     status: 'Pendente',
+    devolucoes: [],
     comprovante: foto
   };
   abastecimentos.push(abastecimento);
@@ -1206,7 +1236,7 @@ app.post('/abastecimentos/:id/aprovacao', (req, res) => {
 
   // Validação 3 (estado): só se confere o que está Pendente. A decisão é final.
   if (abastecimento.status !== 'Pendente') {
-    return res.status(409).json({ erro: `Abastecimento nº ${id} já foi conferido (${abastecimento.status})` });
+    return res.status(409).json({ erro: motivoParaNaoConferir(abastecimento) });
   }
 
   abastecimento.status = 'Aprovado';
@@ -1229,7 +1259,7 @@ app.post('/abastecimentos/:id/recusa', (req, res) => {
   }
 
   if (abastecimento.status !== 'Pendente') {
-    return res.status(409).json({ erro: `Abastecimento nº ${id} já foi conferido (${abastecimento.status})` });
+    return res.status(409).json({ erro: motivoParaNaoConferir(abastecimento) });
   }
 
   // Validação 4 (formato): o operador precisa saber POR QUE foi recusado
@@ -1303,6 +1333,7 @@ app.get('/maquinas/:id/combustivel', (req, res) => {
     maquina: maquina.tag,
     aprovados: aprovados.length,
     pendentes: daMaquina.filter(ab => ab.status === 'Pendente').length,
+    emCorrecao: daMaquina.filter(ab => ab.status === 'Em correção').length,
     litros: arredondar(somar(aprovados, 'litros'), 2),
     custoTotal: arredondar(somar(aprovados, 'valorTotal'), 2),
     horasMedidas,
@@ -1310,6 +1341,164 @@ app.get('/maquinas/:id/combustivel', (req, res) => {
     consumoMedio: horasMedidas > 0 ? arredondar(somar(depoisDoPrimeiro, 'litros') / horasMedidas, 2) : null,
     custoPorHora: horasMedidas > 0 ? arredondar(somar(depoisDoPrimeiro, 'valorTotal') / horasMedidas, 2) : null,
     abastecimentos: daMaquina.map(resumoDoAbastecimento)
+  });
+});
+
+// 25. Caminho para DEVOLVER um abastecimento para correção (o gestor, na web).
+// Para erro de preenchimento: o MESMO abastecimento volta ao operador, em vez de recusar e
+// exigir um registro novo. Nada muda no estoque: o diesel continua baixado até a correção.
+app.post('/abastecimentos/:id/devolucao', (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  const abastecimento = abastecimentos.find(ab => ab.id === id);
+  if (!abastecimento) {
+    return res.status(404).json({ erro: 'Abastecimento não encontrado' });
+  }
+
+  // Só o que está esperando a conferência pode voltar (Em correção, a vez é do operador)
+  if (abastecimento.status !== 'Pendente') {
+    return res.status(409).json({
+      erro: `Só um abastecimento Pendente pode ser devolvido (o nº ${id} está ${abastecimento.status})`
+    });
+  }
+
+  // O operador precisa saber O QUE corrigir
+  const { motivo } = req.body ?? {};
+  if (typeof motivo !== 'string' || motivo.trim() === '') {
+    return res.status(400).json({ erro: "Campo 'motivo' é obrigatório para devolver: diga o que corrigir" });
+  }
+
+  abastecimento.status = 'Em correção';
+  abastecimento.devolucoes.push({ motivo: motivo.trim(), data: new Date().toISOString() });
+
+  res.json({
+    mensagem: `Abastecimento nº ${id} devolvido ao operador para correção.`,
+    abastecimento: resumoDoAbastecimento(abastecimento)
+  });
+});
+
+// 26. Caminho para CORRIGIR um abastecimento devolvido (o operador, no app).
+// Corpo: os campos que ele digita (litros, horimetro, posto, valorTotal) e, se quiser, uma foto nova.
+// Máquina, operador e origem não mudam: origem errada é registro indevido (o gestor recusa).
+app.put('/abastecimentos/:id', (req, res) => {
+  const id = Number(req.params.id);
+
+  // Validação 1 (formato): o id é um número inteiro?
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ erro: 'O id deve ser um número inteiro' });
+  }
+
+  // Validação 2: o abastecimento existe?
+  const abastecimento = abastecimentos.find(ab => ab.id === id);
+  if (!abastecimento) {
+    return res.status(404).json({ erro: 'Abastecimento não encontrado' });
+  }
+
+  // Validação 3 (estado): só o que foi devolvido pode ser alterado
+  if (abastecimento.status !== 'Em correção') {
+    return res.status(409).json({
+      erro: `Só um abastecimento devolvido para correção pode ser alterado (o nº ${id} está ${abastecimento.status})`
+    });
+  }
+
+  const { maquinaId, origem, litros, horimetro, posto, valorTotal, comprovante } = req.body ?? {};
+
+  // Validação 4: o que NÃO muda na correção
+  if (origem !== undefined && origem !== abastecimento.origem) {
+    return res.status(400).json({
+      erro: `A origem não muda na correção (é ${abastecimento.origem}). Origem errada: o gestor deve recusar.`
+    });
+  }
+  if (maquinaId !== undefined && maquinaId !== abastecimento.maquinaId) {
+    return res.status(400).json({ erro: 'A máquina não muda na correção. Máquina errada: o gestor deve recusar.' });
+  }
+
+  // Validação 5 (formato): a MESMA função do registro
+  const erroDeFormato = erroNosCampos(abastecimento.origem, { litros, horimetro, posto, valorTotal });
+  if (erroDeFormato) {
+    return res.status(400).json({ erro: erroDeFormato });
+  }
+
+  // Validação 6 (regra de negócio): o horímetro fica entre o do abastecimento ANTERIOR e o do
+  // SEGUINTE desta máquina (os não recusados). O horímetro atual da máquina não serve aqui: ele
+  // pode já ter andado depois deste abastecimento.
+  const outros = abastecimentos.filter(
+    ab => ab.maquinaId === abastecimento.maquinaId && ab.id !== id && ab.status !== 'Recusado'
+  );
+  const anterior = Math.max(...outros.filter(ab => ab.id < id).map(ab => ab.horimetro));
+  const seguinte = Math.min(...outros.filter(ab => ab.id > id).map(ab => ab.horimetro));
+  if (horimetro < anterior) {
+    return res.status(400).json({ erro: `Horímetro informado (${horimetro}) é menor que o do abastecimento anterior (${anterior})` });
+  }
+  if (horimetro > seguinte) {
+    return res.status(400).json({ erro: `Horímetro informado (${horimetro}) é maior que o do abastecimento seguinte (${seguinte})` });
+  }
+
+  // Validação 7 (tanque): se os litros mudaram, o estoque é ajustado pela DIFERENÇA
+  const diferenca = arredondar(litros - abastecimento.litros, 2);
+  const diesel = abastecimento.pecaId !== undefined ? pecas.find(peca => peca.id === abastecimento.pecaId) : undefined;
+  if (diesel && diferenca > diesel.saldo) {
+    return res.status(409).json({
+      erro: `Diesel insuficiente no tanque para a correção: faltam ${diferenca} L, saldo ${diesel.saldo} L. Nada foi alterado.`
+    });
+  }
+
+  // Validação 8: foto nova é opcional (sem ela, vale a anterior); se vier, segue a mesma regra
+  let foto = abastecimento.comprovante;
+  if (comprovante !== undefined) {
+    const imagem = lerImagemBase64(comprovante, 'comprovante');
+    if (!imagem.ok) {
+      return res.status(imagem.status).json({ erro: imagem.erro });
+    }
+    foto = { tipo: imagem.tipo, tamanho: imagem.conteudo.length, conteudo: imagem.conteudo };
+  }
+
+  // Tudo validado: aplica a correção. No tanque, o preço continua o CONGELADO no registro.
+  const data = new Date().toISOString();
+  abastecimento.litros = litros;
+  abastecimento.horimetro = horimetro;
+  abastecimento.comprovante = foto;
+  if (abastecimento.origem === 'Posto') {
+    abastecimento.posto = posto.trim();
+    abastecimento.valorTotal = arredondar(valorTotal, 2);
+    abastecimento.precoLitro = arredondar(valorTotal / litros, 3);
+  } else {
+    abastecimento.valorTotal = arredondar(litros * abastecimento.precoLitro, 2);
+  }
+
+  // Tanque com litros diferentes: um movimento no kardex (saída se aumentou, entrada se diminuiu)
+  let ajusteEstoque: MovimentoEstoque | null = null;
+  if (diesel && diferenca !== 0) {
+    diesel.saldo = arredondar(diesel.saldo - diferenca, 2);
+    ajusteEstoque = {
+      id: proximoIdMovimentoEstoque++,
+      pecaId: diesel.id,
+      tipo: diferenca > 0 ? 'saida' : 'entrada',
+      quantidade: Math.abs(diferenca),
+      custoUnitario: abastecimento.precoLitro,
+      valorTotal: arredondar(Math.abs(diferenca) * abastecimento.precoLitro, 2),
+      saldoApos: diesel.saldo,
+      data,
+      abastecimentoId: abastecimento.id
+    };
+    movimentosEstoque.push(ajusteEstoque);
+  }
+
+  // A devolução em aberto fica marcada como corrigida, e o abastecimento volta à conferência
+  const devolucao = abastecimento.devolucoes[abastecimento.devolucoes.length - 1];
+  if (devolucao) {
+    devolucao.corrigidaEm = data;
+  }
+  abastecimento.status = 'Pendente';
+
+  res.json({
+    mensagem: 'Correção enviada! O abastecimento voltou para a conferência do gestor.',
+    abastecimento: resumoDoAbastecimento(abastecimento),
+    ajusteEstoque
   });
 });
 

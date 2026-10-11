@@ -631,6 +631,71 @@ testar AB38 "Combustível de máquina inexistente" 404 "Máquina não encontrada
   "$BASE/maquinas/99/combustivel"
 
 # ---------------------------------------------------------------------
+secao "Devolução para correção (e a correção pelo operador)"
+# ---------------------------------------------------------------------
+# Preparação: nº 4, posto, 100 L por R$ 600,00 no horímetro 280 (Pendente)
+curl -s -o /dev/null -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(posto '"litros":100,"horimetro":280,"valorTotal":600')"
+
+testar AB39 "Devolver sem dizer o que corrigir" 400 "'motivo' é obrigatório para devolver" \
+  -X POST "$BASE/abastecimentos/4/devolucao" -H "$JSON" -d '{}'
+
+testar AB40 "Devolver o nº 4 (vira Em correção)" 200 '"status":"Em correção"' \
+  -X POST "$BASE/abastecimentos/4/devolucao" -H "$JSON" -d '{"motivo":"Valor pago não confere com o recibo"}'
+
+testar AB41 "Devolver de novo" 409 "Só um abastecimento Pendente pode ser devolvido" \
+  -X POST "$BASE/abastecimentos/4/devolucao" -H "$JSON" -d '{"motivo":"Outro"}'
+
+testar AB42 "Aprovar enquanto está com o operador" 409 "está com o operador para correção" \
+  -X POST "$BASE/abastecimentos/4/aprovacao"
+
+testar AB43 "Corrigir um que não foi devolvido (nº 1, aprovado)" 409 "Só um abastecimento devolvido para correção" \
+  -X PUT "$BASE/abastecimentos/1" -H "$JSON" -d '{"litros":10,"horimetro":262,"posto":"X","valorTotal":60}'
+
+testar AB44 "Corrigir trocando a origem" 400 "A origem não muda na correção" \
+  -X PUT "$BASE/abastecimentos/4" -H "$JSON" -d '{"origem":"Tanque","litros":100,"horimetro":280}'
+
+testar AB45 "Corrigir com litros zero" 400 "'litros' deve ser um número maior que zero" \
+  -X PUT "$BASE/abastecimentos/4" -H "$JSON" -d '{"litros":0,"horimetro":280,"posto":"Posto Boa Vista","valorTotal":660}'
+
+testar AB46 "Horímetro abaixo do abastecimento anterior (nº 3, 271)" 400 "menor que o do abastecimento anterior (271)" \
+  -X PUT "$BASE/abastecimentos/4" -H "$JSON" -d '{"litros":110,"horimetro":265,"posto":"Posto Boa Vista","valorTotal":660}'
+
+testar AB47 "Correção válida, sem foto nova (volta a Pendente)" 200 '"status":"Pendente"' \
+  -X PUT "$BASE/abastecimentos/4" -H "$JSON" -d '{"litros":110,"horimetro":280,"posto":"Posto Boa Vista","valorTotal":660}'
+
+testar AB48 "Preço por litro recalculado (660 / 110)" 200 '"precoLitro":6,' \
+  "$BASE/abastecimentos/4"
+
+testar AB49 "A foto anterior continua valendo" 200 '"url":"/abastecimentos/4/comprovante"' \
+  "$BASE/abastecimentos/4"
+
+testar AB50 "Histórico da devolução, com a data da correção" 200 '"corrigidaEm"' \
+  "$BASE/abastecimentos/4"
+
+# Preparação: nº 5, tanque, 50 L no horímetro 290 (diesel: 2990 -> 2940)
+curl -s -o /dev/null -X POST "$BASE/abastecimentos" -H "$JSON" -d "$(tanque '"litros":50,"horimetro":290')"
+
+testar AB51 "Devolver o nº 5, do tanque" 200 '"status":"Em correção"' \
+  -X POST "$BASE/abastecimentos/5/devolucao" -H "$JSON" -d '{"motivo":"Foram 30 L, não 50"}'
+
+testar AB52 "Corrigir para 30 L: custo pelo preço congelado (30 x 6,05)" 200 '"valorTotal":181.5' \
+  -X PUT "$BASE/abastecimentos/5" -H "$JSON" -d '{"litros":30,"horimetro":290}'
+
+testar AB53 "Os 20 L de diferença voltaram ao diesel (2940 + 20)" 200 '"saldo":2960' \
+  "$BASE/pecas/4"
+
+testar AB54 "Kardex com a entrada da diferença" 200 '"tipo":"entrada","quantidade":20' \
+  "$BASE/pecas/4/movimentos"
+
+# Devolve o nº 4 de novo: o horímetro dele não pode passar o do nº 5 (290), que veio depois
+curl -s -o /dev/null -X POST "$BASE/abastecimentos/4/devolucao" -H "$JSON" -d '{"motivo":"Horímetro errado"}'
+testar AB55 "Horímetro acima do abastecimento seguinte (nº 5, 290)" 400 "maior que o do abastecimento seguinte (290)" \
+  -X PUT "$BASE/abastecimentos/4" -H "$JSON" -d '{"litros":110,"horimetro":295,"posto":"Posto Boa Vista","valorTotal":660}'
+
+testar AB56 "Filtro pelo status novo" 200 '"status":"Em correção"' \
+  "$BASE/abastecimentos?status=Em%20corre%C3%A7%C3%A3o"
+
+# ---------------------------------------------------------------------
 # Resumo
 # ---------------------------------------------------------------------
 echo

@@ -992,3 +992,50 @@ POST {{baseUrl}}/abastecimentos/3/aprovacao
 ### AB35 — Combustível da PV-03 (só os aprovados)
 # Esperado: 200, "consumoMedio": 1.11, "custoPorHora": 6.72, "custoTotal": 806.8
 GET {{baseUrl}}/maquinas/3/combustivel
+
+### Preparação do AB39 em diante: nº 4, posto, 100 L por R$ 600,00 (o recibo é um PNG de 1x1 pixel)
+POST {{baseUrl}}/abastecimentos
+Content-Type: application/json
+
+{
+  "maquinaId": 3,
+  "operador": "Ana",
+  "origem": "Posto",
+  "litros": 100,
+  "horimetro": 280,
+  "posto": "Posto Boa Vista",
+  "valorTotal": 600,
+  "comprovante": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+}
+
+### AB40 — Devolver para correção, dizendo o que corrigir
+# Esperado: 200, "status": "Em correção", e a devolução em "devolucoes"
+POST {{baseUrl}}/abastecimentos/4/devolucao
+Content-Type: application/json
+
+{
+  "motivo": "Valor pago não confere com o recibo"
+}
+
+### AB44 — Corrigir trocando a origem
+# Esperado: 400, "A origem não muda na correção (é Posto). Origem errada: o gestor deve recusar."
+PUT {{baseUrl}}/abastecimentos/4
+Content-Type: application/json
+
+{
+  "origem": "Tanque",
+  "litros": 100,
+  "horimetro": 280
+}
+
+### AB47 — Correção válida, sem foto nova (vale a anterior)
+# Esperado: 200, "status": "Pendente", "precoLitro": 6 e a devolução com "corrigidaEm"
+PUT {{baseUrl}}/abastecimentos/4
+Content-Type: application/json
+
+{
+  "litros": 110,
+  "horimetro": 280,
+  "posto": "Posto Boa Vista",
+  "valorTotal": 660
+}
