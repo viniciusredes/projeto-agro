@@ -1563,6 +1563,170 @@ app.get('/maquinas/:id/horimetro', (req, res) => {
   res.json(limitesDoHorimetro(maquina));
 });
 
+// ===================== POSIÇÕES (Etapa 6: localização em campo) =====================
+// O celular do operador faz o papel de rastreador ENQUANTO a saída está aberta: o app manda as
+// posições em lotes, e a web mostra a última de cada máquina num mapa. Fora de uma saída aberta,
+// nenhuma posição é aceita (a posição é de uma PESSOA: só durante o trabalho, com consentimento).
+
+interface Posicao {
+  id: number;
+  maquinaId: number;        // "chave estrangeira": aponta para Maquina.id
+  movimentacaoId: number;   // a saída durante a qual a posição foi registrada
+  operador: string;         // vem da saída aberta, não do corpo (o app não escolhe quem é)
+  latitude: number;
+  longitude: number;
+  precisao: number;         // raio de incerteza, em metros (o GPS informa)
+  data: string;             // quando o CELULAR leu a posição
+  recebidaEm: string;       // quando a API recebeu (o lote pode chegar atrasado, sem sinal)
+}
+
+let posicoes: Posicao[] = [];
+let proximoIdPosicao = 1;
+
+const MAXIMO_POR_LOTE = 50;
+const MAXIMO_POR_SAIDA = 2000;        // passou disso, as mais antigas da saída saem (memória)
+const TOLERANCIA_RELOGIO_MS = 5 * 60_000; // celular com o relógio até 5 min adiantado
+
+// Valida UM ponto do lote. Devolve a mensagem do erro, ou null se estiver tudo certo.
+function erroNaPosicao(ponto: any, dataSaida: string): string | null {
+  const { latitude, longitude, precisao, data } = ponto ?? {};
+  if (typeof latitude !== 'number' || !Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    return "'latitude' deve ser um número entre -90 e 90";
+  }
+  if (typeof longitude !== 'number' || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    return "'longitude' deve ser um número entre -180 e 180";
+  }
+  if (typeof precisao !== 'number' || !Number.isFinite(precisao) || precisao < 0) {
+    return "'precisao' deve ser um número maior ou igual a zero (metros)";
+  }
+  const instante = typeof data === 'string' ? new Date(data).getTime() : NaN;
+  if (Number.isNaN(instante)) {
+    return "'data' deve ser uma data ISO 8601 (ex.: 2026-10-11T14:05:00.000Z)";
+  }
+  if (instante > Date.now() + TOLERANCIA_RELOGIO_MS) {
+    return "'data' está no futuro: confira o relógio do celular";
+  }
+  if (instante < new Date(dataSaida).getTime()) {
+    return "'data' é anterior à saída da máquina";
+  }
+  return null;
+}
+
+// 28. Caminho para ENVIAR posições de uma máquina em campo (pelo app do operador), em LOTE:
+// { "posicoes": [{ "latitude": -22.1, "longitude": -47.9, "precisao": 12, "data": "..." }] }
+// Tudo ou nada (como o fechamento da O.S.): um ponto inválido recusa o lote inteiro.
+app.post('/maquinas/:id/posicoes', (req, res) => {
+  const maquina = maquinas.find(m => m.id === parseInt(req.params.id));
+  if (!maquina) {
+    return res.status(404).json({ erro: 'Máquina não encontrada' });
+  }
+
+  // Só durante uma saída aberta: depois do retorno (ou da O.S.), a posição não é mais coletada
+  const saida = maquina.status === 'Em Operação' ? buscarMovimentacaoAberta(maquina.id) : undefined;
+  if (!saida) {
+    return res.status(409).json({ erro: `Máquina ${maquina.tag} não está em campo: posições não são mais aceitas` });
+  }
+
+  const { posicoes: lote } = req.body ?? {};
+  if (!Array.isArray(lote) || lote.length === 0) {
+    return res.status(400).json({ erro: "Campo 'posicoes' deve ser uma lista com pelo menos uma posição" });
+  }
+  if (lote.length > MAXIMO_POR_LOTE) {
+    return res.status(400).json({ erro: `No máximo ${MAXIMO_POR_LOTE} posições por envio` });
+  }
+  for (let i = 0; i < lote.length; i++) {
+    const erro = erroNaPosicao(lote[i], saida.dataSaida);
+    if (erro) {
+      return res.status(400).json({ erro: `Posição ${i + 1}: ${erro}` });
+    }
+  }
+
+  // Tudo validado: grava o lote
+  const recebidaEm = new Date().toISOString();
+  const novas: Posicao[] = lote.map((ponto: any) => ({
+    id: proximoIdPosicao++,
+    maquinaId: maquina.id,
+    movimentacaoId: saida.id,
+    operador: saida.operador,
+    latitude: ponto.latitude,
+    longitude: ponto.longitude,
+    precisao: arredondar(ponto.precisao, 1),
+    data: new Date(ponto.data).toISOString(),
+    recebidaEm,
+  }));
+  posicoes.push(...novas);
+
+  // Limite de memória por saída: ficam as mais recentes
+  const daSaida = posicoes.filter(p => p.movimentacaoId === saida.id);
+  if (daSaida.length > MAXIMO_POR_SAIDA) {
+    const sobrando = new Set(
+      [...daSaida].sort((a, b) => a.data.localeCompare(b.data)).slice(0, daSaida.length - MAXIMO_POR_SAIDA).map(p => p.id)
+    );
+    posicoes = posicoes.filter(p => !sobrando.has(p.id));
+  }
+
+  const ultima = [...novas].sort((a, b) => b.data.localeCompare(a.data))[0];
+  res.status(201).json({ mensagem: `${novas.length} posição(ões) recebida(s)`, recebidas: novas.length, ultima });
+});
+
+// 29. Caminho para VER onde está cada máquina em campo agora (o mapa da web).
+// Toda máquina com saída aberta aparece; sem nenhuma posição ainda, "posicao" vem null.
+app.get('/posicoes/atuais', (_req, res) => {
+  const agora = Date.now();
+  const emCampo = maquinas
+    .filter(m => m.status === 'Em Operação')
+    .map(maquina => {
+      const saida = buscarMovimentacaoAberta(maquina.id);
+      const daSaida = saida ? posicoes.filter(p => p.movimentacaoId === saida.id) : [];
+      const ultima = daSaida.sort((a, b) => b.data.localeCompare(a.data))[0] ?? null;
+      return {
+        maquinaId: maquina.id,
+        tag: maquina.tag,
+        modelo: maquina.modelo,
+        operador: saida?.operador ?? null,
+        frenteTrabalho: saida?.frenteTrabalho ?? null,
+        dataSaida: saida?.dataSaida ?? null,
+        posicao: ultima,
+        // Há quanto tempo foi a última leitura (o mapa apaga o marcador "sem sinal")
+        minutosDesde: ultima ? arredondar((agora - new Date(ultima.data).getTime()) / 60_000, 1) : null,
+      };
+    });
+  res.json(emCampo);
+});
+
+// 30. Caminho para VER o trajeto de uma saída (filtro opcional ?movimentacaoId=).
+// Sem filtro: a saída aberta da máquina ou, se ela não estiver em campo, a última saída.
+app.get('/maquinas/:id/posicoes', (req, res) => {
+  const maquina = maquinas.find(m => m.id === parseInt(req.params.id));
+  if (!maquina) {
+    return res.status(404).json({ erro: 'Máquina não encontrada' });
+  }
+
+  const daMaquina = movimentacoes.filter(mov => mov.maquinaId === maquina.id);
+  let saida: Movimentacao | undefined;
+  if (req.query.movimentacaoId !== undefined) {
+    const idSaida = Number(req.query.movimentacaoId);
+    if (!Number.isInteger(idSaida)) {
+      return res.status(400).json({ erro: "Parâmetro 'movimentacaoId' deve ser um número inteiro" });
+    }
+    saida = daMaquina.find(mov => mov.id === idSaida);
+    if (!saida) {
+      return res.status(404).json({ erro: `Saída nº ${idSaida} não encontrada para a máquina ${maquina.tag}` });
+    }
+  } else {
+    saida = buscarMovimentacaoAberta(maquina.id) ?? daMaquina[daMaquina.length - 1];
+  }
+
+  res.json({
+    movimentacaoId: saida?.id ?? null,
+    emCampo: saida !== undefined && saida.dataRetorno === undefined,
+    // Em ordem de leitura: a polyline do mapa liga os pontos nesta ordem
+    posicoes: saida
+      ? posicoes.filter(p => p.movimentacaoId === saida.id).sort((a, b) => a.data.localeCompare(b.data))
+      : [],
+  });
+});
+
 // Rota não encontrada: se a requisição chegou até aqui, nenhuma rota acima atendeu.
 app.use((req: Request, res: Response) => {
   res.status(404).json({ erro: `Rota ${req.method} ${req.path} não existe` });

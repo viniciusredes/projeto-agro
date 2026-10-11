@@ -746,6 +746,65 @@ curl -s -o /dev/null -X POST "$BASE/abastecimentos/7/recusa" -H "$JSON" -d '{"mo
 testar H12 "Recusado não conta: o mínimo volta ao da máquina (112)" 200 '"minimo":112,"origemMinimo":null' \
   "$BASE/maquinas/4/horimetro"
 
+# =====================================================================
+#  POSIÇÕES (Etapa 6, Parte L1) — de novo a máquina nº 4 (HZ-04, 112 h)
+#  Só durante uma saída aberta; o lote é tudo ou nada.
+# =====================================================================
+
+# Datas dos pontos: alguns segundos à FRENTE de agora, para nunca ficarem antes da saída
+ponto() {  # ponto LATITUDE LONGITUDE SEGUNDOS_A_FRENTE
+  echo "{\"latitude\":$1,\"longitude\":$2,\"precisao\":12,\"data\":\"$(date -u -d "+$3 seconds" +%Y-%m-%dT%H:%M:%SZ)\"}"
+}
+
+# ---------------------------------------------------------------------
+secao "Posições das máquinas em campo"
+# ---------------------------------------------------------------------
+testar L1 "Posições de máquina inexistente" 404 "Máquina não encontrada" \
+  -X POST "$BASE/maquinas/99/posicoes" -H "$JSON" -d "{\"posicoes\":[$(ponto -22.0 -47.9 2)]}"
+
+testar L2 "Máquina no pátio não recebe posições" 409 "não está em campo" \
+  -X POST "$BASE/maquinas/4/posicoes" -H "$JSON" -d "{\"posicoes\":[$(ponto -22.0 -47.9 2)]}"
+
+curl -s -o /dev/null -X POST "$BASE/maquinas/4/saida" -H "$JSON" -d '{"operador":"Bruno","frenteTrabalho":"Talhão 3"}'
+
+testar L3 "Lote vazio" 400 "pelo menos uma posição" \
+  -X POST "$BASE/maquinas/4/posicoes" -H "$JSON" -d '{"posicoes":[]}'
+
+testar L4 "Latitude fora do planeta (95)" 400 "Posição 1: 'latitude'" \
+  -X POST "$BASE/maquinas/4/posicoes" -H "$JSON" -d "{\"posicoes\":[$(ponto 95 -47.9 2)]}"
+
+testar L5 "Data no futuro (relógio adiantado demais)" 400 "no futuro" \
+  -X POST "$BASE/maquinas/4/posicoes" -H "$JSON" -d "{\"posicoes\":[$(ponto -22.0 -47.9 3600)]}"
+
+testar L6 "Data anterior à saída" 400 "anterior à saída" \
+  -X POST "$BASE/maquinas/4/posicoes" -H "$JSON" -d '{"posicoes":[{"latitude":-22,"longitude":-47.9,"precisao":10,"data":"2020-01-01T00:00:00Z"}]}'
+
+testar L7 "Segundo ponto inválido recusa o lote inteiro" 400 "Posição 2:" \
+  -X POST "$BASE/maquinas/4/posicoes" -H "$JSON" -d "{\"posicoes\":[$(ponto -22.0 -47.9 2),{\"latitude\":-22}]}"
+
+testar L8 "Nada foi gravado pelos lotes recusados" 200 '"posicoes":[]' \
+  "$BASE/maquinas/4/posicoes"
+
+testar L9 "Lote válido com 2 pontos" 201 '"recebidas":2' \
+  -X POST "$BASE/maquinas/4/posicoes" -H "$JSON" -d "{\"posicoes\":[$(ponto -22.0010 -47.9010 2),$(ponto -22.0020 -47.9020 3)]}"
+
+testar L10 "Mapa: a HZ-04 em campo, com o operador da saída" 200 '"operador":"Bruno"' \
+  "$BASE/posicoes/atuais"
+
+testar L11 "Trajeto da saída aberta" 200 '"emCampo":true' \
+  "$BASE/maquinas/4/posicoes"
+
+curl -s -o /dev/null -X POST "$BASE/maquinas/4/retorno" -H "$JSON" -d '{"horimetro":113}'
+
+testar L12 "Depois do retorno, posições recusadas" 409 "não está em campo" \
+  -X POST "$BASE/maquinas/4/posicoes" -H "$JSON" -d "{\"posicoes\":[$(ponto -22.0 -47.9 2)]}"
+
+testar L13 "Trajeto: movimentacaoId inválido" 400 "'movimentacaoId'" \
+  "$BASE/maquinas/4/posicoes?movimentacaoId=abc"
+
+testar L14 "Trajeto de uma saída de outra máquina (nº 1, da TR-01)" 404 "não encontrada para a máquina HZ-04" \
+  "$BASE/maquinas/4/posicoes?movimentacaoId=1"
+
 # ---------------------------------------------------------------------
 # Resumo
 # ---------------------------------------------------------------------

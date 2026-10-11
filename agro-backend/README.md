@@ -134,6 +134,14 @@ Tudo fica num único `server.ts` de propósito, para facilitar o aprendizado. A 
 | `POST` | `/abastecimentos/:id/devolucao` | Conferência: devolve ao operador para correção, com o que corrigir (vira `Em correção`) |
 | `PUT` | `/abastecimentos/:id` | Correção pelo operador de um abastecimento devolvido (volta a `Pendente`) |
 
+### Módulo de Localização (Etapa 6)
+
+| Método | Rota | O que faz |
+|---|---|---|
+| `POST` | `/maquinas/:id/posicoes` | Recebe um lote de posições do celular do operador (só com a saída aberta) |
+| `GET` | `/posicoes/atuais` | A última posição de cada máquina em campo (o mapa da web) |
+| `GET` | `/maquinas/:id/posicoes` | O trajeto de uma saída (filtro opcional `?movimentacaoId=`) |
+
 Toda resposta de erro segue o formato:
 
 ```json
@@ -1706,11 +1714,59 @@ curl -X POST http://localhost:3000/maquinas/1/saida -H "Content-Type: applicatio
 curl -X POST http://localhost:3000/maquinas/1/retorno -H "Content-Type: application/json" -d '{"horimetro":10000}'   # 400: máximo possível
 ```
 
+### Parte L1 — Posições das máquinas em campo (Etapa 6)
+
+🎯 Responder "**onde a máquina está agora**". Sem GPS na máquina (a telemetria ficou fora do MVP), o **celular do operador** faz o papel de rastreador enquanto a saída está aberta: o app manda as posições, e a web mostra um mapa.
+
+🧩 **1. O modelo** guarda quem, onde e quando, ligado à saída:
+
+```ts
+interface Posicao {
+  id: number;
+  maquinaId: number;
+  movimentacaoId: number;  // a saída durante a qual a posição foi lida
+  operador: string;        // vem da SAÍDA aberta, não do corpo
+  latitude: number;
+  longitude: number;
+  precisao: number;        // raio de incerteza do GPS, em metros
+  data: string;            // quando o celular leu
+  recebidaEm: string;      // quando a API recebeu (sem sinal, o lote chega depois)
+}
+```
+
+**2. Receber em lote** (`POST /maquinas/:id/posicoes`, com `{ "posicoes": [...] }`, até 50 por envio):
+
+| Regra | Resposta |
+|---|---|
+| Só com a máquina `Em Operação` e a saída aberta (depois do retorno ou da O.S., não aceita mais) | 409 |
+| Latitude de −90 a 90, longitude de −180 a 180, precisão ≥ 0 | 400 |
+| `data` ISO 8601, não anterior à saída e no máximo 5 min no futuro (relógio do celular adiantado) | 400 |
+| Um ponto inválido recusa o lote **inteiro**, com o número dele ("Posição 2: ...") | 400 |
+| Mais de 2.000 pontos numa saída: saem os mais antigos (a memória não cresce sem limite) | — |
+
+**3. Ler:** `GET /posicoes/atuais` devolve cada máquina em campo com a última posição e `minutosDesde` (o mapa apaga o marcador que ficou sem sinal); sem posição ainda, `posicao` vem `null`. `GET /maquinas/:id/posicoes` devolve o trajeto da saída aberta (ou da última), em ordem de leitura.
+
+📚 **Conceitos**
+- **Lote em vez de um ponto por requisição:** o celular junta as leituras e manda de tempos em tempos. Gasta menos bateria e dados, e o que foi lido sem sinal segue no próximo envio.
+- **Duas datas:** `data` (quando o GPS leu) e `recebidaEm` (quando chegou). A diferença mostra o atraso do sinal no campo.
+- **Tudo ou nada de novo:** a mesma regra do fechamento da O.S. Um lote meio gravado deixaria o trajeto com buracos sem explicação.
+- **Dado pessoal (LGPD):** a posição é de uma pessoa. A API só aceita durante a saída, e o operador é o da saída, não um nome qualquer do corpo.
+
+🧪 **Testes**
+
+```bash
+curl -X POST http://localhost:3000/maquinas/1/saida -H "Content-Type: application/json" -d '{"operador":"Ana","frenteTrabalho":"Talhão 9"}'
+AGORA=$(date -u -d '+2 seconds' +%Y-%m-%dT%H:%M:%SZ)
+curl -X POST http://localhost:3000/maquinas/1/posicoes -H "Content-Type: application/json" \
+  -d "{\"posicoes\":[{\"latitude\":-22.001,\"longitude\":-47.901,\"precisao\":12,\"data\":\"$AGORA\"}]}"   # 201
+curl http://localhost:3000/posicoes/atuais                               # a TR-01 com a posição
+```
+
 ---
 
 ## 6. Roteiro completo de testes com curl
 
-> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 171 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S., 56 do abastecimento e 12 dos limites do horímetro) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
+> 🤖 **Rodar tudo de uma vez:** com o servidor recém-iniciado, execute `bash testes.sh`. O script roda os 185 cenários abaixo (25 do uso, 25 do estoque, 32 da manutenção, 6 do cadastro de máquinas, 15 das fotos da O.S., 56 do abastecimento, 12 dos limites do horímetro e 14 das posições) e mostra ✅ ou ❌ em cada um, com o que era esperado e o que foi recebido quando algo falha. Use-o para conferir se a sua implementação está correta.
 >
 > 💡 **Alternativa sem terminal:** o arquivo [testes.http](testes.http) tem este mesmo roteiro para a extensão **REST Client** do VS Code. Basta clicar em "Send Request" acima de cada teste, sem se preocupar com aspas.
 
@@ -2158,6 +2214,35 @@ curl.exe -X POST $B/abastecimentos -H "$H" -d '{"maquinaId":4,"operador":"Ana","
 curl.exe -X POST $B/maquinas/4/retorno -H "$H" -d '{"horimetro":105}'                              # H7
 curl.exe -X POST $B/maquinas/4/retorno -H "$H" -d '{"horimetro":1100}'                             # H8
 curl.exe -X POST $B/maquinas/4/retorno -H "$H" -d '{"horimetro":112}'                              # H10
+```
+
+#### Posições (Parte L1) — de novo a máquina nº 4
+
+| ID | Cenário | Esperado |
+|---|---|---|
+| L1 | Posições da máquina 99 | **404** |
+| L2 | HZ-04 no pátio | **409**, `não está em campo` |
+| L3 | Lote vazio (depois da saída) | **400**, `pelo menos uma posição` |
+| L4 | Latitude 95 | **400**, `Posição 1: 'latitude'` |
+| L5 | Data uma hora no futuro | **400**, `no futuro` |
+| L6 | Data de 2020 | **400**, `anterior à saída` |
+| L7 | Lote com o 2º ponto inválido | **400**, `Posição 2:` |
+| L8 | Trajeto | **200**, `posicoes: []` (nada gravado) |
+| L9 | Lote válido com 2 pontos | **201**, `recebidas: 2` |
+| L10 | Posições atuais | **200**, a HZ-04 com `operador: "Bruno"` |
+| L11 | Trajeto | **200**, `emCampo: true` |
+| L12 | Posições depois do retorno | **409**, `não está em campo` |
+| L13 | Trajeto com `?movimentacaoId=abc` | **400** |
+| L14 | Trajeto da saída nº 1 (da TR-01) | **404**, `não encontrada para a máquina HZ-04` |
+
+```bash
+curl.exe -X POST $B/maquinas/4/saida -H "$H" -d '{"operador":"Bruno","frenteTrabalho":"Talhão 3"}'
+# A data vem DEPOIS da saída e 2 s à frente: o date corta os milissegundos, e um ponto
+# "antes da saída" volta 400 (o limite de cima é 5 min no futuro)
+AGORA=$(date -u -d '+2 seconds' +%Y-%m-%dT%H:%M:%SZ)
+curl.exe -X POST $B/maquinas/4/posicoes -H "$H" -d "{\"posicoes\":[{\"latitude\":-22.001,\"longitude\":-47.901,\"precisao\":12,\"data\":\"$AGORA\"}]}"   # L9
+curl.exe $B/posicoes/atuais                                                                         # L10
+curl.exe $B/maquinas/4/posicoes                                                                     # L11
 ```
 
 > **Dica:** para ver só o código HTTP de cada resposta, acrescente `-w "  [%{http_code}]\n"` ao comando.

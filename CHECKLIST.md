@@ -152,6 +152,18 @@ Web: build sem avisos (606 kB), 49 testes passando. App: `tsc` e `expo lint` sem
 
 ---
 
+## Etapa 6 — Localização das máquinas em campo 🚧
+
+Branch `feat/localizacao`. O **celular do operador** faz o papel de rastreador enquanto a saída está aberta: o app envia a posição (com o app aberto, a cada 30 s ou 25 m), a API guarda e a web mostra num mapa. Só a **Fase 1** (app aberto, funciona no Expo Go); o segundo plano exige development build e ficou nas pendências.
+
+- [x] **L1 · API** — Posições (Parte L1): modelo `Posicao` ligado à saída (operador vem da saída, `data` do celular e `recebidaEm`); `POST /maquinas/:id/posicoes` em lote (até 50, tudo ou nada; só com a saída aberta, 409; latitude, longitude, precisão e data validadas, sem pontos antes da saída nem mais de 5 min no futuro, 400; até 2.000 pontos por saída); `GET /posicoes/atuais` (última posição de cada máquina em campo, com `minutosDesde`); `GET /maquinas/:id/posicoes` (trajeto da saída aberta ou de `?movimentacaoId=`); 14 cenários novos (L1 a L14), 185 no total · *commit pendente*
+- [ ] **L2 · App** — Permissão "durante o uso" na saída, hook `useRastreamento` (`watchPositionAsync`, 30 s ou 25 m), fila leve no `AsyncStorage` com envio em lote e indicador "Localização ativa"
+- [ ] **L3 · Web** — Tela `/mapa` com Leaflet e OpenStreetMap (carregada só nessa rota), marcadores das máquinas em campo, "sem sinal" depois de 10 min e atualização a cada 15 s
+- [ ] **L4 · Web** — Trajeto da saída no detalhe da máquina e atalhos "Mapa" no Painel e no menu
+- [ ] **L5 · Documentação** — READMEs do app e da web, context.md (decisões e LGPD) e CHECKLIST
+
+---
+
 ## Pendências e decisões em aberto
 
 - [x] **Cadastro de máquinas** — decidido: **entra no sistema** (Passos 8.1 e 8.2).
@@ -161,4 +173,5 @@ Web: build sem avisos (606 kB), 49 testes passando. App: `tsc` e `expo lint` sem
 - [x] **Migrar services para `@Service()`** — feito no Passo 20 nos quatro services (`MaquinaService`, `PecaService`, `OrdemServicoService` e `TemaService`); build e testes continuam passando · `00eee59`
 - [x] **Testes unitários** — resolvido no Passo 18 (34 testes passando; o teste revelou e corrigiu o `matchMedia` sem verificação no `TemaService`).
 - [x] **Retorno × abastecimento** — decidido: o retorno (e a abertura de O.S.) exige horímetro ≥ o último abastecimento não recusado, pendente incluído, e ganha um limite de cima pelo tempo que passou (J6)
+- [ ] **Localização em segundo plano (Fase 2 da Etapa 6)** — `expo-task-manager` + `startLocationUpdatesAsync`, com a notificação fixa no Android e a permissão "o tempo todo". Não funciona no Expo Go: exige development build (APK pelo EAS, que também resolve ver o ícone e o splash) e, na Play Store, revisão das permissões. A API e a web da Fase 1 não mudam.
 - [ ] **Jornada, próximos candidatos** (da revisão da Etapa 5): preventiva por horímetro com alerta no Painel; tela "Editar máquina" (`PATCH`); Abastecimentos na navegação inferior da web no celular; atalhos de teclado na conferência; operadores escolhidos de uma lista no app (nome digitado livremente quebra "Com você agora"); sugestões de frente e posto; rascunho preservado quando o envio falha; app sem o nome salvo (ficha com "Operador:" vazio e botão desabilitado sem explicação); "conferido por"; exportar CSV.
