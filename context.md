@@ -152,13 +152,13 @@ Atravessa as três partes (passos A1 a A9, detalhes no CHECKLIST e nos READMEs):
 - **App:** registrar abastecimento na ficha (posto ou tanque, preço por litro ao vivo, foto do recibo pela câmera), "Meus abastecimentos" na página inicial com o status e o motivo, correção do abastecimento devolvido (formulário já preenchido) e o cartão Combustível na ficha (último abastecimento, horas desde então, consumo).
 - **Web:** lista de abastecimentos com contador de pendentes no menu e pendência no Painel; conferência com o recibo grande, a comparação com o abastecimento anterior e as três decisões; seção Combustível no detalhe da máquina; kardex com a origem dos movimentos do diesel. 38 testes unitários.
 
-### Atualização: Etapa 5 (jornada do usuário) em andamento
+### Atualização: Etapa 5 (jornada do usuário) concluída
 
 Passos J1 a J6 (branch `feat/jornada`, detalhes no CHECKLIST): textos do Painel e do detalhe da máquina sem sobreposição, sem zeros e com plural certo; glossário de status igual ao do app; ações e "Saídas e retornos" no detalhe da máquina; horímetro do abastecimento explicado na web e no app; consumo comparado à média na conferência; horímetro travado com mínimo e máximo (Parte H1 da API, `GET /maquinas/:id/horimetro`) e botões rápidos na web e no app. 49 testes na web, 171 cenários na API.
 
 ## 5. O Que Ficou Pendente / Próximos Passos Combinados
 
-> **Status:** a **Etapa 1 (back-end em memória)**, a **Etapa 2 (front-end Angular)**, a **Etapa 3 (app móvel do operador)** e a **Etapa 4 (gestão de abastecimento)** estão concluídas. A **Etapa 5 (jornada do usuário)** está em andamento na branch `feat/jornada` (J1 a J6 implementados, aguardando teste e commit). O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
+> **Status:** a **Etapa 1 (back-end em memória)**, a **Etapa 2 (front-end Angular)**, a **Etapa 3 (app móvel do operador)**, a **Etapa 4 (gestão de abastecimento)** e a **Etapa 5 (jornada do usuário)** estão concluídas. O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
 
 - **Redesign do front-end (concluído e mergeado na `main` pelo PR #3):** Passo 16 (16.2 confirmação antes de fechar a O.S.; 16.3 responsividade com navegação inferior no celular) e R5.1 a R5.4 (identidade com menu verde-escuro e contador de O.S., Painel com pendências e ações diretas, Máquinas com filtros e cartões, fechamento de O.S. com etapas e resumo), a partir do canvas de design aprovado.
 - **Redesign 2 (mergeado na `main` pelo PR #4):** R6.1 paleta escura revista (menu verde-floresta, camadas mais distintas, verde-menta mais calmo), R6.2 Estoque no padrão do redesign (barra de nível do saldo, filtro para repor) e R6.3 lista de O.S. com cada O.S. inteira como link (abertas em cartões, fechadas em lista).

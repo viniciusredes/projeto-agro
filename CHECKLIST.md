@@ -136,7 +136,7 @@ Branch `feat/abastecimento`. O operador **registra** o abastecimento no app (pos
 
 ---
 
-## Etapa 5 — Jornada do usuário 🚧
+## Etapa 5 — Jornada do usuário ✅
 
 Branch `feat/jornada`. Revisão da jornada do operador (app) e do gestor (web) com capturas das telas reais (web a 1366 px e celular emulado; app pelo Expo web), nos dois temas. Cinco melhorias imaginadas já existiam (ação certa na ficha, retorno a partir de "Com você agora", "1 para corrigir", O.S. na ficha, entrada direto do Painel); os passos abaixo atacam o que as capturas revelaram.
 
@@ -148,7 +148,7 @@ Branch `feat/jornada`. Revisão da jornada do operador (app) e do gestor (web) c
 
 - [x] **J6 · API, web e app** — Horímetro travado (Parte H1). **API:** `limitesDoHorimetro` e `erroDoHorimetro` usados pelo retorno, pela abertura de O.S. e pelo registro de abastecimento; mínimo = a maior leitura (máquina ou abastecimento não recusado, pendente conta), máximo = mínimo + horas desde a última leitura + 24 h de folga; rota `GET /maquinas/:id/horimetro`; 12 cenários novos (H1 a H12), 171 no total. **Web:** `core/horimetro.ts` (validadores e botões rápidos, 3 testes) e `shared/atalhos-horimetro` nos diálogos de retorno e de abrir O.S. (campo vazio, faixa e +1/+4/+8 h; 2 testes novos no retorno). **App:** `validarHorimetroNaFaixa` e `atalhosDoHorimetro` em `validacao.ts`, componente `AtalhosHorimetro` (botões de 48 dp) no retorno, na avaria e no registro de abastecimento; horas trabalhadas continuam contando da saída
 
-Web: build sem avisos (606 kB), 49 testes passando. App: `tsc` e `expo lint` sem problemas. API: 171 cenários passando. Telas conferidas por captura (J1 a J5). · *commit pendente (o hash entra aqui depois do commit)*
+Web: build sem avisos (606 kB), 49 testes passando. App: `tsc` e `expo lint` sem problemas. API: 171 cenários passando. Telas conferidas por captura (J1 a J5). · `d2941d3`
 
 ---
 
