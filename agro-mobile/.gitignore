@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# configurações locais do Claude Code (não fazem parte do projeto)
+.claude/

@@ -1,0 +1,59 @@
+<div class="cabecalho">
+  <div>
+    <h2>Mapa da frota</h2>
+    @if (posicoes.hasValue()) {
+      <p class="subtitulo">{{ resumo() }} · atualiza a cada 15 s</p>
+    }
+  </div>
+  <div class="botoes">
+    <button mat-stroked-button type="button" (click)="centralizar()" [disabled]="comPosicao().length === 0">
+      <mat-icon>fit_screen</mat-icon>
+      Mostrar todas
+    </button>
+  </div>
+</div>
+
+<!-- Só na PRIMEIRA carga: nas atualizações a cada 15 s, o mapa fica parado (sem barra piscando) -->
+@if (posicoes.isLoading() && !posicoes.hasValue()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+
+<!-- Erro numa atualização: avisa, mas o mapa continua com as últimas posições -->
+@if (posicoes.error()) {
+  <p class="aviso aviso--erro">
+    <mat-icon>error</mat-icon>
+    Não foi possível atualizar as posições. O mapa mostra as últimas recebidas; a próxima tentativa é em 15 s.
+  </p>
+}
+
+<div class="layout">
+  <div #mapa class="mapa" role="region" aria-label="Mapa com as máquinas em campo"></div>
+
+  <section class="lista" aria-labelledby="titulo-em-campo">
+    <h3 id="titulo-em-campo">Em campo</h3>
+    @if (posicoes.hasValue() && emCampo().length === 0) {
+      <p class="aviso">Nenhuma máquina em campo agora. Quando um operador registrar uma saída pelo app, ela aparece aqui.</p>
+    }
+    <ul>
+      @for (item of emCampo(); track item.maquinaId) {
+        <li>
+          <!-- Com posição: o cartão leva o mapa até a máquina. Sem posição: não há para onde ir -->
+          <button type="button" class="item" (click)="selecionar(item)" [disabled]="!item.posicao">
+            <span class="item__topo">
+              <strong>{{ item.tag }}</strong>
+              <span class="etiqueta" [class]="etiqueta(item)">{{ rotulo(item) }}</span>
+            </span>
+            <span>{{ item.modelo }} · {{ item.operador }} · {{ item.frenteTrabalho }}</span>
+            <span class="item__sinal">{{ texto(item) }}</span>
+          </button>
+          <a class="item__link" [routerLink]="['/maquinas', item.maquinaId]">Ver máquina</a>
+        </li>
+      }
+    </ul>
+  </section>
+</div>
+
+<p class="nota">
+  A posição vem do celular do operador, só durante a saída e com o app aberto. Fechado ou sem sinal,
+  o marcador fica parado na última posição e aparece como "Sem sinal" depois de 10 min.
+</p>

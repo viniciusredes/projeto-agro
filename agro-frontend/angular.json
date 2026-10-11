@@ -30,8 +30,16 @@
                 "input": "public"
               }
             ],
+            "allowedCommonJsDependencies": [
+              "leaflet"
+            ],
             "styles": [
-              "src/styles.scss"
+              "src/styles.scss",
+              {
+                "input": "node_modules/leaflet/dist/leaflet.css",
+                "bundleName": "leaflet",
+                "inject": false
+              }
             ]
           },
           "configurations": {

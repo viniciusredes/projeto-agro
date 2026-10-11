@@ -64,6 +64,12 @@ export const routes: Routes = [
       import('./features/abastecimentos/abastecimento-detalhe/abastecimento-detalhe').then(m => m.AbastecimentoDetalhe),
   },
   {
+    // Etapa 6: onde está cada máquina em campo (o Leaflet só é baixado nesta rota)
+    path: 'mapa',
+    title: 'Mapa da frota | Agro Frota',
+    loadComponent: () => import('./features/mapa/mapa').then(m => m.Mapa),
+  },
+  {
     path: 'movimentacoes',
     title: 'Movimentações | Agro Frota',
     loadComponent: () =>
