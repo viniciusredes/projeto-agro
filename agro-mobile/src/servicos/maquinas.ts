@@ -1,6 +1,8 @@
 import { ErroApi, requisitar } from '@/api';
 import { CombustivelMaquina } from '@/models/abastecimento';
-import { DadosRetorno, DadosSaida, Maquina, Movimentacao, RespostaRetorno, RespostaSaida } from '@/models/maquina';
+import {
+  DadosRetorno, DadosSaida, LimitesHorimetro, Maquina, Movimentacao, RespostaRetorno, RespostaSaida,
+} from '@/models/maquina';
 import { FotoOS, OrdemServico } from '@/models/ordem-servico';
 import { listarFotosOS } from '@/servicos/fotos-os';
 import { listarOrdensAbertas } from '@/servicos/ordens-servico';
@@ -38,6 +40,11 @@ export function registrarRetorno(id: number, dados: DadosRetorno): Promise<Respo
   return requisitar<RespostaRetorno>(`/maquinas/${id}/retorno`, { method: 'POST', body: JSON.stringify(dados) });
 }
 
+// GET /maquinas/:id/horimetro: a faixa válida para a próxima leitura (Etapa 5)
+export function buscarLimitesHorimetro(id: number): Promise<LimitesHorimetro> {
+  return requisitar<LimitesHorimetro>(`/maquinas/${id}/horimetro`);
+}
+
 // GET /maquinas/:id/combustivel: consumo médio, custo por hora e os abastecimentos da máquina.
 // Fica aqui (e não em abastecimentos.ts) porque a rota é da MÁQUINA, e porque abastecimentos.ts
 // já importa este arquivo: importar de volta criaria um ciclo entre os dois serviços.
@@ -54,14 +61,16 @@ export interface Ficha {
   osAberta: OrdemServico | null;
   fotos: FotoOS[]; // fotos da O.S. aberta (vazia sem O.S.)
   combustivel: CombustivelMaquina;
+  limites: LimitesHorimetro; // a faixa do horímetro para o retorno e a avaria (Etapa 5)
 }
 
 export async function buscarFicha(id: number): Promise<Ficha> {
-  const [maquina, movimentacoes, ordensAbertas, combustivel] = await Promise.all([
+  const [maquina, movimentacoes, ordensAbertas, combustivel, limites] = await Promise.all([
     buscarMaquina(id),
     listarMovimentacoes(id),
     listarOrdensAbertas(id),
     buscarCombustivel(id),
+    buscarLimitesHorimetro(id),
   ]);
   const osAberta = ordensAbertas[0] ?? null; // a API permite uma O.S. aberta por máquina
   // As fotos DEPENDEM da O.S. (precisam do id dela): por isso vêm depois, e não no Promise.all
@@ -72,5 +81,6 @@ export async function buscarFicha(id: number): Promise<Ficha> {
     osAberta,
     fotos,
     combustivel,
+    limites,
   };
 }

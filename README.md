@@ -89,7 +89,7 @@ No celular, abra o **Expo Go** e leia o QR code que aparece no terminal (no iPho
 
 | Onde | Comando | Para quê |
 |---|---|---|
-| `agro-backend` | `bash testes.sh` | Roteiro automatizado de testes da API, com a API rodando: 159 cenários (✅/❌ por cenário) |
+| `agro-backend` | `bash testes.sh` | Roteiro automatizado de testes da API, com a API rodando: 171 cenários (✅/❌ por cenário) |
 | `agro-backend` | `npx tsc --noEmit` | Verificar erros de tipo |
 | `agro-frontend` | `npm run build` | Gerar a versão de produção em `dist/` |
 | `agro-frontend` | `npm test` | Testes unitários (Vitest): services, interceptor e componentes |

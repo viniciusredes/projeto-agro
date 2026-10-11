@@ -13,7 +13,9 @@ import { useRequisicao } from '@/hooks/use-requisicao';
 import { MAXIMO_FOTOS_POR_OS } from '@/servicos/fotos-os';
 import { buscarFicha, registrarRetorno, registrarSaida } from '@/servicos/maquinas';
 import { useTema } from '@/tema';
-import { formatarHoras, validarHorimetro } from '@/validacao';
+import { formatarHoras, validarHorimetroNaFaixa } from '@/validacao';
+import { AtalhosHorimetro } from '@/componentes/atalhos-horimetro';
+import { LimitesHorimetro } from '@/models/maquina';
 
 // Ficha da máquina: /maquina/1, /maquina/2... A pasta [id]/ cria a rota DINÂMICA (o ":id" das
 // rotas do Angular), e o valor chega por useLocalSearchParams. O index.tsx é a própria /maquina/1;
@@ -97,7 +99,13 @@ export default function FichaMaquina() {
         )}
 
         {maquina.status === 'Em Operação' && (
-          <FormularioRetorno maquinaId={maquina.id} horimetroAtual={maquina.horimetro} aoRegistrar={recarregar} avisar={setAviso} />
+          <FormularioRetorno
+            maquinaId={maquina.id}
+            horimetroAtual={maquina.horimetro}
+            limites={dados.limites}
+            aoRegistrar={recarregar}
+            avisar={setAviso}
+          />
         )}
 
         {maquina.status === 'Em Manutenção' && (
@@ -254,15 +262,17 @@ function FormularioSaida({
   );
 }
 
-// Formulário de retorno: horímetro (obrigatório, >= atual) e avarias (opcional)
+// Formulário de retorno: horímetro (obrigatório, dentro da faixa da API) e avarias (opcional)
 function FormularioRetorno({
   maquinaId,
   horimetroAtual,
+  limites,
   aoRegistrar,
   avisar,
 }: {
   maquinaId: number;
-  horimetroAtual: number;
+  horimetroAtual: number; // o da saída: as horas trabalhadas contam a partir dele
+  limites: LimitesHorimetro;
   aoRegistrar: () => void;
   avisar: (aviso: DadosAviso) => void;
 }) {
@@ -272,8 +282,10 @@ function FormularioRetorno({
   const [enviando, setEnviando] = useState(false);
 
   // Valor DERIVADO: recalculado a cada tecla, sem estado próprio (o papel do computed do Angular).
-  // A mesma regra da API, avisada ANTES de enviar; a API continua sendo a autoridade.
-  const resultado = validarHorimetro(horimetro, horimetroAtual);
+  // A mesma faixa da API (Etapa 5), avisada ANTES de enviar; a API continua sendo a autoridade.
+  const resultado = validarHorimetroNaFaixa(horimetro, limites);
+  // As horas da SAÍDA: o mínimo pode vir de um abastecimento feito no meio do caminho
+  const horasNaSaida = resultado.valido ? Math.round((resultado.valor - horimetroAtual) * 10) / 10 : 0;
 
   async function registrar() {
     if (!resultado.valido || enviando) {
@@ -285,7 +297,7 @@ function FormularioRetorno({
         horimetro: resultado.valor,
         avarias: avarias.trim() || undefined, // vazio não vai no corpo (campo opcional)
       });
-      const horas = formatarHoras(resposta.movimentacao.horasTrabalhadas ?? resultado.horas);
+      const horas = formatarHoras(resposta.movimentacao.horasTrabalhadas ?? horasNaSaida);
       avisar({
         tom: 'sucesso',
         titulo: 'Retorno registrado',
@@ -310,7 +322,7 @@ function FormularioRetorno({
       <TextInput
         value={horimetro}
         onChangeText={setHorimetro}
-        placeholder={`Mínimo ${formatarHoras(horimetroAtual)}`}
+        placeholder="Leia no painel da máquina"
         placeholderTextColor={tema.textoSuave}
         keyboardType="decimal-pad" // teclado numérico com vírgula
         accessibilityLabelledBy="rotulo-horimetro"
@@ -331,9 +343,10 @@ function FormularioRetorno({
       )}
       {resultado.valido && (
         <Text style={[estilos.dica, { color: tema.tons.sucesso.texto }]} accessibilityLiveRegion="polite">
-          {formatarHoras(resultado.horas)} h trabalhadas nesta saída
+          {formatarHoras(horasNaSaida)} h trabalhadas nesta saída
         </Text>
       )}
+      <AtalhosHorimetro limites={limites} aoEscolher={setHorimetro} />
 
       <Text style={[estilos.rotulo, { color: tema.texto }]} nativeID="rotulo-avarias">
         Avarias (opcional)

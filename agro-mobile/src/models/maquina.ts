@@ -23,6 +23,13 @@ export interface Movimentacao {
   horasTrabalhadas?: number;
   avarias?: string;
 }
+// Resposta de GET /maquinas/:id/horimetro (Etapa 5): a faixa válida para a próxima leitura
+export interface LimitesHorimetro {
+  minimo: number;
+  origemMinimo: string | null; // ex.: "abastecimento nº 5"; null = o horímetro da própria máquina
+  maximo: number | null;       // null = sem leitura com data (máquina recém-cadastrada)
+}
+
 // Corpo enviado em POST /maquinas (cadastro)
 export interface DadosNovaMaquina {
   tag: string;

@@ -353,6 +353,63 @@ interface Abastecimento {
 let abastecimentos: Abastecimento[] = [];
 let proximoIdAbastecimento = 1;
 
+// ===================== LIMITES DO HORÍMETRO (Etapa 5, J6) =====================
+// Uma regra só para o retorno, a abertura de O.S. e o registro de abastecimento.
+// - MÍNIMO: a maior leitura conhecida. O abastecimento não muda o horímetro da máquina, mas a
+//   leitura dele vale: quem abasteceu em campo com 1050 h não pode voltar com 1020 h.
+// - MÁXIMO: o horímetro não avança mais que o tempo que passou desde a última leitura, com uma
+//   folga de 24 h (registro feito com atraso, relógio do celular adiantado). Pega o "10000"
+//   digitado no lugar de "1000".
+const FOLGA_HORIMETRO_H = 24;
+
+interface LimitesHorimetro {
+  minimo: number;
+  origemMinimo: string | null; // ex.: "abastecimento nº 5"; null = o próprio horímetro da máquina
+  maximo: number | null;       // null = sem nenhuma leitura com data (máquina recém-cadastrada)
+}
+
+function limitesDoHorimetro(maquina: Maquina): LimitesHorimetro {
+  // Abastecimentos que valem (pendentes também: a leitura existe até o gestor recusar)
+  const validos = abastecimentos.filter(ab => ab.maquinaId === maquina.id && ab.status !== 'Recusado');
+
+  let minimo = maquina.horimetro;
+  let origemMinimo: string | null = null;
+  for (const ab of validos) {
+    if (ab.horimetro > minimo) {
+      minimo = ab.horimetro;
+      origemMinimo = `abastecimento nº ${ab.id}`;
+    }
+  }
+
+  // A leitura mais recente, pela data: saídas, retornos, aberturas de O.S. e abastecimentos
+  const datas = [
+    ...movimentacoes.filter(mov => mov.maquinaId === maquina.id).flatMap(mov => [mov.dataSaida, mov.dataRetorno]),
+    ...ordensServico.filter(os => os.maquinaId === maquina.id).map(os => os.dataAbertura),
+    ...validos.map(ab => ab.data),
+  ].filter((data): data is string => data !== undefined);
+
+  if (datas.length === 0) {
+    return { minimo, origemMinimo, maximo: null };
+  }
+  const ultimaLeitura = Math.max(...datas.map(data => new Date(data).getTime()));
+  const horasDesde = (Date.now() - ultimaLeitura) / 3_600_000;
+  return { minimo, origemMinimo, maximo: arredondar(minimo + horasDesde + FOLGA_HORIMETRO_H, 1) };
+}
+
+// A mensagem do 400 quando o horímetro sai dos limites; null se estiver dentro
+function erroDoHorimetro(horimetro: number, limites: LimitesHorimetro): string | null {
+  if (horimetro < limites.minimo) {
+    return limites.origemMinimo
+      ? `Horímetro informado (${horimetro}) é menor que o último registrado (${limites.minimo}) no ${limites.origemMinimo}`
+      : `Horímetro informado (${horimetro}) é menor que o atual (${limites.minimo})`;
+  }
+  if (limites.maximo !== null && horimetro > limites.maximo) {
+    return `Horímetro informado (${horimetro}) é maior que o máximo possível (${limites.maximo}): ` +
+      `a máquina não trabalha mais horas do que as que passaram desde a última leitura. Confira o painel.`;
+  }
+  return null;
+}
+
 // Formato dos campos que o OPERADOR digita: os mesmos no registro (POST) e na correção (PUT).
 // Devolve a mensagem do primeiro erro, ou null se estiver tudo certo (sempre um 400).
 function erroNosCampos(
@@ -509,11 +566,11 @@ app.post('/maquinas/:id/retorno', (req, res) => {
     return res.status(400).json({ erro: "Campo 'avarias', quando informado, deve ser um texto" });
   }
 
-  // Validação 4 (regra de negócio): o horímetro nunca anda para trás
-  if (horimetro < maquina.horimetro) {
-    return res.status(400).json({
-      erro: `Horímetro informado (${horimetro}) é menor que o atual (${maquina.horimetro})`
-    });
+  // Validação 4 (regra de negócio): nunca anda para trás (nem abaixo de um abastecimento feito em
+  // campo) e não avança mais que o tempo que passou (limitesDoHorimetro, Etapa 5)
+  const erroHorimetro = erroDoHorimetro(horimetro, limitesDoHorimetro(maquina));
+  if (erroHorimetro) {
+    return res.status(400).json({ erro: erroHorimetro });
   }
 
   // Localiza a movimentação "aberta" (sem retorno) desta máquina
@@ -842,11 +899,10 @@ app.post('/ordens-servico', (req, res) => {
     return res.status(400).json({ erro: "Campo 'horimetro' é obrigatório e deve ser um número" });
   }
 
-  // Validação 6 (regra de negócio): o horímetro nunca anda para trás
-  if (horimetro < maquina.horimetro) {
-    return res.status(400).json({
-      erro: `Horímetro informado (${horimetro}) é menor que o atual (${maquina.horimetro})`
-    });
+  // Validação 6 (regra de negócio): os mesmos limites do retorno (limitesDoHorimetro)
+  const erroHorimetro = erroDoHorimetro(horimetro, limitesDoHorimetro(maquina));
+  if (erroHorimetro) {
+    return res.status(400).json({ erro: erroHorimetro });
   }
 
   // Tudo certo: abre a O.S. e a máquina vai para a oficina
@@ -1081,16 +1137,11 @@ app.post('/abastecimentos', (req, res) => {
     foto = { tipo: imagem.tipo, tamanho: imagem.conteudo.length, conteudo: imagem.conteudo };
   }
 
-  // Validação 5 (regra de negócio): o horímetro nunca anda para trás. O mínimo é o maior entre
-  // o horímetro da máquina e o do último abastecimento dela que não foi recusado.
-  const minimo = Math.max(
-    maquina.horimetro,
-    ...abastecimentos
-      .filter(ab => ab.maquinaId === maquina.id && ab.status !== 'Recusado')
-      .map(ab => ab.horimetro)
-  );
-  if (horimetro < minimo) {
-    return res.status(400).json({ erro: `Horímetro informado (${horimetro}) é menor que o último registrado (${minimo})` });
+  // Validação 5 (regra de negócio): o mínimo é o maior entre o horímetro da máquina e o do último
+  // abastecimento dela que não foi recusado; o máximo, o tempo que passou (limitesDoHorimetro)
+  const erroHorimetro = erroDoHorimetro(horimetro, limitesDoHorimetro(maquina));
+  if (erroHorimetro) {
+    return res.status(400).json({ erro: erroHorimetro });
   }
 
   // Tudo validado. O custo depende da origem: o valor pago no posto, ou o custo do diesel
@@ -1500,6 +1551,16 @@ app.put('/abastecimentos/:id', (req, res) => {
     abastecimento: resumoDoAbastecimento(abastecimento),
     ajusteEstoque
   });
+});
+
+// 27. Caminho para VER os limites do horímetro de uma máquina (Etapa 5): o app e a web mostram a
+// faixa válida ANTES de enviar, com a mesma regra que o retorno, a O.S. e o abastecimento aplicam.
+app.get('/maquinas/:id/horimetro', (req, res) => {
+  const maquina = maquinas.find(m => m.id === parseInt(req.params.id));
+  if (!maquina) {
+    return res.status(404).json({ erro: 'Máquina não encontrada' });
+  }
+  res.json(limitesDoHorimetro(maquina));
 });
 
 // Rota não encontrada: se a requisição chegou até aqui, nenhuma rota acima atendeu.

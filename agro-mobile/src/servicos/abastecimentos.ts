@@ -1,10 +1,10 @@
 import { requisitar } from '@/api';
 import { API_URL } from '@/config';
-import { Maquina } from '@/models/maquina';
+import { LimitesHorimetro, Maquina } from '@/models/maquina';
 import {
   Abastecimento, DadosAbastecimento, DadosCorrecao, RespostaAbastecimento, StatusAbastecimento,
 } from '@/models/abastecimento';
-import { buscarMaquina } from '@/servicos/maquinas';
+import { buscarLimitesHorimetro, buscarMaquina } from '@/servicos/maquinas';
 
 // Abastecimentos (Etapa 4). Uma função por rota da API, como nos outros serviços.
 
@@ -40,34 +40,33 @@ export function enderecoDoComprovante(abastecimento: Abastecimento): string | nu
 }
 
 // O que a tela de abastecimento precisa, nos dois modos (as mesmas regras da API):
-// - registrar: horímetro MÍNIMO = o maior entre o da máquina e o do último abastecimento não recusado
+// - registrar: a FAIXA do horímetro que a API calcula (GET /maquinas/:id/horimetro, Etapa 5):
+//   mínimo = a maior leitura (máquina ou abastecimento não recusado), máximo = o tempo que passou
 // - corrigir: o abastecimento devolvido (para preencher o formulário) e o horímetro entre o do
 //   abastecimento ANTERIOR e o do SEGUINTE da máquina (Parte AB4)
 export interface DadosParaAbastecer {
   maquina: Maquina;
-  horimetroMinimo: number;
-  horimetroMaximo: number | null; // null = sem limite de cima (registro novo)
+  limites: LimitesHorimetro | null; // só no registro
+  horimetroMinimo: number;          // só na correção
+  horimetroMaximo: number | null;   // só na correção (null = sem abastecimento seguinte)
   corrigindo: Abastecimento | null;
 }
 
 export async function buscarDadosParaAbastecer(maquinaId: number, corrigirId?: number): Promise<DadosParaAbastecer> {
+  if (corrigirId === undefined) {
+    const [maquina, limites] = await Promise.all([buscarMaquina(maquinaId), buscarLimitesHorimetro(maquinaId)]);
+    return { maquina, limites, horimetroMinimo: limites.minimo, horimetroMaximo: limites.maximo, corrigindo: null };
+  }
+
   const [maquina, daMaquina] = await Promise.all([buscarMaquina(maquinaId), listarAbastecimentos({ maquinaId })]);
   const validos = daMaquina.filter(ab => ab.status !== 'Recusado');
-
-  if (corrigirId === undefined) {
-    return {
-      maquina,
-      horimetroMinimo: Math.max(maquina.horimetro, ...validos.map(ab => ab.horimetro)),
-      horimetroMaximo: null,
-      corrigindo: null,
-    };
-  }
 
   const corrigindo = daMaquina.find(ab => ab.id === corrigirId) ?? null;
   const anteriores = validos.filter(ab => ab.id < corrigirId).map(ab => ab.horimetro);
   const seguintes = validos.filter(ab => ab.id > corrigirId).map(ab => ab.horimetro);
   return {
     maquina,
+    limites: null,
     horimetroMinimo: anteriores.length > 0 ? Math.max(...anteriores) : 0,
     horimetroMaximo: seguintes.length > 0 ? Math.min(...seguintes) : null,
     corrigindo,

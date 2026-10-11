@@ -10,9 +10,10 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AbastecimentoService } from '../../../core/services/abastecimento.service';
 import { RespostaConferencia } from '../../../core/models/abastecimento';
-import { etiquetaOrigemAbastecimento, etiquetaStatusAbastecimento } from '../../../core/ui/tons';
+import { etiquetaOrigemAbastecimento, etiquetaStatusAbastecimento, rotuloStatusAbastecimento } from '../../../core/ui/tons';
 import { ConfirmacaoDialog, DadosConfirmacao } from '../../../shared/confirmacao-dialog/confirmacao-dialog';
 import { AcaoComMotivo, DadosRecusa, RecusaDialog } from '../recusa-dialog/recusa-dialog';
+import { compararComMedia } from '../consumo';
 
 // Conferência de um abastecimento (/abastecimentos/1): o recibo, os dados e a decisão do gestor
 @Component({
@@ -70,6 +71,21 @@ export class AbastecimentoDetalhe {
     return { horas, consumo: horas > 0 ? atual.litros / horas : null };
   });
 
+  // O consumo médio APROVADO da máquina (o mesmo da seção Combustível no detalhe da máquina)
+  private readonly combustivel = rxResource({
+    params: () => (this.abastecimento.hasValue() ? this.abastecimento.value().maquinaId : undefined),
+    stream: ({ params }) => this.abastecimentoService.combustivelDaMaquina(params),
+  });
+
+  protected readonly consumoMedio = computed(() =>
+    this.combustivel.hasValue() ? this.combustivel.value().consumoMedio : null,
+  );
+
+  // O consumo deste abastecimento está longe da média? (litros ou horímetro errados, quase sempre)
+  protected readonly frenteAMedia = computed(() =>
+    compararComMedia(this.comparacao()?.consumo ?? null, this.consumoMedio()),
+  );
+
   protected readonly proximoPendente = computed(() => {
     const lista = this.pendentes.hasValue() ? this.pendentes.value() : [];
     return lista.filter(ab => ab.id !== this.id()).sort((a, b) => a.id - b.id)[0] ?? null;
@@ -78,6 +94,7 @@ export class AbastecimentoDetalhe {
   protected readonly decidindo = signal(false);
 
   protected readonly etiquetaStatus = etiquetaStatusAbastecimento;
+  protected readonly rotuloStatus = rotuloStatusAbastecimento;
   protected readonly etiquetaOrigem = etiquetaOrigemAbastecimento;
 
   protected comprovante(): string | null {

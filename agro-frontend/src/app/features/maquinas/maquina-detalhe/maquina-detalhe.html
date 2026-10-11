@@ -23,6 +23,31 @@
       <span class="subtitulo">{{ m.modelo }} · horímetro {{ m.horimetro | number: '1.0-1' }} h</span>
     }
     <span class="etiqueta" [class]="etiquetaStatusMaquina(dados.status)">{{ dados.status }}</span>
+
+    <!-- Uma ação principal por situação (como na lista) + "Abrir O.S." -->
+    @if (maquina(); as m) {
+      <div class="acoes">
+        @switch (m.status) {
+          @case ('Disponível') {
+            <button mat-flat-button type="button" (click)="registrarSaida(m)">Registrar saída</button>
+          }
+          @case ('Em Operação') {
+            <button mat-flat-button type="button" (click)="registrarRetorno(m)">Registrar retorno</button>
+          }
+          @case ('Em Manutenção') {
+            @if (osAberta(); as os) {
+              <a mat-flat-button [routerLink]="['/ordens-servico', os.id]">Ver O.S. nº {{ os.id }}</a>
+            }
+          }
+        }
+        @if (m.status !== 'Em Manutenção') {
+          <button mat-stroked-button type="button" (click)="abrirOs(m)">
+            <mat-icon>build</mat-icon>
+            Abrir O.S.
+          </button>
+        }
+      </div>
+    }
   </div>
 
   <!-- ===== Indicadores (cartões de número, não gráfico) ===== -->
@@ -35,7 +60,7 @@
     <div class="indicador">
       <span class="indicador__rotulo">Ordens de serviço</span>
       <span class="indicador__valor">{{ dados.totalOrdens }}</span>
-      <span class="indicador__detalhe">{{ dados.abertas }} aberta(s) · {{ dados.fechadas }} fechada(s)</span>
+      <span class="indicador__detalhe">{{ resumoOrdens() }}</span>
     </div>
   </div>
 
@@ -79,8 +104,11 @@
             <span class="indicador__valor">{{ ultimo.data | date: 'dd/MM/yyyy' }}</span>
             <span class="indicador__detalhe">
               {{ ultimo.litros | number: '1.0-1' }} L · {{ ultimo.origem === 'Tanque' ? 'tanque da fazenda' : ultimo.posto }}
+              · com {{ ultimo.horimetro | number: '1.0-1' }} h
               @if (horasDesdeUltimo() !== null) {
                 · <strong>{{ horasDesdeUltimo() | number: '1.0-1' }} h trabalhadas desde então</strong>
+              } @else {
+                · depois do último retorno (as horas aparecem no próximo)
               }
             </span>
           } @else {
@@ -93,7 +121,7 @@
       @if (c.pendentes + c.emCorrecao > 0) {
         <p class="combustivel__aviso">
           <mat-icon>pending_actions</mat-icon>
-          {{ c.pendentes }} aguardando conferência e {{ c.emCorrecao }} em correção: só os aprovados entram nos números.
+          {{ resumoNaoConferidos() }}: só os aprovados entram nos números.
         </p>
       }
 
@@ -107,7 +135,7 @@
                 <span>{{ ab.litros | number: '1.0-1' }} L · {{ ab.horimetro | number: '1.0-1' }} h</span>
                 <span class="abastecimentos__detalhe">{{ ab.operador }} · {{ ab.origem === 'Tanque' ? 'Tanque' : ab.posto }}</span>
                 <strong class="numero">{{ ab.valorTotal | currency }}</strong>
-                <span class="etiqueta" [class]="etiquetaStatusAbastecimento(ab.status)">{{ ab.status }}</span>
+                <span class="etiqueta" [class]="etiquetaStatusAbastecimento(ab.status)">{{ rotuloStatusAbastecimento(ab.status) }}</span>
               </a>
             </li>
           }
@@ -145,6 +173,40 @@
             <span class="legenda__nome">{{ segmento.tipo }}</span>
             <span class="legenda__valor">{{ segmento.valor | currency }}</span>
             <span class="legenda__percentual">{{ segmento.percentual | number: '1.0-0' }}%</span>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  <!-- ===== Saídas e retornos: quem usou, onde e por quanto tempo ===== -->
+  <section class="uso" aria-labelledby="titulo-uso">
+    <h3 id="titulo-uso">Saídas e retornos</h3>
+    @if (movimentacoes.error()) {
+      <p class="aviso aviso--erro">
+        <mat-icon>error</mat-icon>
+        Não foi possível carregar as saídas desta máquina.
+      </p>
+    } @else if (movimentacoes.hasValue() && ultimasMovimentacoes().length === 0) {
+      <p class="aviso">Esta máquina ainda não saiu para o campo.</p>
+    } @else {
+      <ul class="uso__lista">
+        @for (mov of ultimasMovimentacoes(); track mov.id) {
+          <li>
+            <span class="uso__data">{{ mov.dataSaida | date: 'dd/MM HH:mm' }}</span>
+            <span>
+              <strong>{{ mov.operador }}</strong> · {{ mov.frenteTrabalho }}
+              @if (mov.avarias) {
+                <span class="uso__avaria">Avaria: {{ mov.avarias }}</span>
+              }
+            </span>
+            @if (mov.dataRetorno) {
+              <span class="numero">{{ mov.horasTrabalhadas | number: '1.0-1' }} h</span>
+              <span class="uso__detalhe">voltou {{ mov.dataRetorno | date: 'dd/MM HH:mm' }}</span>
+            } @else {
+              <span class="numero">—</span>
+              <span class="etiqueta etiqueta--info">Em campo</span>
+            }
           </li>
         }
       </ul>

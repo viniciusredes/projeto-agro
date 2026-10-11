@@ -66,7 +66,7 @@ Outros comandos úteis:
 
 ```bash
 npm run build    # gera a versão de produção em dist/agro-frontend (deve terminar sem erros nem avisos)
-npm test         # testes unitários (Vitest): 34 testes, todos passando
+npm test         # testes unitários (Vitest): 49 testes, todos passando
 ```
 
 > ⚠️ **Os dados zeram quando a API reinicia.** O front só mostra o que a API tem na memória. Se as O.S. sumirem, verifique se o back-end reiniciou (ao salvar o `server.ts`, por exemplo).
@@ -93,15 +93,18 @@ agro-frontend/
         ├── core/              # o que NÃO é de uma tela específica
         │   ├── api.ts         # prefixo /api e tradução de erros HTTP em mensagens
         │   ├── validacao.ts   # regras de formulário reutilizadas (NAO_VAZIO, inteiro())
+        │   ├── horimetro.ts   # faixa do horímetro: validadores e botões rápidos (Etapa 5)
         │   ├── models/        # interfaces espelhando o back-end (Maquina, Peca, OrdemServico...)
         │   ├── services/      # MaquinaService, PecaService, OrdemServicoService (HttpClient)
         │   ├── interceptors/  # erro-api-interceptor: snackbar vermelho para qualquer erro da API
-        │   └── ui/            # tons das etiquetas (tons.ts) e TemaService (claro/escuro)
+        │   └── ui/            # tons e rótulos das etiquetas (tons.ts), textos com contagem (textos.ts) e TemaService
+        ├── shared/            # peças usadas por várias telas (diálogo de confirmação, atalhos do horímetro)
         └── features/          # uma pasta por módulo, uma subpasta por tela ou diálogo
             ├── inicio/
-            ├── maquinas/      # lista, detalhe, movimentações e diálogos (nova, saída, retorno)
+            ├── maquinas/      # lista, detalhe, movimentações, diálogos (nova, saída, retorno) e AcoesMaquina
             ├── estoque/       # lista de peças, kardex e diálogos (nova peça, entrada)
-            └── ordens-servico/# lista, detalhe/fechamento e diálogo de abertura
+            ├── ordens-servico/# lista, detalhe/fechamento e diálogo de abertura
+            └── abastecimentos/# lista, conferência, diálogo de recusa/devolução e consumo.ts
 ```
 
 Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.scss` (estilo só daquele componente) e `.spec.ts` (teste).
@@ -114,13 +117,13 @@ Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.
 |---|---|---|
 | `/` | Painel: indicadores da frota, "Precisa de atenção" com ações diretas e custo de manutenção | `GET /maquinas`, `GET /pecas`, `GET /ordens-servico`, `GET /movimentacoes` |
 | `/maquinas` | Lista de máquinas com busca, filtros por situação (`?situacao=`) e uma ação principal por máquina + diálogos Nova máquina, Saída, Retorno e O.S. | `GET /maquinas`, `GET /movimentacoes`, `GET /ordens-servico?status=Aberta`, `POST /maquinas`, `POST /maquinas/:id/saida`, `POST /maquinas/:id/retorno` |
-| `/maquinas/:id` | Detalhe da máquina: indicadores, custo por tipo de O.S. e **etiqueta QR** imprimível (lida pelo app do operador: veja o [README do app](../agro-mobile/README.md), passo M5) | `GET /maquinas/:id/manutencoes` |
+| `/maquinas/:id` | Detalhe da máquina: ações (saída, retorno, abrir/ver O.S.), indicadores, combustível, custo por tipo de O.S., saídas e retornos e **etiqueta QR** imprimível (lida pelo app do operador: veja o [README do app](../agro-mobile/README.md), passo M5) | `GET /maquinas/:id/manutencoes`, `GET /maquinas/:id/combustivel`, `GET /movimentacoes?maquinaId=`, `GET /maquinas/:id/horimetro` (nos diálogos) |
 | `/movimentacoes` | Histórico de saídas e retornos, com filtro por máquina | `GET /movimentacoes?maquinaId=` |
 | `/estoque` | Lista de peças com busca, filtro "para repor" (`?filtro=repor`), barra de nível do saldo e ação principal + diálogos Nova peça e Entrada | `GET /pecas`, `POST /pecas`, `POST /pecas/:id/entradas` |
 | `/estoque/:id` | Kardex da peça | `GET /pecas/:id`, `GET /pecas/:id/movimentos` |
 | `/ordens-servico` | Abertas em cartões e fechadas em lista (cada O.S. inteira é um link), filtros de máquina e status na URL + diálogo de abertura | `GET /ordens-servico?maquinaId=`, `POST /ordens-servico` |
 | `/abastecimentos` | Abastecimentos registrados pelo app (Etapa 4): os que aguardam conferência em cartões, com a miniatura do recibo; os conferidos em lista, com o motivo das recusas; filtros de máquina, origem e status na URL; contador de pendentes no menu | `GET /abastecimentos?maquinaId=&origem=` |
-| `/abastecimentos/:id` | Conferência: o recibo grande, os dados com o preço por litro, a comparação com o abastecimento anterior da máquina (horas e L/h), **Aprovar** (com confirmação) e **Recusar** (diálogo com motivo obrigatório); depois, o atalho para o próximo pendente | `GET /abastecimentos/:id`, `POST /abastecimentos/:id/aprovacao`, `POST /abastecimentos/:id/recusa` |
+| `/abastecimentos/:id` | Conferência: o recibo grande, os dados com o preço por litro, a comparação com o abastecimento anterior da máquina (horas e L/h) e com a média dela (alerta acima de 30%), **Aprovar** (com confirmação) e **Recusar** (diálogo com motivo obrigatório); depois, o atalho para o próximo pendente | `GET /abastecimentos/:id`, `POST /abastecimentos/:id/aprovacao`, `POST /abastecimentos/:id/recusa` |
 | `/ordens-servico/:id` | Detalhe e fechamento da O.S., com as **fotos da avaria** tiradas pelo app do operador (miniaturas; o clique abre a foto inteira numa aba nova; veja o [README do app](../agro-mobile/README.md), passo M7) | `GET /ordens-servico/:id`, `GET /ordens-servico/:id/fotos`, `POST /ordens-servico/:id/fechamento` |
 | qualquer outra | Volta para o início | — |
 
@@ -1956,6 +1959,40 @@ protected readonly horasDesdeUltimo = computed(() => {
 2. Com um só aprovado: "Sem dados" no consumo.
 3. Registre um retorno da máquina (o horímetro anda) e abra de novo: as horas desde o último abastecimento aumentam.
 4. Estoque → DSL-001: as saídas e devoluções mostram o abastecimento, com link para a conferência.
+
+### Etapa 5 — Jornada do usuário (J1 a J6)
+
+🎯 Revisar a jornada do gestor nas telas reais (capturas a 1366 px e no celular emulado, nos dois temas) e corrigir o que atrapalhava. Cinco melhorias imaginadas já existiam; os passos abaixo vieram do que as capturas mostraram. Detalhes no [CHECKLIST](../CHECKLIST.md).
+
+🧩 **J1 · Textos.** O "R$ 0,00" do Painel invadia a nota de baixo: o valor de 30px herdava a altura de linha do texto comum (`line-height: 1.2` resolveu). "0 aberta(s) · 0 fechada(s)" virou "1 aberta" ou "nenhuma ainda", com as funções puras `contagem` e `resumoSemZeros` (`core/ui/textos.ts`). Na conferência, "com os dados ao lado" (no celular eles ficam abaixo) virou "com os dados informados".
+
+**J2 · Mesmos nomes de status do app.** `rotuloStatusAbastecimento` (`core/ui/tons.ts`): `Pendente` aparece como **"Aguardando conferência"** em todas as etiquetas e no filtro, como no app.
+
+**J3 · Ações no detalhe da máquina.** O cabeçalho ganhou a ação principal pela situação (Registrar saída, Registrar retorno ou Ver O.S.) e **Abrir O.S.**, e a página ganhou a seção **Saídas e retornos** (as 5 últimas). Para não copiar código, os três diálogos saíram da lista para o service `AcoesMaquina` (`features/maquinas/acoes-maquina.ts`), que abre o diálogo, mostra o aviso e emite quando a ação deu certo; a tela só decide o que recarregar:
+
+```ts
+protected registrarSaida(maquina: Maquina): void {
+  this.acoes.registrarSaida(maquina).subscribe(() => this.carregar());
+}
+```
+
+**J4 · Horímetro do abastecimento explicado.** O `horasDesdeUltimo` da A8 usava `Math.max(0, ...)` e mostrava "0 h" quando a máquina abastecia depois do último retorno. Agora devolve `null` nesse caso, e a tela diz "depois do último retorno (as horas aparecem no próximo)".
+
+**J5 · Consumo comparado à média.** A conferência busca o consumo médio aprovado da máquina e compara (`compararComMedia`, em `features/abastecimentos/consumo.ts`). Perto da média, uma frase; mais de 30% acima ou abaixo, um aviso de alerta com a diferença ("140% acima da média da máquina").
+
+**J6 · Horímetro travado.** A API ganhou mínimo e máximo ([Parte H1 do back-end](../agro-backend/README.md)) e a rota `GET /maquinas/:id/horimetro`. Os diálogos de **retorno** e de **abrir O.S.** buscam a faixa e aplicam os validadores (`validadoresDoHorimetro`, em `core/horimetro.ts`); o componente `shared/atalhos-horimetro` mostra a faixa e os botões **+1 h**, **+4 h** e **+8 h**. O campo começa vazio. No diálogo de O.S., `startWith` + `switchMap` buscam a faixa da máquina escolhida e cancelam a busca anterior quando o usuário troca de máquina.
+
+📚 **Conceitos**
+- **Revisar pela tela, não pelo documento:** cinco ideias da lista inicial já existiam; os problemas reais (texto sobreposto, "0 h", status com dois nomes) só apareceram nas capturas.
+- **Service para ações compartilhadas:** duas telas com os mesmos diálogos chamam o mesmo service; cada uma só decide o que recarregar.
+- **A regra mora na API:** as telas perguntam a faixa do horímetro em vez de recalculá-la; a API continua a autoridade.
+- **Ponto flutuante nos testes:** (13 − 10) / 10 dá 0,30000000000000004. Teste de "limite exato" com fração decimal falha por acaso; escolha valores que não fiquem em cima do limite.
+
+🧪 **Testes:** `npm test` com 49 testes (os novos: `textos.spec.ts`, `consumo.spec.ts`, `horimetro.spec.ts` e dois no `retorno-dialog.spec.ts`, para o máximo e os botões rápidos). No navegador:
+1. Painel com nenhuma O.S. fechada: "R$ 0,00" e "0 O.S. fechadas" em linhas separadas.
+2. Abra uma máquina disponível: **Registrar saída** no cabeçalho; registre e veja a saída em "Saídas e retornos".
+3. Abra **Registrar retorno**: o campo vazio, a faixa e os botões rápidos. Digite um zero a mais: "Passa do máximo possível".
+4. Confira um abastecimento com consumo bem acima da média: o aviso de alerta aparece.
 
 ---
 
