@@ -44,6 +44,8 @@ function Telas() {
           name="maquina/[id]/foto-avaria"
           options={{ title: 'Foto da avaria', headerStyle: { backgroundColor: '#000000' } }}
         />
+        {/* Título provisório: a própria tela troca para "Abastecer <tag>" */}
+        <Stack.Screen name="maquina/[id]/abastecimento" options={{ title: 'Abastecimento' }} />
         <Stack.Screen name="escanear" options={{ title: 'Escanear QR' }} />
       </Stack>
     </ProvedorOperador>

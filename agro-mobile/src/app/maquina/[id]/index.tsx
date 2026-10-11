@@ -113,6 +113,18 @@ export default function FichaMaquina() {
           </View>
         )}
 
+        {/* Etapa 4: abastecer vale para qualquer situação (no pátio, em campo ou até na oficina) */}
+        <Pressable
+          onPress={() => router.push({ pathname: '/maquina/[id]/abastecimento', params: { id: maquina.id } })}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            estilos.botaoSecundario,
+            { borderColor: tema.primaria, opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <Text style={[estilos.botaoTexto, { color: tema.texto }]}>Registrar abastecimento</Text>
+        </Pressable>
+
         {/* Relatar avaria: para máquina disponível ou em campo (em manutenção já tem O.S. aberta) */}
         {maquina.status !== 'Em Manutenção' && (
           <Pressable

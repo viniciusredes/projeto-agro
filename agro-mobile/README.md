@@ -75,13 +75,14 @@ agro-mobile/
     │   └── maquina/[id]/      # rotas da máquina (o [id] vale para as duas)
     │       ├── index.tsx      # ficha, saída e retorno (/maquina/1)
     │       ├── avaria.tsx     # relatar avaria, em modal (/maquina/1/avaria)
-    │       └── foto-avaria.tsx  # foto da avaria para a O.S. aberta
+    │       ├── foto-avaria.tsx  # foto da avaria para a O.S. aberta
+    │       └── abastecimento.tsx  # registrar abastecimento, com a foto do recibo (Etapa 4)
     ├── api.ts          # ponto único de acesso à API e tradução de erros
     ├── config.ts       # API_URL lida do .env.local
     ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
     ├── validacao.ts    # regras de formulário em funções puras (ex.: horímetro)
     ├── qr.ts           # formato do QR da etiqueta (contrato com a web)
-    ├── componentes/    # peças reutilizáveis (etiqueta de status, câmera, galeria, aviso, seletor de tema)
+    ├── componentes/    # peças reutilizáveis (etiqueta de status, câmera, galeria, aviso, escolha segmentada, seletor de tema)
     ├── contextos/      # valores compartilhados entre telas (o operador, a preferência de tema)
     ├── hooks/          # lógica reutilizável com estado (ex.: useRequisicao)
     ├── models/         # tipos copiados do front web (o contrato da API)
@@ -701,6 +702,61 @@ function escolher(nova: PreferenciaTema) {
 4. Em **Aparência**, toque em **Escuro**: o app inteiro escurece na hora, e a logo troca para a versão escura. **Claro** faz o contrário. **Sistema** volta a seguir o celular (troque o tema do celular para conferir).
 5. Feche o app pelo multitarefa e abra de novo: a escolha continua valendo.
 6. Puxe a página para baixo: ela recarrega.
+
+## Etapa 4 — Abastecimento
+
+A Etapa 4 atravessa as três partes do projeto. O operador **registra** o abastecimento no app, com a foto do recibo. A API guarda e calcula (Partes AB1 a AB3 do [README do back-end](../agro-backend/README.md)). O gestor **confere** na web.
+
+### A4 — Registrar abastecimento, com a foto do recibo
+
+🎯 Ao lado da máquina, o operador registra o abastecimento: de onde veio o combustível, litros, horímetro e, no posto, o nome do posto, o valor pago e a **foto do recibo**. O registro vai para a conferência do gestor.
+
+🧩 **Tela nova** `src/app/maquina/[id]/abastecimento.tsx`, aberta pelo botão **Registrar abastecimento** da ficha (vale em qualquer situação da máquina).
+
+| | Posto | Tanque da fazenda |
+|---|---|---|
+| Campos | litros, horímetro, nome do posto, valor pago | litros, horímetro |
+| Foto | recibo, **obrigatória** | bomba, opcional |
+| Ao vivo | preço por litro (valor ÷ litros) | aviso: "o custo é o da última compra do diesel" |
+
+**Escolha segmentada genérica** (`src/componentes/escolha-segmentada.tsx`): os botões "Posto | Tanque da fazenda" são os mesmos do "Sistema | Claro | Escuro". O seletor de tema passou a usar o componente novo:
+
+```tsx
+export function EscolhaSegmentada<T extends string>({ opcoes, valor, aoEscolher, rotulo }: Props<T>) { ... }
+
+<EscolhaSegmentada opcoes={ORIGENS} valor={origem} aoEscolher={setOrigem} rotulo="Origem do combustível" />
+```
+
+**A câmera do M7 dentro de um `Modal`:** ela abre por cima do formulário e devolve a foto, que aparece em miniatura, com **Tirar outra** e **Remover**. Nada do que foi digitado se perde.
+
+```tsx
+<Modal visible={cameraAberta} animationType="slide" onRequestClose={() => setCameraAberta(false)}>
+  <Camera aoConfirmar={capturada => { setFoto(capturada); setCameraAberta(false); }} />
+</Modal>
+```
+
+**O horímetro mínimo vem da mesma regra da API**: o maior entre o da máquina e o do último abastecimento não recusado (`buscarDadosParaAbastecer`, em `src/servicos/abastecimentos.ts`, com `Promise.all`).
+
+**Funções puras novas** em `src/validacao.ts`: `validarPositivo` (litros e valor pago, com vírgula) e `formatarReais` (`R$ 746,30`; com 3 casas para o preço do litro, `R$ 6,193`).
+
+**O que falta, em palavras:** abaixo do botão **Enviar para conferência**, enquanto ele está apagado, aparece "Para enviar, falta: litros, foto do recibo." O botão apagado sozinho não diz o que fazer.
+
+📚 **Conceitos**
+- **Formulário condicional:** a origem muda os campos, a obrigatoriedade da foto e o corpo enviado. No tanque, `posto` e `valorTotal` **não vão** no JSON (a API os recusaria: o custo vem do almoxarifado).
+- **Componente genérico (`<T extends string>`):** o mesmo componente serve a valores de tipos diferentes, e o TypeScript confere que `aoEscolher` recebe exatamente `'Posto' | 'Tanque'`.
+- **Reaproveitar em vez de copiar:** a câmera (M7), o aviso, a validação do horímetro (M4) e a conferência do tamanho da foto vieram prontos. A tela nova só juntou as peças.
+- **Valor derivado:** o preço por litro é calculado a cada digitação, sem estado próprio. Um valor errado (R$ 74,63 no lugar de R$ 746,30) fica visível antes do envio.
+- **A API continua sendo a autoridade:** o app valida para ajudar, mas um diesel insuficiente (409) ou um horímetro abaixo do último (400) chega no aviso com a mensagem da API.
+
+🧪 **Testes**
+1. Na ficha de uma máquina, toque em **Registrar abastecimento**. A tela vem com **Posto** escolhido, e o botão **Enviar** apagado com "Para enviar, falta: litros, horímetro, nome do posto, valor pago, foto do recibo."
+2. Preencha litros (`120,5`) e valor (`746,30`): aparece "Preço por litro: R$ 6,193".
+3. Digite um horímetro menor que o mínimo: o erro aparece em vermelho.
+4. Toque em **Fotografar o recibo**, fotografe e use a foto: a miniatura aparece, com **Tirar outra** e **Remover**. **Cancelar** fecha a câmera sem perder o formulário.
+5. Envie: o aviso "Abastecimento enviado" mostra os litros, o valor e o preço por litro. **Concluir** volta para a ficha.
+6. Troque para **Tanque da fazenda**: os campos do posto somem, a foto vira opcional e aparece a explicação do custo. Envie sem foto. Na web, o kardex do DSL-001 mostra a saída.
+7. Pelo tanque, peça mais litros do que há no estoque: o aviso mostra o erro da API ("Diesel insuficiente no tanque…").
+8. Confira com `curl http://localhost:3000/abastecimentos`: os dois estão **Pendente**.
 
 ---
 
