@@ -55,6 +55,15 @@ O escopo do MVP foi intencionalmente reduzido para focar em três pilares essenc
 - **Componentes próprios no lugar dos nativos quando o visual importa:** avisos (`Aviso`) com as cores do tema em vez do `Alert` do sistema.
 - **Tema:** segue o celular por padrão, com escolha Sistema/Claro/Escuro salva no aparelho (`Appearance.setColorScheme`).
 
+**Decisões da Etapa 4 (gestão de abastecimento):**
+- **Registro no app, controle na web:** o operador registra; o gestor confere. Todo abastecimento entra `Pendente`, e só os **aprovados** entram no custo e no consumo.
+- **Duas origens:** **posto** (valor pago e **foto do recibo obrigatória**, enviada no mesmo JSON do registro: não existe abastecimento em posto sem recibo) e **tanque da fazenda** (o diesel `DSL-001` é um item do almoxarifado, em litros; a baixa é no registro, com o custo da última compra congelado; foto opcional).
+- **Três decisões na conferência:** **aprovar**; **recusar** com motivo (registro indevido; final; no tanque, estorno do diesel); **devolver para correção** (erro de preenchimento; status `Em correção`; o operador corrige o **mesmo** abastecimento com `PUT`, e ele volta a `Pendente`). A devolução foi pedida pelo usuário durante a etapa para não multiplicar registros recusados por engano.
+- **Na correção, máquina e origem não mudam** (errado = registro indevido, recusa); no tanque, litros diferentes ajustam o estoque pela diferença.
+- **Horímetro do abastecimento** não altera o da máquina (quem faz isso são a saída e o retorno); no registro, mínimo pelo último abastecimento não recusado; na correção, entre o anterior e o seguinte.
+- **Consumo médio:** litros abastecidos depois do primeiro aprovado ÷ horas entre o primeiro e o último (o primeiro é o ponto de partida); `null` ("sem dados") com menos de 2 aprovados.
+- **Estorno e ajustes como movimentos de entrada** no kardex, com `abastecimentoId` (um tipo novo quebraria o kardex da web).
+
 - **Dinâmica do treinamento:** nas Fases 0 a 2, o usuário escreveu o código com orientação; da Fase 3 em diante, o Claude implementou com edições visíveis para os alunos, e o usuário fez os commits. Um commit por passo, com o acompanhamento no `CHECKLIST.md`.
 
 ## 4. O Que Já Foi Implementado
@@ -126,9 +135,17 @@ Projeto `agro-mobile/` (detalhes, conceitos e testes no [README do app](agro-mob
 - **Acabamento (M8):** nome "Agro Frota", ícone e splash com a logo (claro e escuro), página inicial do operador (máquinas com ele, números da frota, atalhos) e escolha de tema.
 - Lições registradas no README do app: o `Link asChild` perdia o estilo, a foto cheia do celular não aparecia no Android sem `resizeMethod="resize"`, a câmera da frente travava com flash e um rascunho feito com outra ferramenta usava APIs de outra biblioteca de câmera.
 
+### Atualização: Etapa 4 (gestão de abastecimento) concluída
+
+Atravessa as três partes (passos A1 a A9, detalhes no CHECKLIST e nos READMEs):
+
+- **API (Partes AB1 a AB4):** registro em posto (recibo no mesmo JSON) e pelo tanque (baixa do diesel), listagem com filtros, comprovante como imagem, conferência (aprovar, recusar com estorno, devolver para correção), correção com `PUT` e ajuste do diesel pela diferença, indicadores de combustível por máquina. Validações reaproveitadas em funções (`lerImagemBase64`, `erroNosCampos`). `testes.sh` com 159 cenários.
+- **App:** registrar abastecimento na ficha (posto ou tanque, preço por litro ao vivo, foto do recibo pela câmera), "Meus abastecimentos" na página inicial com o status e o motivo, correção do abastecimento devolvido (formulário já preenchido) e o cartão Combustível na ficha (último abastecimento, horas desde então, consumo).
+- **Web:** lista de abastecimentos com contador de pendentes no menu e pendência no Painel; conferência com o recibo grande, a comparação com o abastecimento anterior e as três decisões; seção Combustível no detalhe da máquina; kardex com a origem dos movimentos do diesel. 38 testes unitários.
+
 ## 5. O Que Ficou Pendente / Próximos Passos Combinados
 
-> **Status:** a **Etapa 1 (back-end em memória)**, a **Etapa 2 (front-end Angular)** e a **Etapa 3 (app móvel do operador)** estão concluídas. O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
+> **Status:** a **Etapa 1 (back-end em memória)**, a **Etapa 2 (front-end Angular)**, a **Etapa 3 (app móvel do operador)** e a **Etapa 4 (gestão de abastecimento)** estão concluídas. O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
 
 - **Redesign do front-end (concluído e mergeado na `main` pelo PR #3):** Passo 16 (16.2 confirmação antes de fechar a O.S.; 16.3 responsividade com navegação inferior no celular) e R5.1 a R5.4 (identidade com menu verde-escuro e contador de O.S., Painel com pendências e ações diretas, Máquinas com filtros e cartões, fechamento de O.S. com etapas e resumo), a partir do canvas de design aprovado.
 - **Redesign 2 (mergeado na `main` pelo PR #4):** R6.1 paleta escura revista (menu verde-floresta, camadas mais distintas, verde-menta mais calmo), R6.2 Estoque no padrão do redesign (barra de nível do saldo, filtro para repor) e R6.3 lista de O.S. com cada O.S. inteira como link (abertas em cartões, fechadas em lista).
