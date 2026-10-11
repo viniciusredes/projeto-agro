@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { EtiquetaAbastecimento } from '@/componentes/etiqueta-abastecimento';
 import { EtiquetaStatus } from '@/componentes/etiqueta-status';
+import { IndicadorLocalizacao } from '@/componentes/indicador-localizacao';
 import { SeletorTema } from '@/componentes/seletor-tema';
 import { useOperador } from '@/contextos/operador';
 import { useRequisicao } from '@/hooks/use-requisicao';
@@ -137,6 +138,8 @@ export default function Inicio() {
         <>
           {/* O que o operador precisa lembrar: as máquinas que ele tirou e ainda não devolveu */}
           <Text style={[estilos.secao, { color: tema.texto }]}>Com você agora</Text>
+          {/* Etapa 6: se a posição está indo para o mapa (ou o que falta para ir) */}
+          <IndicadorLocalizacao />
           {dados.comigo.length === 0 ? (
             <View style={[estilos.cartao, { backgroundColor: tema.cartao, borderColor: tema.borda }]}>
               <Text style={[estilos.texto, { color: tema.textoSuave }]}>
