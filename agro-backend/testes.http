@@ -1113,3 +1113,56 @@ Content-Type: application/json
 {
   "horimetro": 112
 }
+
+# =====================================================================
+#  POSIÇÕES (Parte L1, Etapa 6) — de novo a máquina nº 4
+#  Só durante uma saída aberta; o lote é tudo ou nada.
+#  {{$datetime iso8601 5 s}} = agora + 5 segundos (o ponto nunca fica antes da saída)
+# =====================================================================
+
+### L2 — Máquina no pátio não recebe posições
+# Esperado: 409, "não está em campo"
+POST {{baseUrl}}/maquinas/4/posicoes
+Content-Type: application/json
+
+{
+  "posicoes": [{ "latitude": -22.001, "longitude": -47.901, "precisao": 12, "data": "{{$datetime iso8601 5 s}}" }]
+}
+
+### Preparação — saída da HZ-04
+POST {{baseUrl}}/maquinas/4/saida
+Content-Type: application/json
+
+{
+  "operador": "Bruno",
+  "frenteTrabalho": "Talhão 3"
+}
+
+### L4 — Latitude fora do planeta
+# Esperado: 400, "Posição 1: 'latitude' deve ser um número entre -90 e 90"
+POST {{baseUrl}}/maquinas/4/posicoes
+Content-Type: application/json
+
+{
+  "posicoes": [{ "latitude": 95, "longitude": -47.901, "precisao": 12, "data": "{{$datetime iso8601 5 s}}" }]
+}
+
+### L9 — Lote válido com 2 pontos
+# Esperado: 201, "recebidas": 2, e o operador "Bruno" (vem da saída, não do corpo)
+POST {{baseUrl}}/maquinas/4/posicoes
+Content-Type: application/json
+
+{
+  "posicoes": [
+    { "latitude": -22.001, "longitude": -47.901, "precisao": 12, "data": "{{$datetime iso8601 5 s}}" },
+    { "latitude": -22.002, "longitude": -47.902, "precisao": 9, "data": "{{$datetime iso8601 6 s}}" }
+  ]
+}
+
+### L10 — Onde está cada máquina em campo (o mapa da web)
+# Esperado: 200, a HZ-04 com a última posição e "minutosDesde"
+GET {{baseUrl}}/posicoes/atuais
+
+### L11 — Trajeto da saída aberta
+# Esperado: 200, "emCampo": true e os 2 pontos em ordem de leitura
+GET {{baseUrl}}/maquinas/4/posicoes

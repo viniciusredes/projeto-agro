@@ -15,6 +15,8 @@ import { buscarFicha, registrarRetorno, registrarSaida } from '@/servicos/maquin
 import { useTema } from '@/tema';
 import { formatarHoras, validarHorimetroNaFaixa } from '@/validacao';
 import { AtalhosHorimetro } from '@/componentes/atalhos-horimetro';
+import { IndicadorLocalizacao } from '@/componentes/indicador-localizacao';
+import { useRastreamento } from '@/contextos/rastreamento';
 import { LimitesHorimetro } from '@/models/maquina';
 
 // Ficha da máquina: /maquina/1, /maquina/2... A pasta [id]/ cria a rota DINÂMICA (o ":id" das
@@ -97,6 +99,9 @@ export default function FichaMaquina() {
             </Text>
           </View>
         )}
+
+        {/* Só aparece com a máquina com ESTE operador (o contexto sabe quais são) */}
+        {maquina.status === 'Em Operação' && <IndicadorLocalizacao maquinaId={maquina.id} />}
 
         {maquina.status === 'Em Operação' && (
           <FormularioRetorno
@@ -194,6 +199,7 @@ function FormularioSaida({
 }) {
   const tema = useTema();
   const { nome } = useOperador();
+  const rastreamento = useRastreamento();
   const [frente, setFrente] = useState('');
   const [enviando, setEnviando] = useState(false);
 
@@ -206,7 +212,21 @@ function FormularioSaida({
     setEnviando(true);
     try {
       const resposta = await registrarSaida(maquinaId, { operador: nome!, frenteTrabalho: frente.trim() });
-      avisar({ tom: 'sucesso', titulo: 'Saída registrada', mensagem: resposta.mensagem, botoes: [{ texto: 'OK', principal: true }] });
+      rastreamento.atualizar(); // agora há uma máquina com o operador: o GPS começa (Etapa 6)
+      avisar(
+        rastreamento.permitida
+          ? { tom: 'sucesso', titulo: 'Saída registrada', mensagem: resposta.mensagem, botoes: [{ texto: 'OK', principal: true }] }
+          : {
+              // Explica ANTES do diálogo do sistema: a posição é um dado pessoal
+              tom: 'sucesso',
+              titulo: 'Saída registrada',
+              mensagem: `${resposta.mensagem} Ative a localização para o gestor ver a máquina no mapa. Ela só é enviada durante esta saída, com o app aberto.`,
+              botoes: [
+                { texto: 'Ativar localização', principal: true, aoTocar: () => rastreamento.ativar() },
+                { texto: 'Agora não' },
+              ],
+            },
+      );
       aoRegistrar(); // recarrega a ficha: agora "Em campo"
     } catch (e) {
       // A mensagem é a da API (ex.: 409 se outra pessoa tirou a máquina antes)
@@ -277,6 +297,7 @@ function FormularioRetorno({
   avisar: (aviso: DadosAviso) => void;
 }) {
   const tema = useTema();
+  const rastreamento = useRastreamento();
   const [horimetro, setHorimetro] = useState('');
   const [avarias, setAvarias] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -304,6 +325,7 @@ function FormularioRetorno({
         mensagem: `${resposta.mensagem} ${horas} h trabalhadas.`,
         botoes: [{ texto: 'OK', principal: true }],
       });
+      rastreamento.atualizar(); // a saída acabou: o GPS para (Etapa 6)
       aoRegistrar(); // recarrega a ficha: agora "Disponível"
     } catch (e) {
       avisar({ tom: 'erro', titulo: 'Não foi possível registrar', mensagem: mensagemDeErro(e), botoes: [{ texto: 'OK', principal: true }] });

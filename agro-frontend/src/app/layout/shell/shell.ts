@@ -69,6 +69,8 @@ export class Shell {
         { titulo: 'Ordens de Serviço', rota: '/ordens-servico', icone: 'build', curto: 'O.S.', contador: 'os' },
         // Sem "curto": a navegação inferior do celular segue com 4 itens; no celular, fica no menu
         { titulo: 'Abastecimentos', rota: '/abastecimentos', icone: 'local_gas_station', contador: 'abastecimentos' },
+        // Etapa 6: também sem "curto" (no celular, fica no menu)
+        { titulo: 'Mapa', rota: '/mapa', icone: 'map' },
       ],
     },
     {

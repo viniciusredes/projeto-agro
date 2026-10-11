@@ -1,0 +1,33 @@
+@use '../leaflet';
+
+:host {
+  display: block;
+}
+
+.mapa {
+  height: 320px;
+  border: 1px solid var(--agro-borda);
+  border-radius: 16px;
+  overflow: hidden;
+  z-index: 0; // os controles do Leaflet não passam por cima do menu nem dos diálogos
+}
+
+// Elementos criados pelo Leaflet (fora do template): por isso ::ng-deep, preso a este componente
+:host ::ng-deep {
+  @include leaflet.marcadores;
+
+  .trajeto-linha {
+    stroke: var(--mat-sys-primary);
+    stroke-opacity: 0.85;
+  }
+
+  .trajeto-partida {
+    stroke: var(--mat-sys-primary);
+    fill: var(--mat-sys-surface);
+    fill-opacity: 1;
+  }
+}
+
+:host-context(.tema-escuro) ::ng-deep {
+  @include leaflet.tema-escuro;
+}

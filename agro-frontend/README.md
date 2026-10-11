@@ -66,7 +66,7 @@ Outros comandos úteis:
 
 ```bash
 npm run build    # gera a versão de produção em dist/agro-frontend (deve terminar sem erros nem avisos)
-npm test         # testes unitários (Vitest): 49 testes, todos passando
+npm test         # testes unitários (Vitest): 57 testes, todos passando
 ```
 
 > ⚠️ **Os dados zeram quando a API reinicia.** O front só mostra o que a API tem na memória. Se as O.S. sumirem, verifique se o back-end reiniciou (ao salvar o `server.ts`, por exemplo).
@@ -104,7 +104,8 @@ agro-frontend/
             ├── maquinas/      # lista, detalhe, movimentações, diálogos (nova, saída, retorno) e AcoesMaquina
             ├── estoque/       # lista de peças, kardex e diálogos (nova peça, entrada)
             ├── ordens-servico/# lista, detalhe/fechamento e diálogo de abertura
-            └── abastecimentos/# lista, conferência, diálogo de recusa/devolução e consumo.ts
+            ├── abastecimentos/# lista, conferência, diálogo de recusa/devolução e consumo.ts
+            └── mapa/          # mapa da frota, trajeto da saída e as peças comuns do Leaflet (Etapa 6)
 ```
 
 Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.scss` (estilo só daquele componente) e `.spec.ts` (teste).
@@ -117,8 +118,9 @@ Cada componente tem **quatro arquivos**: `.ts` (lógica), `.html` (template), `.
 |---|---|---|
 | `/` | Painel: indicadores da frota, "Precisa de atenção" com ações diretas e custo de manutenção | `GET /maquinas`, `GET /pecas`, `GET /ordens-servico`, `GET /movimentacoes` |
 | `/maquinas` | Lista de máquinas com busca, filtros por situação (`?situacao=`) e uma ação principal por máquina + diálogos Nova máquina, Saída, Retorno e O.S. | `GET /maquinas`, `GET /movimentacoes`, `GET /ordens-servico?status=Aberta`, `POST /maquinas`, `POST /maquinas/:id/saida`, `POST /maquinas/:id/retorno` |
-| `/maquinas/:id` | Detalhe da máquina: ações (saída, retorno, abrir/ver O.S.), indicadores, combustível, custo por tipo de O.S., saídas e retornos e **etiqueta QR** imprimível (lida pelo app do operador: veja o [README do app](../agro-mobile/README.md), passo M5) | `GET /maquinas/:id/manutencoes`, `GET /maquinas/:id/combustivel`, `GET /movimentacoes?maquinaId=`, `GET /maquinas/:id/horimetro` (nos diálogos) |
+| `/maquinas/:id` | Detalhe da máquina: ações (saída, retorno, abrir/ver O.S.), indicadores, combustível, custo por tipo de O.S., saídas e retornos, **trajeto** da saída e **etiqueta QR** imprimível (lida pelo app do operador: veja o [README do app](../agro-mobile/README.md), passo M5) | `GET /maquinas/:id/manutencoes`, `GET /maquinas/:id/combustivel`, `GET /movimentacoes?maquinaId=`, `GET /maquinas/:id/posicoes`, `GET /maquinas/:id/horimetro` (nos diálogos) |
 | `/movimentacoes` | Histórico de saídas e retornos, com filtro por máquina | `GET /movimentacoes?maquinaId=` |
+| `/mapa` | Mapa da frota (Etapa 6): as máquinas em campo pela posição que o app do operador envia, com a situação do sinal e atualização a cada 15 s | `GET /posicoes/atuais` |
 | `/estoque` | Lista de peças com busca, filtro "para repor" (`?filtro=repor`), barra de nível do saldo e ação principal + diálogos Nova peça e Entrada | `GET /pecas`, `POST /pecas`, `POST /pecas/:id/entradas` |
 | `/estoque/:id` | Kardex da peça | `GET /pecas/:id`, `GET /pecas/:id/movimentos` |
 | `/ordens-servico` | Abertas em cartões e fechadas em lista (cada O.S. inteira é um link), filtros de máquina e status na URL + diálogo de abertura | `GET /ordens-servico?maquinaId=`, `POST /ordens-servico` |
@@ -1993,6 +1995,76 @@ protected registrarSaida(maquina: Maquina): void {
 2. Abra uma máquina disponível: **Registrar saída** no cabeçalho; registre e veja a saída em "Saídas e retornos".
 3. Abra **Registrar retorno**: o campo vazio, a faixa e os botões rápidos. Digite um zero a mais: "Passa do máximo possível".
 4. Confira um abastecimento com consumo bem acima da média: o aviso de alerta aparece.
+
+### Etapa 6 · L3 — Mapa da frota
+
+🎯 O gestor vê **onde está cada máquina em campo**, pela posição que o app do operador envia ([Parte L1 da API](../agro-backend/README.md), [L2 do app](../agro-mobile/README.md)).
+
+🧩 **1. Leaflet + OpenStreetMap** (`npm install leaflet` e `npm install -D @types/leaflet`): biblioteca de mapas pequena e madura, com os blocos do OpenStreetMap, livres e sem chave de API (a atribuição no canto é obrigatória).
+
+**2. Sem pesar no carregamento inicial:**
+- O `import * as L from 'leaflet'` fica só no componente da rota `/mapa`, que já é *lazy*: o Leaflet vira um pedaço próprio (41 kB comprimido), baixado só quando o gestor abre o mapa. O pacote inicial continuou em 607 kB.
+- O `leaflet.css` (14 kB) não cabe no orçamento de estilo de um componente (4 kB). No `angular.json`, ele entra em `styles` com `"inject": false`: o build gera um `leaflet.css` à parte, e a tela põe o `<link>` na página quando abre (`carregarEstiloDoLeaflet`).
+- O Leaflet 1.9 é distribuído em CommonJS: `allowedCommonJsDependencies: ["leaflet"]` tira o aviso do build (a versão 2, em ESM, ainda está em teste).
+
+**3. Polling com signals:** um `timer` vira signal e é o **parâmetro** do `rxResource`. Parâmetro novo, busca nova; saiu da tela, o timer para sozinho.
+
+```ts
+private readonly tique = toSignal(timer(ATUALIZACAO_MS, ATUALIZACAO_MS).pipe(map(n => n + 1)), { initialValue: 0 });
+protected readonly posicoes = rxResource({ params: () => this.tique(), stream: () => this.posicaoService.atuais() });
+```
+
+O `initialValue: 0` faz a primeira busca sair na hora (com `timer(0, …)`, ela esperaria um `setTimeout`). Durante a recarga, o `rxResource` mantém o valor anterior: o mapa não pisca a cada 15 s.
+
+**4. O mapa fora do template:** o Leaflet desenha numa `<div #mapa>`, criada no `afterNextRender` (a `<div>` precisa existir). Um `effect` redesenha os marcadores quando chegam dados novos: move os que já existem, cria os novos e remove os que saíram do campo. O enquadramento automático acontece só na primeira vez; depois, quem manda é o gestor (e o botão **Mostrar todas**).
+
+**5. Segurança nos marcadores:** a tag e o operador vêm do cadastro. Os marcadores e balões são montados com `textContent`, nunca com HTML em texto.
+
+**6. A situação do sinal** (`features/mapa/sinal.ts`): **Ao vivo** até 10 min, **Sem sinal** depois disso (o app fechou ou o campo está sem cobertura) e **Sem posição** quando a máquina saiu, mas o app ainda não mandou nada.
+
+**7. Estilos dentro do Leaflet:** os marcadores e os controles são criados pelo Leaflet, fora do template, e não recebem o atributo de encapsulamento do Angular. As regras deles ficam em `:host ::ng-deep`, presas à tela do mapa. No tema escuro, um `filter` escurece os blocos do mapa, e os controles usam as cores de superfície do tema.
+
+📚 **Conceitos**
+- **Biblioteca de terceiros com ciclo de vida próprio:** criar no `afterNextRender`, atualizar no `effect` e destruir no `DestroyRef.onDestroy` (`mapa.remove()`).
+- **Lazy loading de dependência pesada:** a biblioteca entra só na rota que a usa, e o CSS dela também.
+- **Polling × tempo real:** como o celular envia a cada 30 s, buscar a cada 15 s deixa o mapa no máximo uns 45 s atrás do campo, sem servidor de WebSocket. *Server-Sent Events* ficam para quando o atraso incomodar.
+- **Teste com requisição pendente:** no teste da tela, a API simulada responde **antes** do `whenStable()`. Uma requisição em aberto conta como tarefa pendente, e o `whenStable()` esperaria por ela para sempre.
+
+🧪 **Testes:** `npm test` com 54 testes (`sinal.spec.ts` e `mapa.spec.ts`, que confere a lista e que só as máquinas com posição viram marcador). No navegador, com uma máquina em campo e o app do operador enviando:
+1. Menu → **Mapa**: o marcador com a tag, no lugar certo, e a máquina em "Em campo" como **Ao vivo**.
+2. Toque no cartão da máquina: o mapa voa até ela e abre o balão (operador, frente, há quanto tempo e a precisão).
+3. Ande com o celular: em até uns 45 s, o marcador se move sem recarregar a página.
+4. Feche o app do operador por mais de 10 min: o marcador fica cinza, e o cartão mostra **Sem sinal**.
+5. Registre o retorno: a máquina sai do mapa na próxima atualização.
+
+> ⚠️ **Depois de atualizar o projeto, reinicie o `npm start`:** o `ng serve` lê o `angular.json` só ao iniciar. Sem reiniciar, o `leaflet.css` não é servido, e o mapa aparece quebrado (blocos fora do lugar).
+
+### Etapa 6 · L4 — Trajeto no detalhe da máquina e atalho no Painel
+
+🎯 Ao abrir uma máquina, o gestor vê **por onde ela andou** na saída atual (ou na última). No Painel, o cartão "Em campo" leva direto ao mapa.
+
+🧩 **1. Peças comuns dos dois mapas:** o mapa da frota e o trajeto criam o mapa e o balão da tag do mesmo jeito. Isso saiu do `mapa.ts` para:
+- `features/mapa/leaflet-base.ts`: `criarMapa(elemento, documento)` (carrega o CSS, abre no centro do Brasil, blocos do OpenStreetMap) e `iconeDaMaquina(documento, tag, variante)`;
+- `features/mapa/_leaflet.scss`: os mixins `marcadores` e `tema-escuro`, incluídos por cada mapa dentro de `:host ::ng-deep`.
+
+**2. O componente `TrajetoMapa`** (`features/mapa/trajeto-mapa/`): componente de **apresentação**. Recebe `posicoes`, `tag` e `emCampo` por `input()` e desenha uma `polyline` ligando as posições na ordem de leitura, um círculo na partida e o balão com a tag na última posição. Um ponto só: centraliza nele; mais de um: enquadra o caminho. A cor da linha vem do CSS (`className: 'trajeto-linha'` + `stroke: var(--mat-sys-primary)`), porque o atributo de cor do SVG não aceita `var()`.
+
+**3. O resumo em função pura** (`features/mapa/trajeto.ts`): `resumoDoTrajeto(posicoes)` devolve quantas posições, o primeiro e o último horário e a distância em km (a soma dos trechos, com a mesma fórmula de haversine do app).
+
+**4. No detalhe da máquina:** um `rxResource` com `GET /maquinas/:id/posicoes`, recarregado junto com o resto depois de uma saída ou de um retorno. Em campo com posições: "Trajeto da saída atual" e o link **Mapa da frota**. Saída encerrada: "Trajeto da última saída", com o balão cinza. Em campo sem posição: um aviso explicando que elas chegam quando o operador permite a localização e deixa o app aberto.
+
+**5. No Painel:** o cartão "Em campo" leva a `/mapa` (antes ia para o histórico de movimentações).
+
+📚 **Conceitos**
+- **Extrair antes de repetir:** o segundo mapa mostrou o que era comum; extrair para funções e mixins evita duas versões divergindo.
+- **Componente de apresentação × de dados:** o detalhe busca, o `TrajetoMapa` só desenha. O mesmo componente serviria para mostrar o trajeto de qualquer saída antiga.
+- **Pedaço compartilhado:** o Leaflet agora é usado por duas rotas *lazy*; o build o põe num pedaço compartilhado entre elas, e o pacote inicial continua em 607 kB.
+
+🧪 **Testes:** `npm test` com 57 testes (`trajeto.spec.ts`). No navegador:
+1. Abra uma máquina em campo com o app do operador enviando: "Trajeto da saída atual", o resumo e a linha no mapa.
+2. Registre o retorno: a seção vira "Trajeto da última saída", com o balão cinza.
+3. Registre uma saída nova: a seção mostra o aviso "Ainda sem posições" até o app enviar a primeira.
+4. No Painel, clique no cartão **Em campo**: abre o mapa da frota.
 
 ---
 

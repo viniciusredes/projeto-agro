@@ -12,6 +12,9 @@ import { OrdemServicoService } from '../../../core/services/ordem-servico.servic
 import { TIPOS_OS, TipoOS } from '../../../core/models/ordem-servico';
 import { Maquina } from '../../../core/models/maquina';
 import { AcoesMaquina } from '../acoes-maquina';
+import { PosicaoService } from '../../../core/services/posicao.service';
+import { resumoDoTrajeto } from '../../mapa/trajeto';
+import { TrajetoMapa } from '../../mapa/trajeto-mapa/trajeto-mapa';
 import { AbastecimentoService } from '../../../core/services/abastecimento.service';
 import {
   etiquetaStatusAbastecimento, etiquetaStatusMaquina, etiquetaTipoOS, rotuloStatusAbastecimento,
@@ -31,7 +34,7 @@ interface SegmentoCusto {
   selector: 'app-maquina-detalhe',
   imports: [
     CurrencyPipe, DatePipe, DecimalPipe, RouterLink,
-    MatTableModule, MatButtonModule, MatIconModule, MatProgressBarModule,
+    MatTableModule, MatButtonModule, MatIconModule, MatProgressBarModule, TrajetoMapa,
   ],
   templateUrl: './maquina-detalhe.html',
   styleUrl: './maquina-detalhe.scss',
@@ -83,6 +86,7 @@ export class MaquinaDetalhe {
     this.resumo.reload();
     this.combustivel.reload();
     this.movimentacoes.reload();
+    this.trajeto.reload(); // saída nova: trajeto vazio; retorno: o da saída que acabou
   }
 
   // ===== Saídas e retornos da máquina (antes só na tela de Movimentações) =====
@@ -94,6 +98,17 @@ export class MaquinaDetalhe {
   // As mais recentes primeiro; a tela mostra as 5 últimas
   protected readonly ultimasMovimentacoes = computed(() =>
     this.movimentacoes.hasValue() ? [...this.movimentacoes.value()].sort((a, b) => b.id - a.id).slice(0, 5) : [],
+  );
+
+  // ===== Trajeto (Etapa 6): o caminho da saída aberta (ou da última), pelas posições do app =====
+  private readonly posicaoService = inject(PosicaoService);
+  protected readonly trajeto = rxResource({
+    params: () => this.id(),
+    stream: ({ params }) => this.posicaoService.trajeto(params),
+  });
+
+  protected readonly resumoTrajeto = computed(() =>
+    this.trajeto.hasValue() ? resumoDoTrajeto(this.trajeto.value().posicoes) : null,
   );
 
   // ===== Combustível (Etapa 4): consumo, custo e abastecimentos, calculados pela API =====

@@ -1,0 +1,100 @@
+@use 'leaflet';
+
+// Mapa à esquerda, lista à direita; no celular, um embaixo do outro
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+
+  @media (max-width: 959.98px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.mapa {
+  height: min(70vh, 640px);
+  min-height: 320px;
+  border: 1px solid var(--agro-borda);
+  border-radius: 16px;
+  overflow: hidden;
+  z-index: 0; // os controles do Leaflet (z-index 1000) não passam por cima do menu nem dos diálogos
+
+  @media (max-width: 959.98px) {
+    height: 55vh;
+  }
+}
+
+.lista {
+  h3 {
+    margin: 0 0 8px;
+  }
+
+  ul {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    border: 1px solid var(--agro-borda);
+    border-radius: 12px;
+    background: var(--mat-sys-surface-container-lowest);
+  }
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.item__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.item__sinal,
+.nota {
+  font-size: 0.9em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.item__link {
+  display: inline-block;
+  padding: 0 14px 10px;
+  font-size: 0.9em;
+}
+
+// ===== Dentro do Leaflet: elementos criados por ele, fora do template (por isso ::ng-deep) =====
+// Os estilos comuns aos dois mapas (marcadores e tema escuro) ficam em _leaflet.scss
+:host ::ng-deep {
+  @include leaflet.marcadores;
+
+  .balao {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
+:host-context(.tema-escuro) ::ng-deep {
+  @include leaflet.tema-escuro;
+}

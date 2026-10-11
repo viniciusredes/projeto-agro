@@ -32,6 +32,27 @@
   align-self: center;
 }
 
+// ===== Trajeto (Etapa 6): o mapa vem do componente TrajetoMapa =====
+.trajeto {
+  margin-bottom: 24px;
+}
+
+.trajeto__titulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  h3 {
+    margin: 0;
+  }
+}
+
+.trajeto__resumo {
+  margin: 4px 0 12px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
 // ===== Saídas e retornos: o mesmo visual da lista de abastecimentos, sem link =====
 .uso {
   margin-bottom: 24px;

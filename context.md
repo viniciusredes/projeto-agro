@@ -73,6 +73,16 @@ O escopo do MVP foi intencionalmente reduzido para focar em três pilares essenc
 - **Consumo fora da média:** a conferência avisa quando o consumo sugerido fica mais de 30% acima ou abaixo da média aprovada da máquina; o gestor decide, o sistema não bloqueia.
 - **Ações da máquina num service (`AcoesMaquina`):** saída, retorno e abertura de O.S. servem à lista e ao detalhe sem código repetido.
 
+**Decisões da Etapa 6 (localização em campo):**
+- **O celular do operador como rastreador:** sem GPS na máquina (a telemetria segue fora do MVP), a posição vem do celular **enquanto a saída está aberta**. O operador vem da saída, e não do que o celular manda.
+- **Só com o app aberto (Fase 1, escolha do usuário):** funciona no Expo Go. O segundo plano (`startLocationUpdatesAsync` + `expo-task-manager`) exige *development build*, notificação fixa no Android e revisão da permissão na Play Store; ficou como pendência (Fase 2). Com o app fechado, o envio pausa, e o indicador avisa.
+- **Frequência (escolha do usuário: "30 s ou 25 m"):** o GPS lê a cada 30 s; em movimento, um ponto a cada 30 s vai para a fila; parada (a menos de 25 m do último), um a cada 5 min, para o mapa saber que o sinal continua. `timeInterval` + `distanceInterval` juntos, no Android, só entregam um ponto quando as duas condições valem, e uma máquina trabalhando parada sumiria.
+- **Envio em lote, tudo ou nada:** até 50 pontos por envio; um ponto inválido recusa o lote. A fila fica no celular (até 1.000 pontos): sem rede, espera; 409 (a saída acabou), descarta.
+- **Privacidade (LGPD):** a posição é dado pessoal. Finalidade: mostrar ao gestor onde está a máquina durante o trabalho. Coleta só durante a saída aberta, com o operador avisado **antes** do pedido de permissão ("durante o uso", nunca "o tempo todo" nesta fase), indicador sempre visível e parada no retorno. Retenção: em memória, como o resto (até 2.000 pontos por saída); com banco de dados, definir um prazo de guarda.
+- **Mapa na web com Leaflet + OpenStreetMap:** sem chave de API nem custo; o Leaflet só é baixado nas telas com mapa, e o `leaflet.css` sai à parte (`"inject": false`). Exige internet para os blocos do mapa.
+- **Polling em vez de tempo real "de verdade":** a tela busca a cada 15 s. Com o celular enviando a cada 30 s, o mapa fica no máximo uns 45 s atrás do campo, sem WebSocket nem Server-Sent Events (evolução, se o atraso incomodar).
+- **"Sem sinal" depois de 10 min:** o marcador fica na última posição, cinza, em vez de sumir: o gestor sabe onde a máquina foi vista pela última vez.
+
 - **Dinâmica do treinamento:** nas Fases 0 a 2, o usuário escreveu o código com orientação; da Fase 3 em diante, o Claude implementou com edições visíveis para os alunos, e o usuário fez os commits. Um commit por passo, com o acompanhamento no `CHECKLIST.md`.
 
 ## 4. O Que Já Foi Implementado
@@ -156,9 +166,17 @@ Atravessa as três partes (passos A1 a A9, detalhes no CHECKLIST e nos READMEs):
 
 Passos J1 a J6 (branch `feat/jornada`, detalhes no CHECKLIST): textos do Painel e do detalhe da máquina sem sobreposição, sem zeros e com plural certo; glossário de status igual ao do app; ações e "Saídas e retornos" no detalhe da máquina; horímetro do abastecimento explicado na web e no app; consumo comparado à média na conferência; horímetro travado com mínimo e máximo (Parte H1 da API, `GET /maquinas/:id/horimetro`) e botões rápidos na web e no app. 49 testes na web, 171 cenários na API.
 
+### Atualização: Etapa 6 (localização em campo) concluída
+
+Passos L1 a L5 (branch `feat/localizacao`, detalhes no CHECKLIST):
+
+- **API (Parte L1):** `POST /maquinas/:id/posicoes` em lote (só com a saída aberta; validação de latitude, longitude, precisão e data; tudo ou nada), `GET /posicoes/atuais` (a última posição de cada máquina em campo) e `GET /maquinas/:id/posicoes` (o trajeto de uma saída). `testes.sh` com 185 cenários.
+- **App (L2):** `expo-location` com a permissão "durante o uso"; contexto `ProvedorRastreamento` que liga o GPS só com saída aberta, permissão e o app aberto; fila em funções puras (`fila-posicoes.ts`) com envio em lote a cada 30 s; aviso antes do pedido de permissão e o indicador "Localização ativa" na página inicial e na ficha.
+- **Web (L3 e L4):** tela `/mapa` com Leaflet e OpenStreetMap, atualizada a cada 15 s, com a situação de cada máquina (Ao vivo, Sem sinal, Sem posição); trajeto da saída no detalhe da máquina; item Mapa no menu e o cartão "Em campo" do Painel levando ao mapa. 57 testes.
+
 ## 5. O Que Ficou Pendente / Próximos Passos Combinados
 
-> **Status:** a **Etapa 1 (back-end em memória)**, a **Etapa 2 (front-end Angular)**, a **Etapa 3 (app móvel do operador)**, a **Etapa 4 (gestão de abastecimento)** e a **Etapa 5 (jornada do usuário)** estão concluídas. O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
+> **Status:** a **Etapa 1 (back-end em memória)**, a **Etapa 2 (front-end Angular)**, a **Etapa 3 (app móvel do operador)**, a **Etapa 4 (gestão de abastecimento)**, a **Etapa 5 (jornada do usuário)** e a **Etapa 6 (localização em campo)** estão concluídas. O acompanhamento passo a passo está no [CHECKLIST.md](CHECKLIST.md).
 
 - **Redesign do front-end (concluído e mergeado na `main` pelo PR #3):** Passo 16 (16.2 confirmação antes de fechar a O.S.; 16.3 responsividade com navegação inferior no celular) e R5.1 a R5.4 (identidade com menu verde-escuro e contador de O.S., Painel com pendências e ações diretas, Máquinas com filtros e cartões, fechamento de O.S. com etapas e resumo), a partir do canvas de design aprovado.
 - **Redesign 2 (mergeado na `main` pelo PR #4):** R6.1 paleta escura revista (menu verde-floresta, camadas mais distintas, verde-menta mais calmo), R6.2 Estoque no padrão do redesign (barra de nível do saldo, filtro para repor) e R6.3 lista de O.S. com cada O.S. inteira como link (abertas em cartões, fechadas em lista).
@@ -166,14 +184,15 @@ Passos J1 a J6 (branch `feat/jornada`, detalhes no CHECKLIST): textos do Painel 
 - **Material do back-end:** atualizado. O `testes.http` cobre o cadastro de máquinas, e o exercício 4 virou "Editar máquina" (`PATCH /maquinas/:id`), com gabarito testado.
 - **Tamanho do pacote inicial:** 603,5 kB depois do Passo 19 (era 685,6 kB), com aviso configurado em 650 kB no `angular.json`.
 - **Services com `@Service()`:** os quatro services usam o decorador do Angular 22 (Passo 20).
-- **App móvel:** ver o ícone e o splash exige um APK (EAS Build ou Android Studio), ainda não gerado; o Expo Go mostra os dele. Testes unitários do app (`jest-expo`) para as funções puras ficaram como próximo passo.
+- **App móvel:** ver o ícone e o splash exige um APK (EAS Build ou Android Studio), ainda não gerado; o Expo Go mostra os dele. Testes unitários do app (`jest-expo`) para as funções puras ficaram como próximo passo (hoje as funções novas são conferidas por script).
+- **Localização em segundo plano (Fase 2 da Etapa 6):** com o mesmo APK (development build), `expo-task-manager` + `startLocationUpdatesAsync`, a notificação fixa no Android e a permissão "o tempo todo", pedida depois da "durante o uso". A API e a web não mudam.
 - **Evolução Futura:** Substituir as variáveis em memória por um banco de dados relacional (provavelmente PostgreSQL utilizando Prisma ORM), autenticação com perfis e publicação (build do front servido na mesma origem da API).
 
 ## 6. Ideias Descartadas e Por Quê
 
 - **Clean Architecture / Domain-Driven Design (DDD):** A proposta inicial sugeria uma arquitetura em camadas altamente desacoplada (Casos de Uso, Controladores, Infraestrutura). Foi descartada temporariamente a pedido do usuário para priorizar uma abordagem mais simples e pragmática, garantindo entregas rápidas focadas no fluxo da operação e não na complexidade arquitetural.
-- **Integração com Telemetria e GPS (IoT):** A ideia de automatizar a leitura do horímetro via rede CAN bus da máquina foi descartada para o MVP. O apontamento de horas será estritamente manual pelo operador ou encarregado para simplificar a engenharia de dados inicial.
-- **Operação Offline-First Complexa:** A sincronização bidirecional robusta para áreas sem cobertura de internet foi deixada para o backlog futuro. O MVP assume que as transações sistêmicas ocorrerão onde há conectividade (sede da fazenda, pátio ou oficina).
+- **Integração com Telemetria e GPS (IoT):** A ideia de automatizar a leitura do horímetro via rede CAN bus da máquina foi descartada para o MVP. O apontamento de horas será estritamente manual pelo operador ou encarregado para simplificar a engenharia de dados inicial. *(Na Etapa 6, a pergunta "onde está a máquina" passou a ser respondida pelo GPS do **celular do operador**, durante a saída; a telemetria da própria máquina continua fora.)*
+- **Operação Offline-First Complexa:** A sincronização bidirecional robusta para áreas sem cobertura de internet foi deixada para o backlog futuro. O MVP assume que as transações sistêmicas ocorrerão onde há conectividade (sede da fazenda, pátio ou oficina). *(Exceção na Etapa 6: as posições ficam numa fila leve no celular e seguem quando o sinal volta; os outros registros continuam exigindo conexão.)*
 - **Módulo Financeiro e Multi-filiais:** Controles avançados de contas a pagar/receber e transferências de estoque entre múltiplas fazendas foram cortados para manter o foco exclusivo no controle do maquinário individual e num almoxarifado central único.
 
 ## 7. Dúvidas em Aberto (resolvidas)

@@ -11,6 +11,7 @@ import { abrirOS } from '@/servicos/ordens-servico';
 import { useTema } from '@/tema';
 import { formatarHoras, validarHorimetroNaFaixa } from '@/validacao';
 import { AtalhosHorimetro } from '@/componentes/atalhos-horimetro';
+import { useRastreamento } from '@/contextos/rastreamento';
 
 // Relatar avaria: abre uma O.S. CORRETIVA para a máquina (/maquina/1/avaria).
 // Rota ANINHADA: o arquivo fica em maquina/[id]/, então o mesmo [id] da ficha vale aqui.
@@ -20,6 +21,7 @@ export default function RelatarAvaria() {
   const idNumero = Number(id);
   const buscar = useCallback(() => buscarFicha(idNumero), [idNumero]);
   const { dados, erro, carregando } = useRequisicao(buscar);
+  const rastreamento = useRastreamento();
 
   const [descricao, setDescricao] = useState('');
   const [horimetro, setHorimetro] = useState('');
@@ -77,6 +79,7 @@ export default function RelatarAvaria() {
         horimetro: valorHorimetro,
       });
       const saida = resposta.movimentacaoEncerrada;
+      rastreamento.atualizar(); // a O.S. encerrou a saída: o GPS para (Etapa 6)
       // M7: aproveita que o operador está ao lado da máquina e já oferece a foto da avaria
       setAviso({
         tom: 'sucesso',

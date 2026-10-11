@@ -81,9 +81,10 @@ agro-mobile/
     ├── config.ts       # API_URL lida do .env.local
     ├── tema.ts         # cores da marca no claro e no escuro (as mesmas da web)
     ├── validacao.ts    # regras de formulário em funções puras (ex.: horímetro)
+    ├── fila-posicoes.ts  # fila das posições do GPS em funções puras (Etapa 6)
     ├── qr.ts           # formato do QR da etiqueta (contrato com a web)
-    ├── componentes/    # peças reutilizáveis (etiqueta de status, câmera, galeria, aviso, escolha segmentada, seletor de tema, atalhos do horímetro)
-    ├── contextos/      # valores compartilhados entre telas (o operador, a preferência de tema)
+    ├── componentes/    # peças reutilizáveis (etiqueta de status, câmera, galeria, aviso, escolha segmentada, seletor de tema, atalhos do horímetro, indicador da localização)
+    ├── contextos/      # valores compartilhados entre telas (o operador, a preferência de tema, o rastreamento)
     ├── hooks/          # lógica reutilizável com estado (ex.: useRequisicao)
     ├── models/         # tipos copiados do front web (o contrato da API)
     └── servicos/       # uma função por rota da API
@@ -902,6 +903,65 @@ Usada no retorno, na avaria e no registro de abastecimento. A correção de um d
 2. Digite um valor abaixo desse mínimo: erro em vermelho, com o número do abastecimento.
 3. Digite um zero a mais: "Passa do máximo possível".
 4. Toque em **+8 h**: o campo é preenchido e aparecem as horas trabalhadas nesta saída.
+
+---
+
+## Etapa 6 — Localização em campo
+
+O celular do operador faz o papel de rastreador **enquanto a saída está aberta e o app está aberto**: o app manda a posição para a API ([Parte L1 do back-end](../agro-backend/README.md)), e a web mostra num mapa. Detalhes no [CHECKLIST](../CHECKLIST.md).
+
+### L2 — Rastreamento com o app aberto
+
+🎯 O gestor quer saber **onde a máquina está agora**. O operador precisa saber **quando** a posição dele está sendo enviada (é um dado pessoal) e poder recusar.
+
+🧩 **1. A biblioteca** (`npx expo install expo-location`, que escolhe a versão do SDK 57). No `app.json`, o plugin traz só a frase da permissão **"durante o uso"**; o segundo plano fica desligado de propósito:
+
+```json
+["expo-location", {
+  "locationWhenInUsePermission": "O Agro Frota usa a sua localização só durante uma saída, para o gestor ver a máquina no mapa.",
+  "isAndroidBackgroundLocationEnabled": false
+}]
+```
+
+> **Por que só com o app aberto?** A localização em segundo plano (`startLocationUpdatesAsync`) **não funciona no Expo Go**: exige um *development build* (APK próprio) e, na Play Store, revisão da permissão. Ficou nas pendências.
+
+**2. Um contexto para o app inteiro** (`src/contextos/rastreamento.tsx`, em volta das telas no `_layout.tsx`, por dentro do `ProvedorOperador`):
+- descobre as máquinas com o operador (`buscarSaidasDoOperador`, a mesma regra do "Com você agora", extraída do `painel.ts`);
+- com máquina, permissão e o app aberto, liga o GPS: `Location.watchPositionAsync({ accuracy: Balanced, timeInterval: 30000, distanceInterval: 0 }, ...)`;
+- o `AppState` diz se o app está na tela; em segundo plano, o GPS desliga e o envio pausa;
+- envia a fila a cada 30 s.
+
+**3. A fila em funções puras** (`src/fila-posicoes.ts`):
+
+| Função | O que faz |
+|---|---|
+| `deveGuardar(ultimo, novo)` | Em movimento, um ponto a cada 30 s; parada (a menos de 25 m do último), um a cada **5 min**, só para o mapa saber que o sinal continua |
+| `distanciaEmMetros(a, b)` | A fórmula de haversine (a Terra como uma esfera) |
+| `comNovoPonto(fila, maquinaIds, ponto)` | Acrescenta sem duplicar (ao religar, o GPS reentrega a última leitura) e guarda no máximo 1.000 pontos |
+| `proximoLote(fila)` | Os 50 pontos mais antigos de uma máquina (o limite da API) |
+
+> **Por que não `distanceInterval: 25`?** No Android, `timeInterval` e `distanceInterval` juntos só entregam um ponto quando **as duas** condições valem: uma máquina trabalhando parada sumiria do mapa. Por isso o GPS lê a cada 30 s, e o `deveGuardar` decide.
+
+**4. Sem sinal no campo:** a fila fica no `AsyncStorage`. Falhou por rede (`status 0`) ou a API está fora (5xx): os pontos esperam o próximo ciclo. A API respondeu **409** (a saída acabou): os pontos daquela máquina são descartados. **400**: aqueles pontos são recusados de vez.
+
+**5. Consentimento e transparência:**
+- Na saída, se a permissão ainda não foi dada, o aviso **explica antes** do diálogo do sistema e oferece **Ativar localização** ou **Agora não**.
+- O componente `IndicadorLocalizacao` (página inicial e ficha) mostra o estado: ativa ("último envio há 20 s"), sem permissão (botão **Ativar**), negada (botão **Abrir configurações**), GPS desligado ou sem conexão (quantas posições estão guardadas). Na ficha, ele só aparece se aquela máquina estiver com o operador deste aparelho.
+- O retorno e a avaria chamam `atualizar()`: a saída acabou, o GPS desliga na hora.
+
+📚 **Conceitos**
+- **Contexto com efeitos:** o provedor junta estado (máquinas, permissão), `useRef` (a fila, que muda a cada leitura sem precisar redesenhar a tela) e efeitos que ligam e desligam o GPS conforme as condições.
+- **Limpeza do efeito:** a assinatura do GPS (`remove()`) e o relógio (`clearInterval`) saem no `return` do `useEffect`. Sem isso, cada nova renderização ligaria mais um GPS.
+- **Pureza no render:** o lint do React Compiler recusou `useState(Date.now())`; `useState(() => Date.now())` roda só na primeira vez.
+- **Dado pessoal:** a posição só é coletada durante o trabalho, com o operador avisado e um indicador sempre visível.
+
+🧪 **Testes** (no celular, pelo Expo Go)
+1. Registre uma saída: o aviso pede para ativar a localização; toque em **Ativar localização** e permita "durante o uso".
+2. Na página inicial e na ficha: "Localização ativa · TR-01". Depois de uns 30 s, "Último envio há … s".
+3. Ande com o celular: no `curl http://<IP>:3000/maquinas/1/posicoes`, os pontos aparecem com o seu nome.
+4. Desligue o Wi-Fi e os dados: o indicador mostra "Sem conexão: N posições guardadas". Religue: elas vão no envio seguinte.
+5. Registre o retorno: o indicador some, e a API não recebe mais posições.
+6. Negue a permissão (em outra saída): o indicador mostra **Abrir configurações**.
 
 ---
 
